@@ -90,7 +90,7 @@ export function getFooterTokenUsage(): FooterTokenUsage | null {
 
 export function getFooterStatusLine(): string | null {
 	const statusLines = footerState().latestStatusLines;
-	return statusLines.length > 0 ? statusLines.join("  ") : null;
+	return statusLines.length > 0 ? statusLines.join(" · ") : null;
 }
 
 export function installFooterStatsPatch() {

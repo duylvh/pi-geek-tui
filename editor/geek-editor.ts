@@ -29,6 +29,8 @@ type SlashItem = { value?: string; label?: string; description?: string };
 const BAR_CELLS = 16;
 const TICK_MS = 70; // smooth shimmer sweep; the ticker only runs while the agent is live
 const PROMPT = "› ";
+const STATUS_GAP = 2;
+const MIN_STATUS_CELLS = 8; // below this only an ellipsis fits meaningfully
 
 function clamp(value: number, min: number, max: number): number {
 	return Math.max(min, Math.min(max, value));
@@ -214,10 +216,17 @@ export class GeekEditor extends CustomEditor {
 		return labelRow("ctx", geekSplitRow(`${bar(percent)}  ${figures}`, model, Math.max(1, width - GEEK_PREFIX_WIDTH)), width);
 	}
 
+	/** Extension statuses, right-aligned in the space the tok figures leave (min gap 2); cut from the right with `…`. */
+	private statusText(room: number): string {
+		const status = oneLine(stripAnsi(this.providers.getFooterStatus() ?? ""));
+		if (!status || room < 1) return "";
+		if (room < MIN_STATUS_CELLS) return geekFg("dim", "…");
+		return geekFg("dim", safeTruncateToWidth(status, room, "…"));
+	}
+
 	private tokenRow(width: number): string {
 		const usage = this.providers.getTokenUsage();
 		let left = "";
-		let cost = "";
 		if (usage) {
 			const unit = (mark: string, value: string) => `${geekFg("dim", mark)}${geekFg("num", value)}`;
 			left = [
@@ -225,9 +234,10 @@ export class GeekEditor extends CustomEditor {
 				`${unit("R", compact(usage.cacheRead))} ${unit("W", compact(usage.cacheWrite))}`,
 				`${geekFg("dim", "CH ")}${geekFg("num", usage.cacheHitPercent.toFixed(1))}${geekFg("dim", "%")}`,
 			].join("  ");
-			cost = geekFg("num", `$${usage.cost.toFixed(3)}`);
 		}
-		return labelRow("tok", geekSplitRow(left, cost, Math.max(1, width - GEEK_PREFIX_WIDTH)), width);
+		const bodyWidth = Math.max(1, width - GEEK_PREFIX_WIDTH);
+		const room = bodyWidth - safeVisibleWidth(left) - STATUS_GAP;
+		return labelRow("tok", geekSplitRow(left, this.statusText(room), bodyWidth), width);
 	}
 
 	render(width: number): string[] {
@@ -239,7 +249,6 @@ export class GeekEditor extends CustomEditor {
 
 		const autocomplete = this.slashRows(width)
 			?? parentAutocomplete.map((line) => geekRow("blank", line, width));
-		const status = oneLine(stripAnsi(this.providers.getFooterStatus() ?? ""));
 
 		const lines = [
 			this.headRow(width),
@@ -249,7 +258,6 @@ export class GeekEditor extends CustomEditor {
 			geekFg("rule", "─".repeat(Math.max(1, width))),
 			this.contextRow(width),
 			this.tokenRow(width),
-			...(status ? [labelRow("", geekFg("dim", status), width)] : []),
 		];
 		this.syncTicker();
 		return lines;

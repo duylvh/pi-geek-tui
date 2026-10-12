@@ -94,10 +94,13 @@ Input row: blank rail, `› ` then editor text; cursor = ink block.
 ```
 ──────────────────────────────────────────────────────────────── (rule color, full width)
   ctx █████░░░░░░░░░░░  31.4%/200k               (anthropic) claude-opus-5-5 · high
-  tok ↑41k ↓6.9k  R212k W18k  CH 82.4%                                      $0.412
+  tok ↑41k ↓6.9k  R212k W18k  CH 82.4%        🐴 ponytail: ⚡ FULL · 5h 62% 7d 31%
 ```
 Label column = 5ch right-aligned dim (`ctx`, `tok`). Bar 16 cells: fill kw, empty faint. Numbers num, units dim.
-Right: faint `(provider) `, ink model, dim ` · `, kw thinking level. Cost num.
+Right of `ctx`: faint `(provider) `, ink model, dim ` · `, kw thinking level.
+Right of `tok`: extension statuses (dim, joined with ` · `), right-aligned under the model info. The tok
+figures always keep their full width; statuses get the rest (min gap 2), cut from the right with `…`
+(fewer than 8 cells left → just `…`). Never a third row, never wrapped. No cost is shown.
 
 ## English strings (mockup → shipped)
 | mockup | shipped |
