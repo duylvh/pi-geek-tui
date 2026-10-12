@@ -23,6 +23,12 @@ import { pathToFileURL } from "node:url";
 const repoRoot = process.cwd();
 const buildDir = join(repoRoot, ".pi", "tui-proxy-recursion-build");
 
+// The patched modules call loadConfig(), which scaffolds a config file: keep it out of the real home.
+const isolatedHome = join(repoRoot, ".pi", "tui-proxy-recursion-home");
+mkdirSync(isolatedHome, { recursive: true });
+process.env.HOME = isolatedHome;
+process.env.USERPROFILE = isolatedHome;
+
 function fsReadDir(dir) {
 	const result = [];
 	for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -270,13 +276,13 @@ console.log("Fullscreen layout padding path (Pi 0.84):");
 	const paddedNode = root[layoutNode]();
 	assert(paddedNode.type === "hstack", `fullscreen padding should wrap the root in an hstack, got ${paddedNode.type}`);
 	assert(paddedNode.entries.length === 3, `fullscreen padding should create left/content/right entries, got ${paddedNode.entries.length}`);
-	assert(paddedNode.entries[0].basis === 1 && paddedNode.entries[2].basis === 1, "fullscreen padding should keep one-column gutters");
+	assert(paddedNode.entries[0].basis === 4 && paddedNode.entries[2].basis === 4, "fullscreen padding should keep the 4-cell spec gutters");
 	assert(paddedNode.entries[1].component[layoutNode]() === originalNode, "fullscreen padding should preserve the original root layout node");
 
 	const installedLayoutNode = root[layoutNode];
 	installTuiPadding(tui);
 	assert(root[layoutNode] === installedLayoutNode, "fullscreen padding reinstall should not stack wrappers");
-	ok("fullscreen layout keeps one-column gutters without double wrapping");
+	ok("fullscreen layout keeps 4-cell gutters without double wrapping");
 }
 
 // ---------------------------------------------------------------------------
