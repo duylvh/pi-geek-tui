@@ -102,7 +102,8 @@ function pickLines(text: string, cap: number, tail: boolean): { lines: string[];
 }
 
 /**
- * Plain tool output as the expanded body: capped at `maxExpandedLines`, errors in the del color.
+ * Plain tool output as the expanded body: dim, capped at `maxExpandedLines`, errors in the del color.
+ * Every expanded body (bash, generic tools, thoughts, read) is dim so output never competes with answers.
  * `tail` keeps the end of the output (bash); otherwise the start.
  */
 export function renderOutputBody(result: any, options: { expanded?: boolean }, extra: { tail?: boolean; transform?: (text: string) => string } = {}): Component {
@@ -111,7 +112,7 @@ export function renderOutputBody(result: any, options: { expanded?: boolean }, e
 	const text = replaceTabs((extra.transform ?? stripTrailingNotice)(raw)).trimEnd();
 	return renderBody(Boolean(options?.expanded) && text.length > 0, (width, maxLines) => {
 		const { lines, omitted } = pickLines(text, maxLines, Boolean(extra.tail));
-		const color = isError ? "delMark" : loadConfig().dimToolOutput ? "dim" : "ink";
+		const color = isError ? "delMark" : "dim";
 		const rows = lines.map((line) => geekFg(color, safeTruncateToWidth(clampRenderLine(line), width, "…")));
 		if (omitted <= 0) return rows;
 		const note = geekFg("faint", extra.tail ? `… ${omitted} earlier lines` : `… ${omitted} more lines`);

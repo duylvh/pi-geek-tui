@@ -376,6 +376,36 @@ async function runBuiltinToolRenderersSmoke() {
 	assert(readBody.length === 50 && expandedTree.some((row) => row.includes("… 70 more lines")), `expanded read body must honor maxExpandedLines (50): got ${readBody.length}`);
 	assert(!expandedTree[0].includes("^o") && expandedTree.some((row) => row.includes("all good")), "expanded head must not advertise ^o and bash output shows under its row");
 
+	// Expanded output bodies are dim (never the answer ink); errors keep the del color.
+	const fgOfText = (row, needle) => {
+		const at = strip(row).indexOf(needle);
+		let fg = "none", visible = 0, i = 0;
+		while (i < row.length) {
+			const m = row.slice(i).match(/^\x1b\[([0-9;]*)m/);
+			if (m) {
+				if (m[1].startsWith("38;2;")) fg = m[1].slice(5);
+				else if (m[1] === "39") fg = "none";
+				i += m[0].length;
+				continue;
+			}
+			if (visible === at) return fg;
+			visible++; i++;
+		}
+		return "missing";
+	};
+	const DIM_FG = "168;163;133", DEL_FG = "221;86;112";
+	const bodies = groups.renderChatChildren([
+		tool("bash", { command: "ls" }, { expanded: true, result: { content: [{ type: "text", text: "plain stdout line" }] } }),
+		tool("read", { path: "a.ts" }, { expanded: true, result: { content: [{ type: "text", text: "1| const answer = 42;" }], details: {} } }),
+		tool("memory_read", { id: "x" }, { expanded: true, result: { content: [{ type: "text", text: "generic tool result" }] } }),
+		tool("bash", { command: "boom" }, { expanded: true, result: { content: [{ type: "text", text: "stderr: it broke" }], isError: true } }),
+	], 100);
+	for (const needle of ["plain stdout line", "const answer = 42;", "generic tool result"]) {
+		const row = bodies.find((line) => strip(line).includes(needle));
+		assert(row && fgOfText(row, needle) === DIM_FG && fgOfText(row, needle.slice(-3)) === DIM_FG, `expanded body "${needle}" must be dim: ${JSON.stringify(row)}`);
+	}
+	assert(fgOfText(bodies.find((line) => strip(line).includes("stderr: it broke")), "stderr: it broke") === DEL_FG, "error output keeps the del color");
+
 	// Rail color: ┃ accent while running, kw when finished, del marker when a call failed; the closing blank row stays │.
 	const palette = await import(pathToFileURL(join(buildDir, "theme", "geek-palette.js")).href);
 	palette.setGeekAccent("#d8d4b4"); // distinct from the del marker so accent vs error is observable
