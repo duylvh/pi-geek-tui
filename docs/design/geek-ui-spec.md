@@ -93,6 +93,7 @@ Running groups use the same rows: `Running(2 tool calls · bash)` head with the 
       • bean@kpi-api ~/code/kpi-api (fix/refresh-ttl)                 thinking · 2.3s
         › run tests again then commit█
 ```
+The footer rule (§9) follows the last input row directly; nothing is left blank between them.
 Head row = same as message head, right side shows live state: the state word
 (`thinking` / `working` / `running` / `answering`) + dim ` · ` + num secs + dim `s`. Idle: right side empty.
 The word is hancore-style matrix text (no spark glyphs, no sweeping band): while live, every 70ms tick ~22-34% of
@@ -109,7 +110,7 @@ Anything else Pi puts in the editor slot (settings/model/session/tree selectors,
 login dialogs) uses the same grammar as the slash menu: 8 blank prefix cells, a panel background body, the
 stock border strokes replaced by blank panel rows, `→` selection marker shown as `›`, never wider than the row.
 
-### 9. Footer (rule + one statusline row)
+### 9. Footer (rule + one statusline row, directly under the input — no blank row between)
 ```
 ──────────────────────────────────────────────────────────────── (rule color, full width)
   HIGH  zai · glm-5.3                         41k/1.0M 4% · CH 82%  ○ 🐴 ponytail: ⚡ FULL
@@ -121,9 +122,9 @@ without thinking has a blank prefix.
 Left: provider faint + ` · ` + model id dim (capped at 40 cells, `…`). Right (dim, right-aligned to the chat edge):
 `<tokens>/<window> <ctx%>` + ` · CH <n>%`, two spaces, then extension statuses (joined with ` · `). Before the first
 usage the metrics read `—`.
-Degrade ladder as width shrinks: provider first, then CH%, then tokens, then ctx%; at each width the rung that
-leaves room for the most status text wins. Statuses are cut with `…` (fewer than 6 cells → hidden). Never wraps, never
-a second row; no ctx bar, no ↑↓ R W row, no cost.
+Fixed sacrifice order as width shrinks: provider → CH% → tokens → extension statuses (cut with `…`, hidden under 6
+cells) → model id (truncated last). ctx% is never dropped while the badge + model fit. Never wraps, never a second
+row; no ctx bar, no ↑↓ R W row, no cost.
 
 ## English strings (mockup → shipped)
 | mockup | shipped |

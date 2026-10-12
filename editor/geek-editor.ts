@@ -155,7 +155,7 @@ export class GeekEditor extends CustomEditor {
 	}
 
 	private footerRows(width: number): string[] {
-		return ["", geekFg("rule", "─".repeat(Math.max(1, width))), this.statuslineRow(width)];
+		return [geekFg("rule", "─".repeat(Math.max(1, width))), this.statuslineRow(width)];
 	}
 
 	private renderInputLines(text: string, width: number): string[] {

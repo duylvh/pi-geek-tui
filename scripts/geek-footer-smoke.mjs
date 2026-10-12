@@ -37,8 +37,15 @@ const footerOf = (editor, width) => {
 };
 
 for (const width of [120, 80, 50]) {
-	const { all, footer } = footerOf(editorFor({ status: STATUS }), width);
+	const { all, footer, rows } = footerOf(editorFor({ status: STATUS }), width);
 	expect(`@${width}: exactly one footer row`, footer.length === 1, JSON.stringify(footer));
+	{
+		const rule = rows.findIndex((row) => /^─+$/.test(row));
+		expect(`@${width}: the rule sits directly under the input (no blank row)`, rule > 0 && rows[rule - 1].trim() !== "", JSON.stringify(rows.slice(-3)));
+		const multi = editorFor({ status: STATUS, text: "line one\nline two" });
+		const m = footerOf(multi, width).rows, mr = m.findIndex((row) => /^─+$/.test(row));
+		expect(`@${width}: multi-line input ends right above the rule`, mr > 0 && m[mr - 1].includes("line two"), JSON.stringify(m.slice(-4)));
+	}
 	expect(`@${width}: every row exactly ${width} cells`, all.every((row) => visibleWidth(row) === width || row === ""), all.map(visibleWidth).join(","));
 	expect(`@${width}: no ctx/tok labels, bar, token arrows or cost`, !/\b(ctx|tok)\b|[█░↑↓$]/.test(footer.join("\n")), JSON.stringify(footer));
 	expect(`@${width}: HIGH badge in the prefix, model at body col 8`, footer[0].startsWith("  HIGH  ") && /^\S/.test(footer[0].slice(8)), JSON.stringify(footer[0]));
