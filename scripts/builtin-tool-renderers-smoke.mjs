@@ -321,6 +321,17 @@ async function runBuiltinToolRenderersSmoke() {
 	assert(headed.length === 3 && headed[0].includes("•") && headed[0].includes("@") && headed[1].includes("› read a.ts"), `turn head row must sit above the folded group: ${JSON.stringify(headed)}`);
 	assert(groups.renderChatChildren([assistant(), tool("read", { path: "a.ts" })], 100).length === 2, "an assistant member that did not open the turn adds no head row");
 
+	// Live bug: long first calls used to fill the row, so later calls vanished from the summary while
+	// the count still said N. Every call is either named or counted by "+N" at any width.
+	const cdCalls = ["git log --oneline -5", "pnpm test", "rg -n REFRESH_TTL src", "ls widgets", "cat README.md"].map((command) => tool("bash", { command: `cd /Users/bean/Documents/Develope/pi-agent-ext/pi-geek-tui && ${command}` }));
+	for (const width of [120, 80, 50]) {
+		const row = groups.renderChatChildren(cdCalls, width).map(strip)[0];
+		const named = ["git log", "pnpm test", "rg -n", "ls widgets", "cat README"].filter((name) => row.includes(name)).length;
+		const hidden = Number((row.match(/· \+(\d+)/) ?? [0, 0])[1]);
+		assert(named >= 1 && named + hidden === 5 && !row.includes("/Users/bean"), `@${width}: every call must be named or counted (named ${named}, +${hidden}): ${row}`);
+		if (width >= 80) assert(row.includes("// 5 call"), `@${width}: count lost: ${row}`);
+	}
+
 	const expandedChildren = treeChildren.map((c) => (c.toolName ? { ...c, expanded: true, isPartial: false } : c));
 	const expandedTree = groups.renderChatChildren(expandedChildren, 100).map(strip);
 	const readBody = expandedTree.filter((row) => /line \d+/.test(row));

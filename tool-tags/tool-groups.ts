@@ -1,6 +1,7 @@
 import { frameChatChild } from "../messages/chat-frame.js";
 import { turnHeadRows } from "../messages/message-meta.js";
 import { GEEK_PREFIX_WIDTH, geekRow, geekSplitRow } from "../presentation/geek-rows.js";
+import { safeVisibleWidth } from "../render-budget.js";
 import { geekFg } from "../theme/geek-palette.js";
 import { renderToolTree, type TreeEntry } from "./tool-tree.js";
 import {
@@ -71,15 +72,17 @@ export function renderToolGroup(members: any[], width: number): string[] {
 		if (ms !== undefined) elapsedMs = (elapsedMs ?? 0) + ms;
 	}
 
-	const calls = summarizeCalls(tools.map((tool) => describeCall(tool.toolName, tool.args)));
-	const left = `${geekFg(running ? "accent" : "ink", "› ")}${calls}`;
 	const meta = metaParts(tools.length, thoughts, failed, running, elapsedMs);
 	const tree = running || expanded;
 	const right = tree ? meta : `${geekFg("faint", "^o  ")}${meta}`;
+	const bodyWidth = Math.max(1, width - GEEK_PREFIX_WIDTH);
+	// Leave the left side everything the right meta does not use, so no call is cut off silently.
+	const room = Math.max(1, bodyWidth - safeVisibleWidth(right) - 1 - 2);
+	const left = `${geekFg(running ? "accent" : "ink", "› ")}${summarizeCalls(tools.map((tool) => describeCall(tool.toolName, tool.args)), room)}`;
 	const rail = running ? "active" : "line";
 	const rows = [
 		...members.filter((member) => !isToolComponent(member)).flatMap((member) => turnHeadRows(member, width)),
-		geekRow(rail, geekSplitRow(left, right, Math.max(1, width - GEEK_PREFIX_WIDTH)), width),
+		geekRow(rail, geekSplitRow(left, right, bodyWidth), width),
 	];
 	if (tree) {
 		const entries: TreeEntry[] = [];
