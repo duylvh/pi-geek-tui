@@ -1,18 +1,22 @@
-// Live-state word of the input head (spec §8): hancore-style "light" text instead of a spark glyph.
-//  - shimmer: every char is `dim`; a ~3-char band of `ink` sweeps left→right (cosine falloff, RGB blend),
-//    ~1.2s per sweep, then a short pause
-//  - decode: when the word changes, unsettled chars show random glyphs and settle left→right (~300ms)
-// Pure: time is passed in, so frames are deterministic. Output width always equals the word's width.
+// Live-state word of the input head (spec §8): hancore-style matrix text.
+//  - churn: while live, every tick ~22-34% of the word's positions show a random glyph (`ink`, bold) instead
+//    of their letter (`dim`); the flipping set is re-rolled each tick so it never freezes. A glyph that just
+//    went back to its letter flashes `ink` for one tick.
+//  - resolve beat: the last RESOLVE_MS of every CYCLE_MS nothing flips, so the word reads cleanly.
+//  - decode: when the word changes, unsettled chars are glyphs and settle left→right (~300ms).
+// Pure: time is passed in and the "random" source is a hash, so frames are deterministic. Every glyph is
+// single-width, so the output width always equals the word's width.
 import { geekColor } from "../theme/geek-palette.js";
 
 export type ColorMode = "truecolor" | "256color";
 
-export const SWEEP_MS = 1200;
-export const PAUSE_MS = 400;
+export const TICK_MS = 70; // glyph re-roll rate; matches the editor's repaint ticker
 export const DECODE_MS = 300;
-const BAND_HALF_WIDTH = 1.5; // cosine falloff radius → ~3 chars wide
-const SCRAMBLE_GLYPHS = "▚▞░▒#%/\\";
-const SCRAMBLE_STEP_MS = 50; // glyphs re-roll at ~20fps, not every tick
+export const CYCLE_MS = 2000;
+export const RESOLVE_MS = 350;
+const MIN_RATE = 0.22;
+const MAX_RATE = 0.34;
+export const GLYPHS = "▚▞░▒#%/\\<>*+=01xz$&";
 
 type Rgb = [number, number, number];
 
@@ -35,51 +39,61 @@ export function detectColorMode(env: Record<string, string | undefined> = proces
 	return hint.includes("truecolor") || hint.includes("24bit") || !env.TERM?.includes("256") ? "truecolor" : "256color";
 }
 
-/** Band weight (0..1) of char `index` at time `t` since the animation start. */
-export function bandWeight(index: number, length: number, t: number): number {
-	const cycle = SWEEP_MS + PAUSE_MS;
-	const phase = t % cycle;
-	if (phase >= SWEEP_MS) return 0; // pause
-	const travel = length + 2 * BAND_HALF_WIDTH;
-	const center = -BAND_HALF_WIDTH + (phase / SWEEP_MS) * travel;
-	const distance = Math.abs(index - center);
-	return distance >= BAND_HALF_WIDTH ? 0 : 0.5 * (1 + Math.cos((Math.PI * distance) / BAND_HALF_WIDTH));
-}
-
 /** Index of the first char still scrambled at `sinceChange` ms after the word changed (length = fully settled). */
 export function settledCount(length: number, sinceChange: number): number {
 	if (sinceChange >= DECODE_MS) return length;
 	return Math.max(0, Math.min(length, Math.floor((sinceChange / DECODE_MS) * length)));
 }
 
-function scrambleGlyph(index: number, sinceChange: number): string {
-	const step = Math.floor(sinceChange / SCRAMBLE_STEP_MS);
-	// small integer hash: stable for a given (char, step), different between chars and steps
-	const hash = Math.imul(index + 1, 2654435761) ^ Math.imul(step + 1, 40503);
-	return SCRAMBLE_GLYPHS[Math.abs(hash) % SCRAMBLE_GLYPHS.length]!;
+/** Deterministic unit-interval hash of (a, b, c). */
+function unit(a: number, b: number, c = 0): number {
+	let h = Math.imul(a + 1, 2654435761) ^ Math.imul(b + 1, 40503) ^ Math.imul(c + 1, 2246822519);
+	h = Math.imul(h ^ (h >>> 15), 2246822507);
+	h = Math.imul(h ^ (h >>> 13), 3266489909);
+	return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-/**
- * Styled word for one frame. `sinceChange` = ms since the word last changed (decode phase when < DECODE_MS),
- * `t` = ms of shimmer time (sweep starts once decoding is done).
- */
+function glyphFor(index: number, tick: number, letter: string): string {
+	const start = Math.floor(unit(index, tick, 7) * GLYPHS.length);
+	const glyph = GLYPHS[start]!;
+	return glyph === letter ? GLYPHS[(start + 1) % GLYPHS.length]! : glyph;
+}
+
+/** Positions (indices of non-space chars) that flip to glyphs during `tick`. */
+function flippedAt(chars: string[], tick: number): Set<number> {
+	const candidates = chars.map((ch, i) => i).filter((i) => chars[i] !== " ");
+	if (candidates.length === 0) return new Set();
+	const rate = MIN_RATE + (MAX_RATE - MIN_RATE) * unit(tick, 99);
+	const count = Math.max(1, Math.min(candidates.length, Math.round(candidates.length * rate)));
+	candidates.sort((a, b) => unit(a, tick, 3) - unit(b, tick, 3));
+	return new Set(candidates.slice(0, count));
+}
+
+function inResolveBeat(matrixTime: number): boolean {
+	return matrixTime % CYCLE_MS >= CYCLE_MS - RESOLVE_MS;
+}
+
+/** Styled word for one frame. `changedAt` = when the word last changed (decode phase for DECODE_MS). */
 export function shimmerWord(word: string, now: number, changedAt: number, mode: ColorMode = detectColorMode()): string {
 	const dim = parseHex(geekColor("dim"));
 	const ink = parseHex(geekColor("ink"));
 	if (!dim || !ink || word === "") return word;
 	const chars = Array.from(word);
 	const sinceChange = Math.max(0, now - changedAt);
-	const settled = settledCount(chars.length, sinceChange);
-	const shimmerTime = Math.max(0, sinceChange - DECODE_MS);
+	const glyph = (index: number, tick: number) => `\x1b[1m${fg(ink, mode)}${glyphFor(index, tick, chars[index]!)}\x1b[22m`;
+	const letter = (index: number, flash: boolean) => `${fg(flash ? ink : dim, mode)}${chars[index]}`;
+
 	let out = "";
-	for (let i = 0; i < chars.length; i++) {
-		if (i >= settled && chars[i] !== " ") {
-			out += `${fg(dim, mode)}${scrambleGlyph(i, sinceChange)}`;
-			continue;
-		}
-		const w = sinceChange < DECODE_MS ? 0 : bandWeight(i, chars.length, shimmerTime);
-		const blended = dim.map((value, channel) => Math.round(value + (ink[channel]! - value) * w)) as Rgb;
-		out += `${fg(blended, mode)}${chars[i]}`;
+	if (sinceChange < DECODE_MS) {
+		const settled = settledCount(chars.length, sinceChange);
+		const tick = Math.floor(sinceChange / TICK_MS);
+		for (let i = 0; i < chars.length; i++) out += i >= settled && chars[i] !== " " ? glyph(i, tick) : letter(i, false);
+	} else {
+		const matrixTime = sinceChange - DECODE_MS;
+		const tick = Math.floor(matrixTime / TICK_MS);
+		const flipped = inResolveBeat(matrixTime) ? new Set<number>() : flippedAt(chars, tick);
+		const before = tick > 0 && !inResolveBeat(matrixTime - TICK_MS) ? flippedAt(chars, tick - 1) : new Set<number>();
+		for (let i = 0; i < chars.length; i++) out += flipped.has(i) ? glyph(i, tick) : letter(i, before.has(i));
 	}
 	return `${out}\x1b[39m`;
 }

@@ -70,7 +70,7 @@ const realNow = Date.now;
 Date.now = () => realNow() + 1000;
 row = strip(head(dirty, 80));
 Date.now = realNow;
-expect("live state and stat both stay at 80", /thinking · \d+\.\ds$/.test(row) && row.includes(`~${stat.files}`), JSON.stringify(row));
+expect("live state and stat both stay at 80", /\S{8} · \d+\.\ds$/.test(row) && row.includes(`~${stat.files}`), JSON.stringify(row));
 setLiveState(undefined);
 
 const cleanRow = strip(head(editorFor(clean), 120));

@@ -96,7 +96,7 @@ setLiveState("thinking");
 editor.render(width); // starts the decode-in of the word; once it settled the plain word shows
 const realNow = Date.now;
 Date.now = () => realNow() + 1000;
-expect("live head row shows state word and seconds", /thinking · \d+\.\ds$/.test(editor.render(width).map(strip)[0]));
+expect("live head row shows an 8-cell state word (decoding) and seconds", /\S{8} · \d+\.\ds$/.test(editor.render(width).map(strip)[0]));
 Date.now = realNow;
 setLiveState(undefined);
 
