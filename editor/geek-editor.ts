@@ -73,6 +73,8 @@ function displayCwd(cwd: string): string {
 
 export class GeekEditor extends CustomEditor {
 	private ticker: ReturnType<typeof setInterval> | undefined;
+	/** Row counts of the last render, top to bottom: slash menu (its item rows), head, input, file autocomplete, footer. */
+	private mouseRows = { menu: 0, items: 0, input: 0, autocomplete: 0 };
 	private readonly renderHost: any;
 	private readonly user = username();
 
@@ -250,15 +252,37 @@ export class GeekEditor extends CustomEditor {
 		const menu = slash ? renderSlashMenu(slash, width, this.slashHints()) : [];
 		const autocomplete = slash ? [] : parentAutocomplete.map((line) => geekRow("blank", line, width));
 
-		const lines = [
-			...menu,
-			this.headRow(width),
-			...this.renderInputLines(this.getText(), width),
-			...autocomplete,
-			...this.footerRows(width),
-		];
+		const input = this.renderInputLines(this.getText(), width);
+		const lines = [...menu, this.headRow(width), ...input, ...autocomplete, ...this.footerRows(width)];
+		this.mouseRows = { menu: menu.length, items: slash && slash.items.length > 0 ? menu.length - 2 : 0, input: input.length, autocomplete: autocomplete.length };
 		this.syncTicker();
 		return lines;
+	}
+
+	/**
+	 * Pi (>= 1.1) hit-tests mouse events against ITS layout: top border, input rows, bottom border, list rows below.
+	 * Ours differs (slash menu above the head row, no borders), so translate before delegating: a slash-menu item
+	 * row goes to the list as its local row (Pi's own select/click/wheel semantics, same window as we draw), input
+	 * and file-autocomplete rows go to Pi's coordinates, footer rows are not the editor's.
+	 */
+	handleMouse(event: { y: number; type?: string; [key: string]: unknown }): unknown {
+		const rows = this.mouseRows;
+		const list = (this as any).autocompleteList as { handleMouse?: (event: unknown) => any } | undefined;
+		if (event.y < rows.menu) {
+			const index = event.y - 1; // row 0 is the menu header
+			const onItem = index >= 0 && index < rows.items;
+			if (!list?.handleMouse || (!onItem && event.type !== "wheel")) return undefined;
+			const result = list.handleMouse({ ...event, y: onItem ? index : 0, height: rows.items });
+			return result ? { ...result, focus: true } : undefined;
+		}
+		const parent = Object.getPrototypeOf(GeekEditor.prototype).handleMouse as ((event: unknown) => unknown) | undefined;
+		const y = event.y - rows.menu; // 0 = head row, then input rows, file-autocomplete rows, footer rows
+		if (!parent || y > rows.input + rows.autocomplete) return undefined;
+		const listStart = Number((this as any).renderedVisibleLineCount) + 2;
+		if (y > rows.input) return parent.call(this, { ...event, y: listStart + (y - rows.input - 1) });
+		// Slash menu open: Pi's own list rows are not drawn, so an input-row event must never land in its list zone.
+		if (rows.menu > 0 && y >= listStart) return { handled: true, focus: true };
+		return parent.call(this, { ...event, y });
 	}
 }
 
