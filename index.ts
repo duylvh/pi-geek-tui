@@ -16,6 +16,7 @@ import { installStartupUiPatch, setStartupHeader, suppressStartupModelScopeLog }
 import { installInteractiveChatVirtualization } from "./performance/virtualize-chat.js";
 import { setGeekAccent } from "./theme/geek-palette.js";
 import { createGeekTheme } from "./theme/geek-theme.js";
+import { refreshGitDiffStat } from "./presentation/git-diff-stat.js";
 import { setLiveState, workingStateForAssistantMessage } from "./editor/live-state.js";
 import { beginAssistantStream, endAssistantStream, trackAssistantStreamMessage } from "./messages/assistant-streaming-state.js";
 
@@ -93,6 +94,14 @@ export default function (pi: ExtensionAPI) {
 	let assistantSpeedTracker: AssistantSpeedTracker | undefined;
 	const runningToolCalls = new Set<string>();
 
+	// Working-tree diff stats for the input head row: refreshed from events only, never from render.
+	const DIFF_STAT_TOOLS = new Set(["edit", "write", "bash"]);
+	let diffStatCwd: string | undefined;
+	let requestRenderForDiffStat: (() => void) | undefined;
+	const refreshDiffStat = () => {
+		if (diffStatCwd) refreshGitDiffStat(diffStatCwd, () => requestRenderForDiffStat?.());
+	};
+
 	const isStaleContextError = (error: unknown): boolean =>
 		error instanceof Error && error.message.includes("stale after session replacement or reload");
 
@@ -147,11 +156,17 @@ export default function (pi: ExtensionAPI) {
 	pi.on("tool_execution_end", (event) => {
 		runningToolCalls.delete(event.toolCallId);
 		recordToolCallTimingEnd(event.toolCallId);
+		if (DIFF_STAT_TOOLS.has(event.toolName)) refreshDiffStat();
 		// Keep the current label until the next live state begins.
 		// For example, a completed tool stays "Cooking" until assistant streaming resumes.
 	});
 
+	pi.on("input", () => {
+		refreshDiffStat();
+	});
+
 	pi.on("agent_end", () => {
+		refreshDiffStat();
 		endAssistantStream();
 		runningToolCalls.clear();
 		setLiveState(undefined);
@@ -160,6 +175,8 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_shutdown", (_event, ctx) => {
 		endAssistantStream();
 		sessionRunSerial++;
+		diffStatCwd = undefined;
+		requestRenderForDiffStat = undefined;
 		profileCount("session.shutdown");
 		flushProfile("session_shutdown");
 		restoreTerminalBackgroundForCurrentSession?.();
@@ -200,6 +217,8 @@ export default function (pi: ExtensionAPI) {
 		});
 		const sessionUi = ctx.ui;
 		const sessionCwd = ctx.cwd;
+		diffStatCwd = sessionCwd;
+		refreshDiffStat();
 		modules.setAssistantUpdateRenderRequester(undefined);
 		setStartupHeader(sessionUi, {
 			cwd: sessionCwd,
@@ -277,6 +296,7 @@ export default function (pi: ExtensionAPI) {
 			}
 			modules.installRenderThrottle(tui as any);
 			modules.setAssistantUpdateRenderRequester(() => tui.requestRender());
+			requestRenderForDiffStat = () => tui.requestRender();
 			modules.virtualizeChatContainer(tui as any, config.visibleChatTail);
 			modules.installTuiPadding(tui as any);
 			modules.installRenderAutowrapGuard(tui as any);
