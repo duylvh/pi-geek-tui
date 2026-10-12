@@ -239,7 +239,6 @@ export class GeekEditor extends CustomEditor {
 		const status = oneLine(stripAnsi(this.providers.getFooterStatus() ?? ""));
 
 		const lines = [
-			geekRow("line", "", width),
 			this.headRow(width),
 			...this.renderInputLines(this.getText(), width),
 			...autocomplete,
