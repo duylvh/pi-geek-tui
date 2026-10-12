@@ -1,5 +1,5 @@
 import { isHexColor } from "./ansi.js";
-import { getThemePageBackground } from "./theme-extras.js";
+import { GEEK_PALETTE } from "./geek-palette.js";
 
 type TerminalLike = {
 	write?: (data: string) => unknown;
@@ -49,7 +49,7 @@ export function clearTerminalPageBackgroundOsc111(terminal: TerminalLike): void 
 
 export function applyTerminalPageBackgroundOsc11(theme: any, terminal: TerminalLike, options: TerminalBackgroundOscOptions = {}): (() => void) | undefined {
 	if (!shouldApplyTerminalBackgroundOsc11(options)) return undefined;
-	const pageBg = getThemePageBackground(theme);
+	const pageBg = GEEK_PALETTE.bg;
 	if (!isHexColor(pageBg) || typeof terminal?.write !== "function") return undefined;
 
 	const write = terminal.write.bind(terminal);

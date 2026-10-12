@@ -1,8 +1,8 @@
 export { GeekEditor } from "./editor/geek-editor.js";
-export { mirrorLiveState } from "./editor/live-state.js";
 export { createAssistantSpeedTracker } from "./core/assistant-speed.js";
 export { createGitBranchFetcher } from "./core/git-status.js";
 export { loadConfig } from "./config.js";
+export { installMessageMeta } from "./messages/message-meta.js";
 export { installAssistantMessagePrefix } from "./messages/assistant-prefix.js";
 export { installMarkdownCodeBlockRenderer } from "./messages/markdown-codeblock-renderer.js";
 export { installAssistantStreamingMarkdownCache } from "./messages/streaming-markdown-cache.js";
@@ -24,8 +24,6 @@ export { installBuiltinToolRenderers } from "./tool-tags/builtin-tool-renderers.
 export { recordToolCallTimingStart, recordToolCallTimingEnd } from "./tool-tags/elapsed.js";
 export { installQuickEditRenderer } from "./tool-tags/quick-edit.js";
 export { installResumeToolRefresh } from "./tool-tags/resume-tool-refresh.js";
-export { createWorkingLoaderController, workingStateForAssistantMessage } from "./tool-tags/loader-accent.js";
-export { installWorkingLoaderAlignment } from "./tool-tags/loader-align.js";
 export { installTuiPadding } from "./tui-padding.js";
 export { getFooterStatusLine, getFooterTokenUsage, installFooterStatsPatch } from "./footer-patch.js";
 export { installPiTasksWidgetStyling } from "./widgets/pi-tasks-widget.js";

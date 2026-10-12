@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { loadConfig } from "../config.js";
 import { ERASE_LINE, RESET_BACKGROUND, bgHexAnsi, keepAnsiBackgroundAcrossResets, wrapAnsiBackground } from "./ansi.js";
 import { safeVisibleWidth } from "../render-budget.js";
-import { getThemePageBackground } from "./theme-extras.js";
+import { GEEK_PALETTE } from "./geek-palette.js";
 
 const KITTY_IMAGE_PREFIX = "\x1b_G";
 const ITERM2_IMAGE_PREFIX = "\x1b]1337;File=";
@@ -16,7 +16,7 @@ function isImageRenderLine(line: string): boolean {
 
 export function resolveFrameBackgroundAnsi(theme: any): string {
 	if (loadConfig().transparentBackground) return "";
-	const pageBg = getThemePageBackground(theme);
+	const pageBg = GEEK_PALETTE.bg;
 	const result = pageBg ? bgHexAnsi(theme, pageBg) : "";
 	if (isFrameBackgroundDebugEnabled()) {
 		writeFrameBackgroundDebug({

@@ -16,12 +16,11 @@ import { installStartupUiPatch, setStartupHeader, suppressStartupModelScopeLog }
 import { installInteractiveChatVirtualization } from "./performance/virtualize-chat.js";
 import { setGeekAccent } from "./theme/geek-palette.js";
 import { createGeekTheme } from "./theme/geek-theme.js";
+import { setLiveState, workingStateForAssistantMessage } from "./editor/live-state.js";
 import { beginAssistantStream, endAssistantStream, trackAssistantStreamMessage } from "./messages/assistant-streaming-state.js";
 
 type SessionModules = typeof import("./session-modules.js");
 type AssistantSpeedTracker = ReturnType<SessionModules["createAssistantSpeedTracker"]>;
-type WorkingLoaderController = ReturnType<SessionModules["createWorkingLoaderController"]>;
-type WorkingStateForAssistantMessage = SessionModules["workingStateForAssistantMessage"];
 type SetAssistantUpdateRenderRequester = SessionModules["setAssistantUpdateRenderRequester"];
 type RenderFrameDebugModule = typeof import("./performance/render-frame-debug.js");
 
@@ -92,8 +91,6 @@ export default function (pi: ExtensionAPI) {
 
 	let currentThinkingLevel: string | undefined;
 	let assistantSpeedTracker: AssistantSpeedTracker | undefined;
-	let workingStateForAssistantMessageForCurrentSession: WorkingStateForAssistantMessage | undefined;
-	let workingLoaderController: WorkingLoaderController | undefined;
 	const runningToolCalls = new Set<string>();
 
 	const isStaleContextError = (error: unknown): boolean =>
@@ -108,19 +105,19 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("before_agent_start", (_event, ctx) => {
 		reportConfigIssue(ctx.ui);
-		workingLoaderController?.setState("working");
+		setLiveState("working");
 	});
 
 	pi.on("agent_start", () => {
 		runningToolCalls.clear();
-		workingLoaderController?.start("working");
+		setLiveState("working");
 	});
 
 	pi.on("message_start", (event) => {
 		if (event.message.role === "assistant") beginAssistantStream(event.message);
 		assistantSpeedTracker?.handleMessageStart(event.message);
 		if (event.message.role === "assistant" && runningToolCalls.size === 0) {
-			workingLoaderController?.setState(workingStateForAssistantMessageForCurrentSession?.(event.message) ?? "answering");
+			setLiveState(workingStateForAssistantMessage(event.message));
 		}
 	});
 
@@ -128,7 +125,7 @@ export default function (pi: ExtensionAPI) {
 		if (event.message.role === "assistant") trackAssistantStreamMessage(event.message);
 		assistantSpeedTracker?.handleMessageUpdate(event.message);
 		if (event.message.role === "assistant" && runningToolCalls.size === 0) {
-			workingLoaderController?.setState(workingStateForAssistantMessageForCurrentSession?.(event.message) ?? "answering");
+			setLiveState(workingStateForAssistantMessage(event.message));
 		}
 	});
 
@@ -144,7 +141,7 @@ export default function (pi: ExtensionAPI) {
 	pi.on("tool_execution_start", (event) => {
 		runningToolCalls.add(event.toolCallId);
 		recordToolCallTimingStart(event.toolCallId);
-		workingLoaderController?.setState("running");
+		setLiveState("running");
 	});
 
 	pi.on("tool_execution_end", (event) => {
@@ -157,7 +154,7 @@ export default function (pi: ExtensionAPI) {
 	pi.on("agent_end", () => {
 		endAssistantStream();
 		runningToolCalls.clear();
-		workingLoaderController?.stop();
+		setLiveState(undefined);
 	});
 
 	pi.on("session_shutdown", (_event, ctx) => {
@@ -168,8 +165,7 @@ export default function (pi: ExtensionAPI) {
 		restoreTerminalBackgroundForCurrentSession?.();
 		restoreTerminalBackgroundForCurrentSession = undefined;
 		setAssistantUpdateRenderRequesterForCurrentSession?.(undefined);
-		workingLoaderController?.dispose();
-		workingLoaderController = undefined;
+		setLiveState(undefined);
 		disposePiTasksWidgetStylingForCurrentSession?.();
 		disposePiTasksWidgetStylingForCurrentSession = undefined;
 		runningToolCalls.clear();
@@ -188,10 +184,8 @@ export default function (pi: ExtensionAPI) {
 		if (!isCurrentSessionRun()) return;
 		assistantSpeedTracker ??= modules.createAssistantSpeedTracker();
 		const tracker = assistantSpeedTracker;
-		workingStateForAssistantMessageForCurrentSession = modules.workingStateForAssistantMessage;
 		setAssistantUpdateRenderRequesterForCurrentSession = modules.setAssistantUpdateRenderRequester;
 		modules.installCompactToolSpacing();
-		modules.installWorkingLoaderAlignment();
 		modules.installDefaultBadge();
 		modules.installQuickEditRenderer(ToolExecutionComponent);
 		modules.installBuiltinToolRenderers(ToolExecutionComponent);
@@ -227,8 +221,7 @@ export default function (pi: ExtensionAPI) {
 			},
 		});
 		tracker.resetSession();
-		workingLoaderController?.dispose();
-		workingLoaderController = undefined;
+		setLiveState(undefined);
 		runningToolCalls.clear();
 		try {
 			currentThinkingLevel = pi.getThinkingLevel();
@@ -252,8 +245,6 @@ export default function (pi: ExtensionAPI) {
 		disposePiTasksWidgetStylingForCurrentSession = modules.installPiTasksWidgetStyling(sessionUi, config.tasksWidgetStyle);
 		restoreTerminalBackgroundForCurrentSession?.();
 		restoreTerminalBackgroundForCurrentSession = undefined;
-		workingLoaderController = modules.mirrorLiveState(modules.createWorkingLoaderController(sessionUi, config.customWorkingMessage));
-		workingLoaderController.configure();
 		// The input head row shows the live state; hide Pi's own working line.
 		sessionUi.setWorkingVisible?.(false);
 
@@ -265,6 +256,7 @@ export default function (pi: ExtensionAPI) {
 		}
 
 		modules.installAssistantStreamingMarkdownCache(AssistantMessageComponent);
+		modules.installMessageMeta(InteractiveMode);
 		modules.installAssistantMessagePrefix(sessionUi.theme);
 		modules.installUserMessagePrefix(sessionUi.theme);
 		modules.installAssistantUpdateDebounce(AssistantMessageComponent);

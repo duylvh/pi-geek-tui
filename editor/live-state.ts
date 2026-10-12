@@ -1,5 +1,5 @@
 // Live agent state shown on the right of the input head row (spec §8).
-// Fed by mirroring the working-loader controller, so it follows the same state machine.
+// Driven from the agent/message/tool events in index.ts.
 
 export type LiveStateName = "working" | "thinking" | "answering" | "running";
 
@@ -24,32 +24,16 @@ export function getLiveState(): { name: LiveStateName; elapsedMs: number } | und
 	return current ? { name: current.name, elapsedMs: Date.now() - current.startedAt } : undefined;
 }
 
-type LoaderLike = {
-	start(state?: LiveStateName): void;
-	setState(state: LiveStateName): void;
-	stop(): void;
-	dispose(): void;
-};
-
-/** Same controller, but every transition is also recorded in the live state. */
-export function mirrorLiveState<T extends LoaderLike>(controller: T): T {
-	return {
-		...controller,
-		start(state: LiveStateName = "working") {
-			setLiveState(state);
-			controller.start(state);
-		},
-		setState(state: LiveStateName) {
-			setLiveState(state);
-			controller.setState(state);
-		},
-		stop() {
-			setLiveState(undefined);
-			controller.stop();
-		},
-		dispose() {
-			setLiveState(undefined);
-			controller.dispose();
-		},
-	};
+/** Which live state an in-progress assistant message is in: tool call → running, answer text → answering, else thinking. */
+export function workingStateForAssistantMessage(message: unknown): LiveStateName {
+	const content = (message as { content?: unknown }).content;
+	if (!Array.isArray(content)) return "thinking";
+	let hasAnswerText = false;
+	for (const item of content) {
+		if (!item || typeof item !== "object") continue;
+		const part = item as { type?: unknown; text?: unknown };
+		if (part.type === "toolCall") return "running";
+		if (part.type === "text" && typeof part.text === "string" && part.text.trim().length > 0) hasAnswerText = true;
+	}
+	return hasAnswerText ? "answering" : "thinking";
 }
