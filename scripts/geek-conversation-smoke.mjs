@@ -175,6 +175,14 @@ expect("tool-call-only message renders no body rows", rows(agentTools).filter((r
 // Prompt / markdown / core blocks.
 const userRows = rows(userA);
 expect("prompt rows", userRows[1]?.includes("┊ › refresh token") && userRows[2]?.includes("┊   fix it"), JSON.stringify(userRows));
+// User body rows sit on the panel surface from the body column to the chat edge; head and the closing blank stay on the page.
+const PANEL_BG = "\x1b[48;2;20;20;20m";
+for (const width of [24, 40, 80]) {
+	const raw = userA.render(width);
+	const body = raw.slice(1, -1);
+	expect(`user body rows carry the panel bg from col 3 to the edge @${width}`, body.length >= 2 && body.every((row) => plain(row.slice(0, row.indexOf(PANEL_BG))).length === 3 && visibleWidth(row) === width && row.includes("\x1b[49m")), JSON.stringify(body));
+	expect(`user head and closing blank stay on the page @${width}`, !raw[0].includes("[48;") && !raw.at(-1).includes("[48;"), JSON.stringify([raw[0], raw.at(-1)]));
+}
 const answer = rows(agentText).join("\n");
 expect("heading keeps its ## marks", answer.includes("## cause"));
 expect("inline code keeps backticks", answer.includes("`REFRESH_TTL`") && answer.includes("`sign()`"));

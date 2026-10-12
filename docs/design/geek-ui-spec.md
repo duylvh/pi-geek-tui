@@ -49,6 +49,9 @@ Agent: `pi@agent …` with kw dot. No time on message rows.
 
 ### 3. User prompt body
 ` ┊ › refresh token expires after 5 minutes, fix it` (`› ` then text, ink).
+Every body row (wrapped lines included) sits on the `panel` surface from the body column to the chat edge, text one
+cell short of the edge; the rail prefix, head row and the blank row after the message stay on the page bg.
+`transparentBackground` drops the surface.
 
 ### 4. Tool group (one row per call)
 ```
