@@ -6,6 +6,8 @@
 // Counter lives on globalThis and answers are stamped on the components, so an extension reload
 // (fresh module instance) keeps existing components consistent.
 
+import { geekHeadRow } from "../presentation/geek-head.js";
+
 const PATCHED = Symbol.for("pi-geek-tui.message-meta.patched");
 const STATE = Symbol.for("pi-geek-tui.message-meta.state");
 const TIMESTAMP = Symbol.for("pi-geek-tui.message-meta.timestamp");
@@ -33,6 +35,19 @@ export function claimTurnHead(component: object): boolean {
 		turns.headedTurn = turns.turn;
 	}
 	return stamped[TURN_HEAD];
+}
+
+const FIRST_SEEN = Symbol.for("pi-geek-tui.message-meta.first-seen");
+
+/**
+ * `HH:MM • pi@agent …` row for an assistant component that opens its turn, else []. Read-only: safe to
+ * call from anything that renders on the component's behalf (tool groups fold tool-only assistant
+ * messages and never render them).
+ */
+export function turnHeadRows(component: any, width: number): string[] {
+	if (width <= 0 || !(component as Stamped)[TURN_HEAD]) return [];
+	const stamp = component.lastMessage?.timestamp ?? getMessageTimestamp(component) ?? (component[FIRST_SEEN] ??= Date.now());
+	return [geekHeadRow("agent", width, stamp)];
 }
 
 export function installMessageMeta(InteractiveModeClass: any): void {

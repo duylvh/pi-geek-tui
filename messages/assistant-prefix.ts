@@ -4,18 +4,15 @@
 import { AssistantMessageComponent } from "@earendil-works/pi-coding-agent";
 
 import { loadConfig } from "../config.js";
-import { geekHeadRow } from "../presentation/geek-head.js";
 import { GEEK_PREFIX_WIDTH, geekRow } from "../presentation/geek-rows.js";
 import { safeTakeTailToWidth, safeVisibleWidth } from "../render-budget.js";
 import { dropLeadingColumns, stripAnsi } from "../theme/ansi.js";
 import { geekFg } from "../theme/geek-palette.js";
 import { attachComponentToStream } from "./assistant-streaming-state.js";
 import { type AssistantContentRun, getAssistantContentRuns } from "./assistant-content-runs.js";
-import { claimTurnHead, getMessageTimestamp, keepPromptZone } from "./message-meta.js";
+import { claimTurnHead, keepPromptZone, turnHeadRows } from "./message-meta.js";
 
 const PATCHED = Symbol.for("pi-geek-tui.assistant-prefix.patched");
-const TURN_HEAD = Symbol.for("pi-geek-tui.assistant-prefix.turn-head");
-const FIRST_SEEN = Symbol.for("pi-geek-tui.assistant-prefix.first-seen");
 
 /** Markdown/Text children are padded 1 column on each side; rows keep 1 spare cell on the right. */
 function getAssistantBodyWidth(width: number): number {
@@ -140,7 +137,7 @@ export function installAssistantMessagePrefix(_theme?: unknown, componentClass: 
 		proto.updateContent = function patchedAssistantUpdateContent(message: any): void {
 			// Tag before the base delegate so this wrapper's message is the identity the tag is built from.
 			const liveStream = attachComponentToStream(this, message);
-			this[TURN_HEAD] = claimTurnHead(this);
+			claimTurnHead(this);
 			baseUpdateContent.call(this, message);
 
 			if (!message || !Array.isArray(message.content)) return;
@@ -154,7 +151,7 @@ export function installAssistantMessagePrefix(_theme?: unknown, componentClass: 
 		if (width <= 0) return baseRender.call(this, width);
 		const raw: string[] = baseRender.call(this, getAssistantBodyWidth(width));
 		const body = trimBlankEdges(raw);
-		const rows = this[TURN_HEAD] ? [geekHeadRow("agent", width, assistantTimestamp(this))] : [];
+		const rows = assistantHeadRows(this, width);
 		if (body.length > 0) {
 			for (const line of body) rows.push(geekRow("line", dropLeadingColumns(line, 1), width));
 			rows.push(geekRow("line", "", width));
@@ -163,6 +160,7 @@ export function installAssistantMessagePrefix(_theme?: unknown, componentClass: 
 	};
 }
 
-function assistantTimestamp(component: any): number | string {
-	return component.lastMessage?.timestamp ?? getMessageTimestamp(component) ?? (component[FIRST_SEEN] ??= Date.now());
+/** Head row(s) for the component that opens its turn (tool groups call this for the assistant messages they fold). */
+export function assistantHeadRows(component: any, width: number): string[] {
+	return turnHeadRows(component, width);
 }
