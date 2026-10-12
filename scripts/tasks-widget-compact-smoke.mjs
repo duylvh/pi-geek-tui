@@ -450,9 +450,11 @@ async function runVirtualizeChatSmoke() {
 	assert(mode.chatContainer.children.length === 2, `interactive hook should prune chatContainer to tail, got ${mode.chatContainer.children.length}`);
 	const hookLines = stripAnsi(mode.chatContainer.render(80).join("\n"));
 	assert(hookLines.includes("3 older messages hidden"), `interactive hook should show indicator, got: ${hookLines}`);
-	assert(hookLines.split("\n").includes("d"), `interactive hook missing d: ${hookLines}`);
-	assert(hookLines.split("\n").includes("e"), `interactive hook missing e: ${hookLines}`);
-	assert(!hookLines.split("\n").includes("a") && !hookLines.split("\n").includes("b") && !hookLines.split("\n").includes("c"), `interactive hook kept wrong children: ${hookLines}`);
+	// Plain chat children are framed by frameChatChild (8-cell gutter + rail prefix), so compare trimmed rows.
+	const rowsOf = (text) => text.split("\n").map((line) => line.trim());
+	assert(rowsOf(hookLines).includes("d") && rowsOf(hookLines).includes("e"), `interactive hook missing d/e: ${JSON.stringify(hookLines)}`);
+	assert(hookLines.split("\n").some((line) => line.startsWith(" ".repeat(8) + "d")), `chat child d is not framed with the 8-cell prefix: ${JSON.stringify(hookLines)}`);
+	assert(!rowsOf(hookLines).includes("a") && !rowsOf(hookLines).includes("b") && !rowsOf(hookLines).includes("c"), `interactive hook kept wrong children: ${hookLines}`);
 
 	// clear()+addChild rebuild must keep freshly parked overflow (not wiped by applyFromMode).
 	mode.renderInitialMessages();
@@ -467,8 +469,8 @@ async function runVirtualizeChatSmoke() {
 	const reloadedLines = stripAnsi(mode.chatContainer.render(80).join("\n"));
 	assert(reloadedLines.includes("1 older messages hidden"), `reinstalled hook should hide 1 with tail=4, got: ${reloadedLines}`);
 	assert(
-		["b", "c", "d", "e"].every((label) => reloadedLines.split("\n").includes(label))
-		&& !reloadedLines.split("\n").includes("a"),
+		["b", "c", "d", "e"].every((label) => rowsOf(reloadedLines).includes(label))
+		&& !rowsOf(reloadedLines).includes("a"),
 		`reinstalled hook wrong window: ${reloadedLines}`,
 	);
 
@@ -500,7 +502,7 @@ async function runVirtualizeChatSmoke() {
 	const assignLines = stripAnsi(assignMode.chatContainer.render(80).join("\n"));
 	assert(assignLines.includes("3 older messages hidden"), `assign-mode after live addChild should not accumulate stale hidden, got: ${assignLines}`);
 	assert(assignMode.chatContainer.children.length === 2, `assign-mode second rebuild should keep tail=2, got ${assignMode.chatContainer.children.length}`);
-	assert(!assignLines.split("\n").includes("live"), `assign-mode rebuild should drop prior live child: ${assignLines}`);
+	assert(!rowsOf(assignLines).includes("live"), `assign-mode rebuild should drop prior live child: ${assignLines}`);
 
 	// Direct instance helper: virtualizes an already-built chat container given its TUI root
 	const directChat = {
