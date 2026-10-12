@@ -10,6 +10,7 @@
  */
 
 import { profileCount, profileSample } from "./profiler.js";
+import { frameNoticeRow } from "../messages/chat-frame.js";
 import { renderChatChildren } from "../tool-tags/tool-groups.js";
 
 interface AnyComponent {
@@ -234,8 +235,7 @@ export function virtualizeChatContainerInstance(
 		}
 
 		profileCount("chat.virtualize.render.capped");
-		const indicator = `\x1b[2m  ··· ${hidden} older messages hidden ···\x1b[0m`;
-		const lines: string[] = [indicator, ""];
+		const lines: string[] = [frameNoticeRow(`··· ${hidden} older messages hidden ···`, width), frameNoticeRow("", width)];
 		const childLines = renderChatChildren(children, width);
 		for (let j = 0; j < childLines.length; j++) lines.push(childLines[j]);
 		return lines;

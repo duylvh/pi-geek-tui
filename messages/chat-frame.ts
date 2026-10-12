@@ -7,6 +7,7 @@
 // (showStatus updates `lastStatusText` in place when statuses arrive back-to-back).
 import { dropLeadingColumns, stripAnsi } from "../theme/ansi.js";
 import { GEEK_PREFIX_WIDTH, geekRow } from "../presentation/geek-rows.js";
+import { geekFg } from "../theme/geek-palette.js";
 import { hasTurnStarted } from "./message-meta.js";
 
 const RAILED = Symbol.for("pi-geek-tui.chat-frame.railed");
@@ -38,4 +39,9 @@ export function frameChatChild(child: any, width: number, next?: any): string[] 
 	if (isSpacer(child)) return child.render(width).map(() => geekRow(rail, "", width));
 	const bodyWidth = Math.max(1, width - GEEK_PREFIX_WIDTH - 1);
 	return child.render(bodyWidth).map((row: string) => geekRow(rail, stripAnsi(row).startsWith(" ") ? dropLeadingColumns(row, 1) : row, width));
+}
+
+/** A dim one-line notice on a blank rail (body at col 8), for rows the extension itself injects between chat children. */
+export function frameNoticeRow(text: string, width: number): string {
+	return geekRow("blank", geekFg("dim", text), width);
 }

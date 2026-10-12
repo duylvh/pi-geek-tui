@@ -379,6 +379,8 @@ async function runVirtualizeChatSmoke() {
 	let lines = stripAnsi(tui.children[1].render(80).join("\n"));
 	assert(isVirtualizedChatContainer(tui.children[1]), "custom tail should mark chat as actively virtualized");
 	assert(lines.includes("2 older messages hidden"), `custom tail should hide 2, got: ${lines}`);
+	const markerRow = lines.split("\n").find((row) => row.includes("older messages hidden"));
+	assert(markerRow?.indexOf("···") === 8 && markerRow.startsWith("        "), `hidden marker should sit at body col 8 on a blank rail, got: ${JSON.stringify(markerRow)}`);
 	assert(!lines.includes("m1") && !lines.includes("m2") && lines.includes("m3") && lines.includes("m4"), `custom tail rendered wrong children: ${lines}`);
 
 	tui = createTui();
