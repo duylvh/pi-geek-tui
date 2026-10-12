@@ -77,7 +77,7 @@ expect("head row carries user@project, path and branch (no time)", /^ {6}• \S+
 expect("input row is `› text` on a blank rail", /^ {8}› run tests again then commit/.test(idle[1]));
 expect("footer has ctx and tok rows", idle.some((r) => /^\s+ctx\s+█+░+  31\.4%\/200k/.test(r)) && idle.some((r) => /^\s+tok\s+↑41k ↓6\.9k  R212k W18k  CH 82\.4%.*\$0\.412$/.test(r)));
 setLiveState("thinking");
-expect("live head row shows state word and seconds", /thinking · \d+\.\ds$/.test(editor.render(width).map(strip)[1]));
+expect("live head row shows state word and seconds", /thinking · \d+\.\ds$/.test(editor.render(width).map(strip)[0]));
 setLiveState(undefined);
 
 // Host highlighting (read/diff code rows) must come out in palette colors, not a host theme's.
