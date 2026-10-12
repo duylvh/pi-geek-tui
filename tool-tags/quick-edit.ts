@@ -5,7 +5,7 @@ import { stripAnsi } from "../theme/ansi.js";
 import { buildDiffRows, countDiffStats } from "../split-diff.js";
 import { getTextOutput, isExpanded, resolveRelativePath } from "./common.js";
 import { diffSectionsBody, publishEditMeta, publishFailedMeta } from "./edit.js";
-import { inkParams, soloLine } from "./tool-call-line.js";
+import { paramText, soloLine } from "./tool-call-line.js";
 import { markToolCallExecutionStarted } from "./elapsed.js";
 import { EMPTY_BODY, renderCallRow, renderOutputBody } from "./tool-row.js";
 
@@ -95,7 +95,7 @@ function renderQuickEditCall(args: any, config: QuickEditToolConfig, context: Qu
 	markToolCallExecutionStarted(context);
 	const rawPath = String(args?.path ?? "");
 	const cwd = typeof context.cwd === "string" ? context.cwd : process.cwd();
-	return renderCallRow(soloLine(config.name, inkParams((rawPath ? resolveRelativePath(rawPath, cwd) : "")), Boolean(context.isError)), context);
+	return renderCallRow(soloLine(config.name, paramText((rawPath ? resolveRelativePath(rawPath, cwd) : "")), Boolean(context.isError)), context);
 }
 
 function renderQuickEditResult(result: any, options: ToolRenderResultOptions, config: QuickEditToolConfig, context: QuickEditRenderContext = {}) {

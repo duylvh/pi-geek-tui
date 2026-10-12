@@ -79,7 +79,8 @@ export function nameColumn(toolNames: string[]): number {
 }
 
 const dim = (text: string) => geekFg("dim", text);
-const ink = (text: string) => geekFg("ink", text);
+/** Params sit one step below the answer text: dim values, faint keys. */
+const param = (text: string) => geekFg("dim", text);
 
 function field(args: any, ...keys: string[]): string {
 	if (!args || typeof args !== "object") return "";
@@ -110,32 +111,32 @@ function readTarget(args: any): string {
 export function callParams(toolName: string, args: any): string {
 	switch (toolName) {
 		case "read":
-			return readTarget(args) ? ink(readTarget(args)) : MISSING;
+			return readTarget(args) ? param(readTarget(args)) : MISSING;
 		case "write":
 		case "edit":
-			return field(args, "path", "file_path") ? ink(field(args, "path", "file_path")) : MISSING;
+			return field(args, "path", "file_path") ? param(field(args, "path", "file_path")) : MISSING;
 		case "ls":
-			return ink(field(args, "path") || ".");
+			return param(field(args, "path") || ".");
 		case "bash":
 		case "powershell": {
 			const command = typeof args?.command === "string" ? formatParamValue(stripLeadingCd(args.command)) : "";
-			return command ? ink(command) : MISSING;
+			return command ? param(command) : MISSING;
 		}
 		case "grep":
 		case "find": {
 			const pattern = field(args, "pattern");
 			if (!pattern) return MISSING;
-			const quoted = toolName === "grep" ? `${dim('"')}${ink(pattern)}${dim('"')}` : ink(pattern);
+			const quoted = toolName === "grep" ? `${dim('"')}${param(pattern)}${dim('"')}` : param(pattern);
 			const where = field(args, "path");
 			const glob = field(args, "glob");
-			return `${quoted}${where && where !== "." ? `${dim(" in ")}${ink(where)}` : ""}${glob ? `${dim(" glob ")}${ink(glob)}` : ""}`;
+			return `${quoted}${where && where !== "." ? `${dim(" in ")}${param(where)}` : ""}${glob ? `${dim(" glob ")}${param(glob)}` : ""}`;
 		}
 	}
 	if (args === null || args === undefined) return MISSING;
-	if (typeof args !== "object" || Array.isArray(args)) return ink(formatParamValue(args)) || MISSING;
+	if (typeof args !== "object" || Array.isArray(args)) return param(formatParamValue(args)) || MISSING;
 	const pairs = Object.entries(args as Record<string, unknown>)
 		.filter(([, value]) => value !== undefined)
-		.map(([key, value]) => `${geekFg("faint", key)} ${ink(formatParamValue(value))}`);
+		.map(([key, value]) => `${geekFg("faint", key)} ${param(formatParamValue(value))}`);
 	return pairs.length > 0 ? pairs.join(dim(" · ")) : MISSING;
 }
 
@@ -153,6 +154,6 @@ export function soloLine(toolName: string, params: string, failed = false): stri
 }
 
 /** Params for a call whose detail the renderer already built (edit/write paths); empty → `…`. */
-export function inkParams(detail: string): string {
-	return detail ? ink(detail) : MISSING;
+export function paramText(detail: string): string {
+	return detail ? param(detail) : MISSING;
 }
