@@ -303,6 +303,15 @@ async function runBuiltinToolRenderersSmoke() {
 	assert(tree[3].includes("└── R refresh.test.ts") && tree[3].includes("120"), `last node closes the tree with a count: ${tree[3]}`);
 	assert(tree.length === 5, "collapsed tree is head + nodes + one blank row");
 
+	// Live capture bug: badge must close with fg+bg resets and every label needs an explicit ink fg
+	// (the terminal default fg is invisible on the page bg).
+	const rawTree = groups.renderChatChildren(treeChildren, 100);
+	const INK_ESC = "\x1b[38;2;216;212;180m";
+	assert(rawTree[3].includes(`\x1b[48;2;168;163;133m\x1b[38;2;12;12;12mR\x1b[39m\x1b[49m ${INK_ESC}refresh.test.ts\x1b[39m`), `read badge + ink label escapes: ${JSON.stringify(rawTree[3])}`);
+	assert(groups.renderChatChildren(finished, 100)[0].includes(`${INK_ESC}read session.ts token.ts\x1b[39m`), "group head call text must be ink");
+	const longCall = groups.renderChatChildren([tool("bash", { command: "rg -n REFRESH_TTL src/auth/session.ts src/auth/token.ts" }, { expanded: true })], 100).map(strip).find((row) => row.includes("── "));
+	assert(/…\s+\S/.test(longCall) && !/…\S/.test(longCall), `truncated call cell must keep a gap before the state label: ${longCall}`);
+
 	const expandedChildren = treeChildren.map((c) => (c.toolName ? { ...c, expanded: true, isPartial: false } : c));
 	const expandedTree = groups.renderChatChildren(expandedChildren, 100).map(strip);
 	const readBody = expandedTree.filter((row) => /line \d+/.test(row));

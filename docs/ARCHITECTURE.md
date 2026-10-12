@@ -60,8 +60,7 @@ tool-tags/
     hook. Bodies render at width minus the 8-cell prefix, then get gutter + rail (`┃` while running);
     terminal image lines pass through untouched. builtin-tool-renderers.ts picks the renderers by tool
     name with shell "self"
-  - elapsed.ts timing, default-badge.ts result timing/context patches, resume-tool-refresh.ts,
-    loader-*.ts working-loader helpers
+  - elapsed.ts timing, default-badge.ts result timing/context patches, resume-tool-refresh.ts
 
 theme/
   ANSI helpers, theme discovery/extras, shared frame background row painting, and platform-gated OSC 11 terminal background sync

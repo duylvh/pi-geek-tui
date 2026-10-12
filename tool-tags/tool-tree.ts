@@ -162,9 +162,10 @@ function statsCells(stats: Stats): string {
 	return `${label}${value}  ${bar}  ${geekFg("dim", `${done}/${total}`)}`;
 }
 
+/** Badge + space + label (ink, 19 cells) + one guaranteed gap = the 22-cell call column. */
 function callColumn(name: string, label: string): string {
-	const text = safeTruncateToWidth(label.replace(/\s+/g, " ").trim(), CALL_COLUMN - 2, "…");
-	return `${badge(name)} ${text}${" ".repeat(Math.max(0, CALL_COLUMN - 2 - safeVisibleWidth(text)))}`;
+	const text = safeTruncateToWidth(label.replace(/\s+/g, " ").trim(), CALL_COLUMN - 3, "…");
+	return `${badge(name)} ${geekFg("ink", text)}${" ".repeat(Math.max(0, CALL_COLUMN - 2 - safeVisibleWidth(text)))}`;
 }
 
 const RESULT_BODIES: Record<string, (result: any, options: any, theme: any, context: any) => { render(width: number): string[] }> = {

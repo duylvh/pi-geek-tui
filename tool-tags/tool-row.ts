@@ -48,7 +48,7 @@ export function renderCallRow(left: string, context: RowContext | undefined): Co
 			const meta = context?.state?.[META_KEY];
 			const running = Boolean(context?.isPartial);
 			const head = geekFg(running ? "accent" : "ink", "› ");
-			return [geekSplitRow(`${head}${left}`, typeof meta === "string" && !running ? meta : defaultMeta(context), width)];
+			return [geekSplitRow(`${head}${geekFg("ink", left)}`, typeof meta === "string" && !running ? meta : defaultMeta(context), width)];
 		},
 	};
 }

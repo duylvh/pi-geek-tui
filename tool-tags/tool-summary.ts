@@ -85,7 +85,7 @@ export function summarizeCalls(calls: CallSummary[]): string {
 	let last: { verb: string; texts: string[] } | undefined;
 	const flush = () => {
 		if (!last) return;
-		parts.push(last.verb ? [last.verb, ...last.texts].filter(Boolean).join(" ") : last.texts.join(" "));
+		parts.push(geekFg("ink", last.verb ? [last.verb, ...last.texts].filter(Boolean).join(" ") : last.texts.join(" ")));
 		last = undefined;
 	};
 	for (const call of calls) {
