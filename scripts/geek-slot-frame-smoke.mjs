@@ -80,6 +80,27 @@ const short = render(80, 14).length;
 expect("cap shrinks with the terminal height", short < tall, `${short} vs ${tall}`);
 expect("selected row sits on the panelSel surface", render(80).some((row) => row.includes("48;2;32;31;27m") && strip(row).includes("› option")));
 
+// --- /resume: Pi's SessionSelector windows its own list and marks the cursor `› `; the item Enter would open is always
+// shown, marked, on panelSel, and the window follows it (↓ ×5/×20/×60, ↑ back, filter).
+const sessions = Array.from({ length: 70 }, (_, i) => ({ path: `/s/${i}.jsonl`, id: `id${i}`, cwd: "/p", name: undefined, firstMessage: `session number ${i + 1}`, allMessagesText: `session number ${i + 1}`, messageCount: 2, created: new Date(2026, 0, 1), modified: new Date(2026, 0, 1, 0, 70 - i) }));
+const resume = new core.SessionSelectorComponent(async () => sessions, async () => sessions, () => {}, () => {}, () => {}, () => {}, {});
+swapIn(resume);
+await new Promise((resolve) => setTimeout(resolve, 20));
+const sessionList = resume.sessionList;
+const showsSelected = (label, rows) => {
+	const want = sessionList.filteredSessions[sessionList.selectedIndex].session.firstMessage;
+	const hit = rows.find((row) => strip(row).slice(P).trimStart().startsWith(`› ${want} `));
+	expect(`resume ${label}: selected "${want}" visible, marked and on panelSel`, hit !== undefined && hit.includes("48;2;32;31;27m"), JSON.stringify(rows.map(strip)));
+	expect(`resume ${label}: within the cap`, rows.length - 3 <= 1 + 1 + 8 + 1 + 1 + 1, String(rows.length));
+};
+for (const [label, keys] of [["start", ""], ["↓×5", "\x1b[B".repeat(5)], ["↓×20", "\x1b[B".repeat(15)], ["↓×60", "\x1b[B".repeat(40)], ["↑×30", "\x1b[A".repeat(30)]]) {
+	for (const key of keys.match(/\x1b\[[AB]/g) ?? []) resume.handleInput(key);
+	for (const rows of [24, 70]) showsSelected(`${label}@${rows} rows`, render(100, rows));
+}
+for (const ch of "number 4") resume.handleInput(ch);
+resume.handleInput("\x1b[B");
+showsSelected("filtered", render(100, 40));
+
 // --- header: crumb from the component, i/N counter, Pi's hint row kept, default hint otherwise
 swapIn(selectors.thinking());
 const thinkingRows = render(80).map(strip);

@@ -20,7 +20,8 @@ const PATCHED = Symbol.for("pi-geek-tui.slot-frame.patched");
 const SGR = /\x1b\[[0-9;]*m/g;
 const FULL_RESET = /\x1b\[0?m/g;
 const BG_RESET = /\x1b\[49m/g;
-const MARKER = /^((?:\x1b\[[0-9;]*m| )*)→ /;
+// Pi marks the cursor row `→ ` (SelectList, SettingsList, model) or `› ` (session, tree, user-message lists).
+const MARKER = /^((?:\x1b\[[0-9;]*m| )*)[→›] /;
 const COUNTER = /^\((\d+)\/(\d+)\)$/;
 const HINT_WORDS = /\b(esc|escape|enter|navigate|ctrl\+|tab|↑↓|to select|to cancel)\b/i;
 const DEFAULT_HINT = "↑↓ select · ↩ choose · esc back";
@@ -153,6 +154,33 @@ export function windowRows<T>(rows: T[], selected: number, size: number): { star
 	return { start, rows: rows.slice(start, start + size) };
 }
 
+type PiList = { selectedIndex: number; maxVisible?: number; maxVisibleLines?: number };
+
+/** Pi's own windowed list inside a slot child (SelectList, SettingsList, SessionList, TreeList…): it keeps its cursor in view itself. */
+function findPiList(node: any, depth = 0): PiList | undefined {
+	if (!node || depth > 4) return undefined;
+	if (typeof node.selectedIndex === "number" && (typeof node.maxVisible === "number" || typeof node.maxVisibleLines === "number")) return node;
+	for (const child of Array.isArray(node.children) ? node.children : []) {
+		const found = findPiList(child, depth + 1);
+		if (found) return found;
+	}
+	return undefined;
+}
+
+/**
+ * Shrink Pi's own list window by `overflow` rows so the whole body fits our cap: Pi keeps the cursor centered in its
+ * window, so nothing is windowed twice. Returns false when the child exposes no adjustable list.
+ */
+function shrinkPiList(child: object, overflow: number): boolean {
+	const list = findPiList(child);
+	if (!list) return false;
+	const key = typeof list.maxVisible === "number" ? "maxVisible" : "maxVisibleLines";
+	const current = list[key]!;
+	if (current <= 1) return false;
+	list[key] = Math.max(1, current - overflow);
+	return true;
+}
+
 /** Panel rows for a foreign slot child: exactly `width` cells each, at most `maxRows` tall (excluding the head row). */
 export function frameSlotChild(child: { render(width: number): string[] }, width: number, terminalRows = 40, crumbs: Crumbs = { trail: [] }): string[] {
 	const total = Math.max(0, Math.floor(width));
@@ -160,7 +188,7 @@ export function frameSlotChild(child: { render(width: number): string[] }, width
 	const bodyWidth = total - GEEK_PREFIX_WIDTH;
 	const prefix = " ".repeat(GEEK_PREFIX_WIDTH);
 	const innerWidth = Math.max(1, bodyWidth - 2 * PAD);
-	const model = classify(child.render(innerWidth));
+	let model = classify(child.render(innerWidth));
 
 	const trail = updateTrail(crumbs, child, model.title);
 	const counter = model.counter ?? "";
@@ -170,6 +198,8 @@ export function frameSlotChild(child: { render(width: number): string[] }, width
 
 	if (model.input !== undefined) rows.push(panelRow(model.input, bodyWidth));
 	const budget = Math.max(MIN_BODY_ROWS, Math.min(MAX_BODY_ROWS, Math.floor(terminalRows * 0.4) - rows.length - 2));
+	// Fit Pi's own window first; our window below is then only the fallback for lists with a fixed window.
+	if (model.body.length > budget && shrinkPiList(child, model.body.length - budget)) model = classify(child.render(innerWidth));
 	const windowed = windowRows(model.body, model.selected, budget);
 	windowed.rows.forEach((row, i) => rows.push(panelRow(row, bodyWidth, windowed.start + i === model.selected ? "panelSel" : "panel")));
 	if (model.detail) rows.push(panelRow(`  ${geekFg("faint", model.detail)}`, bodyWidth));
