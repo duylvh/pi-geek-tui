@@ -56,10 +56,22 @@ export function geekSplitRow(left: string, right: string, width: number): string
 
 export type GeekHeadInfo = { name: string; host: string; cwd: string; branch?: string };
 
+export type GeekHeadRole = "user" | "agent";
+
+/** Head-row name: bold, in the role color (ink for the user, kw for the agent). Shared with the input head. */
+export function geekHeadName(role: GeekHeadRole, name: string): string {
+	return `\x1b[1m${geekFg(role === "agent" ? "kw" : "ink", name)}\x1b[22m`;
+}
+
+/** Head-row context (`@host`, path, `(branch)`): faint, so the name stands out. Shared with the input head. */
+export function geekHeadContext(text: string): string {
+	return geekFg("faint", text);
+}
+
 /** `bean@kpi-api ~/code/kpi-api (fix/refresh-ttl)` styled per spec §2. */
-export function geekHeadBody(info: GeekHeadInfo): string {
-	const parts = [`${geekFg("ink", info.name)}${geekFg("dim", `@${info.host}`)}`, geekFg("punct", info.cwd)];
-	if (info.branch) parts.push(geekFg("kw", `(${info.branch})`));
+export function geekHeadBody(info: GeekHeadInfo, role: GeekHeadRole): string {
+	const parts = [`${geekHeadName(role, info.name)}${geekHeadContext(`@${info.host}`)}`, geekHeadContext(info.cwd)];
+	if (info.branch) parts.push(geekHeadContext(`(${info.branch})`));
 	return parts.join(" ");
 }
 

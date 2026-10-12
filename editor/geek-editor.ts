@@ -5,7 +5,7 @@ import { basename } from "node:path";
 
 import { loadConfig } from "../config.js";
 import type { FooterTokenUsage } from "../footer-patch.js";
-import { GEEK_PREFIX_WIDTH, geekRow, geekSplitRow } from "../presentation/geek-rows.js";
+import { GEEK_PREFIX_WIDTH, geekHeadContext, geekHeadName, geekRow, geekSplitRow } from "../presentation/geek-rows.js";
 import { safeTakeTailToWidth, safeTruncateToWidth, safeVisibleWidth, safeWrapTextWithAnsi } from "../render-budget.js";
 import { getGitDiffStat } from "../presentation/git-diff-stat.js";
 import { stripAnsi } from "../theme/ansi.js";
@@ -137,9 +137,9 @@ export class GeekEditor extends CustomEditor {
 		const room = bodyWidth - (live ? safeVisibleWidth(live) + 1 : 0) - fixed.reduce((sum, part) => sum + safeVisibleWidth(part), 0) - fixed.length;
 		const shownCwd = safeVisibleWidth(cwd) <= room ? cwd : room >= MIN_CWD_CELLS ? safeTakeTailToWidth(cwd, room) : "";
 		const left = [
-			`${geekFg("ink", this.user)}${geekFg("dim", `@${host}`)}`,
-			shownCwd ? geekFg("punct", shownCwd) : "",
-			branch ? geekFg("kw", `(${branch})`) : "",
+			`${geekHeadName("user", this.user)}${geekHeadContext(`@${host}`)}`,
+			shownCwd ? geekHeadContext(shownCwd) : "",
+			branch ? geekHeadContext(`(${branch})`) : "",
 			stat,
 		].filter(Boolean).join(" ");
 		return geekRow("head-user", geekSplitRow(left, live, bodyWidth), width);

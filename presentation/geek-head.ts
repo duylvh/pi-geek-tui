@@ -63,5 +63,5 @@ function safeLogin(): string {
 
 export function geekHeadRow(role: GeekRole, width: number): string {
 	const rail: GeekRail = role === "agent" ? "head-agent" : "head-user";
-	return geekRow(rail, geekHeadBody(getGeekHeadInfo(role)), width);
+	return geekRow(rail, geekHeadBody(getGeekHeadInfo(role), role), width);
 }

@@ -51,6 +51,8 @@ const STAT = new RegExp(`\\(main\\) \\+${stat.added} -${stat.removed} ~${stat.fi
 let row = strip(head(dirty, 120));
 expect("wide: path, branch, then +added -removed ~files", row.includes("kpi-api-service") && STAT.test(row), JSON.stringify(row));
 const raw = head(dirty, 120);
+// Input head matches the transcript heads: bold ink name, faint context, stat colors untouched.
+expect("name bold ink, @host/branch faint", /\x1b\[1m\x1b\[38;2;216;212;180m[^\x1b]+\x1b\[39m\x1b\[22m\x1b\[38;2;82;91;84m@kpi-api-service/.test(raw) && raw.includes("\x1b[38;2;82;91;84m(main)"), JSON.stringify(raw));
 expect("colors: + mono, - delMark, ~ dim", raw.includes(`38;2;136;198;163m+${stat.added}`) && raw.includes(`38;2;221;86;112m-${stat.removed}`) && raw.includes(`38;2;168;163;133m~${stat.files}`));
 
 for (const width of [100, 70, 50]) {

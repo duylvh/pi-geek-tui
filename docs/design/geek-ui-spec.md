@@ -11,12 +11,12 @@ is forked from pi-geek-tui and must keep working — change visuals, not the eng
 |---|---|---|
 | bg | `#0c0c0c` | page background (OSC 11 when enabled) |
 | ink | `#d8d4b4` | normal text, user name, user rail dot, cursor block |
-| dim | `#a8a385` | secondary text (`@host`, `// meta`, labels) |
-| faint | `#525b54` | separators ` · `, backticks, `^o`, line numbers, `░` empty bar, tree glyphs |
+| dim | `#a8a385` | secondary text (`// meta`, labels) |
+| faint | `#525b54` | head-row context (`@host`, `~/path`, `(branch)`), separators ` · `, backticks, `^o`, line numbers, `░` empty bar, tree glyphs |
 | num | `#d8785b` | numbers, `$` (bash) badge bg |
-| kw | `#689e80` | `(branch)`, keywords, thinking level, agent rail dot, finished tool rail `┃`, edit badge bg, ctx bar fill |
+| kw | `#689e80` | keywords, agent name in the head row, thinking level, agent rail dot, finished tool rail `┃`, edit badge bg, ctx bar fill |
 | str/mono | `#88c6a3` | inline code text, `+N`, `+` diff marker |
-| punct | `#727060` | `~/path`, code punctuation |
+| punct | `#727060` | code punctuation |
 | rail | `#3a3a34` | idle rail `┊` |
 | rule | `#2a2a26` | footer horizontal rule `─` |
 | accent | `#dd5670` default; config options `#dd5670` `#d8785b` `#88c6a3` `#d8d4b4` | `π`, `## heading`, list `-`, active rail `┃`, running state, progress fill |
@@ -44,7 +44,7 @@ right session name ink + dim ` · ` + dim `turn N`. No session name: just `turn 
 Narrow widths drop, in order: cwd (left-truncated with `…` first), `turn N`, session name; `π pi` always stays. Never wraps.
 
 ### 2. Message head row
-` • bean@kpi-api ~/code/kpi-api (fix/refresh-ttl)` — name ink, `@host` dim, path punct, branch kw.
+` • bean@kpi-api ~/code/kpi-api (fix/refresh-ttl)` — the name is bold (ink for the user, kw for the agent); `@host`, path and `(branch)` are faint, not bold.
 Agent: `pi@agent …` with kw dot. No time on message rows.
 
 ### 3. User prompt body

@@ -30,7 +30,7 @@ const failures = [];
 const expect = (name, condition) => { if (!condition) failures.push(name); };
 
 for (const width of [20, 40, 80]) {
-	const head = rows.geekHeadBody({ name: "bean", host: "kpi-api", cwd: "~/code/kpi-api", branch: "fix/refresh-ttl" });
+	const head = rows.geekHeadBody({ name: "bean", host: "kpi-api", cwd: "~/code/kpi-api", branch: "fix/refresh-ttl" }, "user");
 	for (const rail of ["head-user", "head-agent", "line", "active", "blank"]) {
 		const row = rows.geekRow(rail, head, width);
 		expect(`geekRow ${rail} @${width} is exactly ${width} cells`, visibleWidth(row) === width);
@@ -39,9 +39,19 @@ for (const width of [20, 40, 80]) {
 	expect(`geekSplitRow @${width} is exactly ${width} cells`, visibleWidth(split) === width);
 }
 expect("prefix is the glyph centered in 3 cells", visibleWidth(rows.geekRowPrefix("line")) === rows.GEEK_PREFIX_WIDTH && strip(rows.geekRowPrefix("head-user")) === " • ");
+// Head rows: the name stands out (bold, role color), everything after it recedes (faint, not bold).
+const info = { name: "bean", host: "kpi-api", cwd: "~/code/kpi-api", branch: "fix/refresh-ttl" };
+for (const [role, nameFg] of [["user", "216;212;180"], ["agent", "104;158;128"]]) {
+	const raw = rows.geekHeadBody({ ...info, name: role === "agent" ? "pi" : "bean" }, role);
+	const name = role === "agent" ? "pi" : "bean";
+	const FAINT = "\x1b[38;2;82;91;84m";
+	expect(`${role} head: name bold in its role color`, raw.startsWith(`\x1b[1m\x1b[38;2;${nameFg}m${name}\x1b[39m\x1b[22m`), JSON.stringify(raw));
+	const rest = raw.slice(raw.indexOf("\x1b[22m") + 5);
+	expect(`${role} head: @host, path and (branch) are faint, none bold`, rest === `${FAINT}@kpi-api\x1b[39m ${FAINT}~/code/kpi-api\x1b[39m ${FAINT}(fix/refresh-ttl)\x1b[39m`, JSON.stringify(rest));
+}
 expect("geekNumber groups with '", rows.geekNumber(1204) === "1'204" && rows.geekNumber(41) === "41" && rows.geekNumber(1234567) === "1'234'567");
 
-console.log(rows.geekRow("head-user", rows.geekHeadBody({ name: "bean", host: "kpi-api", cwd: "~/code/kpi-api", branch: "fix/refresh-ttl" }), 80));
+console.log(rows.geekRow("head-user", rows.geekHeadBody({ name: "bean", host: "kpi-api", cwd: "~/code/kpi-api", branch: "fix/refresh-ttl" }, "user"), 80));
 console.log(rows.geekRow("line", "› refresh token expires after 5 minutes, fix it", 80));
 console.log(rows.geekRow("active", rows.geekSplitRow("› pnpm test auth · read refresh.test.ts", "// 2 call · running · 4.1s", 72), 80));
 
