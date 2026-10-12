@@ -1,6 +1,7 @@
 import { getLanguageFromPath, highlightCode } from "@earendil-works/pi-coding-agent";
 
 import { safeTruncateToWidth } from "../render-budget.js";
+import { inkBase } from "../split-diff.js";
 import { stripAnsi } from "../theme/ansi.js";
 import { geekFg } from "../theme/geek-palette.js";
 import { extractTrailingNotice, getTextOutput, stripTrailingNotice } from "./common.js";
@@ -64,10 +65,10 @@ export function renderReadResult(result: any, options: any, _theme: any, context
 	return renderBody(true, (width, maxLines) => {
 		const sourceLines = parsed.body.split("\n");
 		const shown = maxLines > 0 ? sourceLines.slice(0, maxLines) : sourceLines;
-		let colored = shown.map((line) => geekFg("ink", line));
+		let colored = shown.map(inkBase);
 		if (shouldHighlight && lang) {
 			try {
-				colored = highlightCode(shown.join("\n"), lang);
+				colored = highlightCode(shown.join("\n"), lang).map(inkBase);
 			} catch {
 				// keep plain ink
 			}

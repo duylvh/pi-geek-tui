@@ -55,8 +55,9 @@ declare const process: any;
 	const stubAgentPkgDir = join(buildDir, "node_modules", "@earendil-works", "pi-coding-agent");
 	mkdirSync(stubAgentPkgDir, { recursive: true });
 	writeFileSync(join(stubAgentPkgDir, "package.json"), "{\"name\":\"@earendil-works/pi-coding-agent\",\"version\":\"0.0.0-stub\",\"type\":\"module\",\"main\":\"index.js\"}\n", "utf8");
-	writeFileSync(join(stubAgentPkgDir, "index.js"), `export const getLanguageFromPath = () => undefined;
-export const highlightCode = () => [];
+	writeFileSync(join(stubAgentPkgDir, "index.js"), `export const getLanguageFromPath = (path) => (String(path).endsWith(".ts") ? "typescript" : undefined);
+// keyword gets a fg color and a plain fg reset; identifiers stay uncolored like hljs output
+export const highlightCode = (code) => String(code).split("\\n").map((line) => line.replace(/\\bconst\\b/, "\\x1b[38;2;104;158;128mconst\\x1b[39m"));
 export const getAgentDir = () => "/nonexistent-agent-dir";
 export class ToolExecutionComponent {}
 `, "utf8");
@@ -321,6 +322,46 @@ async function runBuiltinToolRenderersSmoke() {
 	assert(block[0].startsWith("      │ › edit src/auth/session.ts") && block[0].includes("// +2 -2 · 0.1s"), `edit call row: ${block[0]}`);
 	assert(block[1].startsWith("      │   ") && block[1].includes("20 - const exp"), `diff rows sit under the call, indented 2: ${block[1]}`);
 	assert(block.at(-1).trim() === "│", "block must end with one blank rail row");
+
+	// Running progress bar only for unambiguous n/m forms.
+	const progressRow = (last) => groups.renderChatChildren([tool("bash", { command: "build" }, { expanded: true, isPartial: true, result: { content: [{ type: "text", text: `step\n${last}` }] } })], 100).map(strip).find((row) => row.includes("── ")) ?? "";
+	for (const last of ["[37/120]", "(37/120)", "37/120 files", "37/120", "37/120 (31%)"]) assert(progressRow(last).includes("37/120") && progressRow(last).includes("█"), `"${last}" should draw a bar: ${progressRow(last)}`);
+	for (const last of ["2026/10/12", "10/12 meeting", "src/1/2.ts", "see 3/4 of it"]) assert(!progressRow(last).includes("░"), `"${last}" must not draw a bar: ${progressRow(last)}`);
+
+	// Runner summary beats the plain line count; no summary falls back to `lines N`.
+	const bash = (command, text, extra = {}) => tool("bash", { command }, { expanded: true, result: { content: [{ type: "text", text }], ...extra } });
+	const passRows = groups.renderChatChildren([
+		bash("pnpm test", "Tests  11 passed, 3 failed, 14 total", { isError: true }),
+		bash("pnpm t2", "Tests 14 passed (14)"),
+		bash("ls", "a\nb"),
+	], 100).map(strip).filter((row) => row.includes("── "));
+	assert(passRows[0].includes("failed") && passRows[0].includes("11/14") && passRows[0].includes("█"), `failing run should show failed + n/m bar: ${passRows[0]}`);
+	assert(passRows[1].includes("passed") && passRows[1].includes("14/14"), `passing run should show passed + full bar: ${passRows[1]}`);
+	assert(passRows[2].includes("lines") && !passRows[2].includes("/"), `no summary falls back to the line count: ${passRows[2]}`);
+
+	// --- 8. Terminal image lines survive the render patch; reload re-installs without stacking ---
+	const kitty = "\x1b_Gf=100,t=d,a=T;QUFBQQ==\x1b\\";
+	const iterm = "\x1b]1337;File=inline=1:QUFBQQ==\x07";
+	class FakeImageTool {
+		constructor() { Object.assign(this, { toolName: "read", result: {}, isPartial: false }); }
+		render() { return ["", "› read photo.png", "", kitty, "", iterm]; }
+	}
+	spacing.installCompactToolSpacing(FakeImageTool);
+	const imageLines = new FakeImageTool().render(80);
+	assert(imageLines.includes(kitty) && imageLines.includes(iterm) && imageLines.indexOf(kitty) < imageLines.indexOf(iterm), "kitty/iTerm2 image lines must pass through untouched and in order");
+	assert(imageLines[imageLines.indexOf(kitty) - 1] === "", "one spacer row must stay before the image block");
+	assert(strip(imageLines[0]).startsWith("      │ › read photo.png"), `text rows around images still get gutter + rail: ${strip(imageLines[0])}`);
+	const wrapped = FakeImageTool.prototype.render;
+	spacing.installCompactToolSpacing(FakeImageTool);
+	const reloaded = await import(`${buildToolTags("compact-tool-spacing.js")}?reload=1`);
+	reloaded.installCompactToolSpacing(FakeImageTool);
+	assert(FakeImageTool.prototype.render === wrapped, "re-install (same or reloaded module copy) must not stack a second render wrapper");
+	assert(new FakeImageTool().render(80).filter((row) => strip(row).includes("› read photo.png")).length === 1, "re-install must not prefix rows twice");
+
+	// Uncolored code (identifiers/operators) must fall back to ink, not the terminal default fg.
+	const INK = "\x1b[38;2;216;212;180m";
+	const rawDiffRow = edited.body.render(WIDTH).find((row) => strip(row).includes("const exp = now + REFRESH_TTL;"));
+	assert(rawDiffRow?.includes(`const\x1b[39m${INK} exp`), `highlighted diff code must re-establish ink after fg resets: ${JSON.stringify(rawDiffRow)}`);
 
 	for (const out of [groups.renderChatChildren(finished, 100), groups.renderChatChildren(treeChildren, 100), groups.renderChatChildren(expandedChildren, 100).slice(0, 8), new FakeToolExecution().render(WIDTH)]) console.log(out.join("\n"));
 	console.log("builtin tool renderers smoke ok (7-name resolution, timing precedence, edit-only registration, edit diff rows + meta, group summary)");

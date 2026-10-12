@@ -100,6 +100,15 @@ function applyBackgroundToVisibleRange(
 	return output;
 }
 
+/**
+ * Highlighted code leaves identifiers/operators without a color, so they would fall back to the
+ * terminal default. Make ink the base: set it first and re-set it after every fg/full reset.
+ */
+export function inkBase(text: string): string {
+	const ink = geekFg("ink", "").slice(0, -"\x1b[39m".length);
+	return ink + text.replace(/\x1b\[(?:39|0)m/g, (reset) => reset + ink);
+}
+
 // ── Text utilities ─────────────────────────────────────────────────
 
 function sanitizeSingleLineText(value: string): string {
@@ -404,7 +413,7 @@ export class DiffRowsComponent implements Component {
 	}
 
 	private highlight(line: string): string {
-		if (!this.language) return line;
+		if (!this.language) return inkBase(line);
 		const key = `${this.language}\n${line}`;
 		const cached = this.highlightCache.get(key);
 		if (cached) return cached;
@@ -414,6 +423,7 @@ export class DiffRowsComponent implements Component {
 		} catch {
 			// plain text
 		}
+		highlighted = inkBase(highlighted);
 		this.highlightCache.set(key, highlighted);
 		return highlighted;
 	}

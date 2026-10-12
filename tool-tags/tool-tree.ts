@@ -70,15 +70,49 @@ function plainValue(text: string, role: GeekColorRole = "num"): { text: string; 
 	return { text: geekFg(role, text), width: text.length };
 }
 
-/** `n/m` in the last non-empty output line drives the bar (test runners, builds). */
+const PROGRESS_UNITS = "tests?|files?|modules?|packages?|steps?|chunks?|tasks?|items?";
+// Only unambiguous forms: `[37/120]`, `(37/120)`, `37/120 files`, or a line that is just `37/120` (+ %).
+const PROGRESS_PATTERNS = [
+	/\[(\d+)\s*\/\s*(\d+)\]/,
+	/\((\d+)\s*\/\s*(\d+)\)/,
+	new RegExp(`(?<![\\w/.])(\\d+)\\s*/\\s*(\\d+)\\s+(?:${PROGRESS_UNITS})\\b`, "i"),
+	/^\s*(\d+)\s*\/\s*(\d+)(?:\s*\(?\d+%\)?|\s*%)?\s*$/,
+];
+
 function parseProgress(text: string): { done: number; total: number } | undefined {
 	const tail = text.slice(-400).trimEnd();
 	const lastLine = tail.slice(tail.lastIndexOf("\n") + 1);
-	const match = lastLine.match(/\b(\d+)\s*\/\s*(\d+)\b/);
-	if (!match) return undefined;
-	const done = Number(match[1]);
-	const total = Number(match[2]);
-	return total > 0 && done <= total ? { done, total } : undefined;
+	for (const pattern of PROGRESS_PATTERNS) {
+		const match = lastLine.match(pattern);
+		if (!match) continue;
+		const done = Number(match[1]);
+		const total = Number(match[2]);
+		if (total > 0 && done <= total) return { done, total };
+	}
+	return undefined;
+}
+
+function firstCount(text: string, ...patterns: RegExp[]): number | undefined {
+	for (const pattern of patterns) {
+		const match = text.match(pattern);
+		if (match) return Number(match[1]);
+	}
+	return undefined;
+}
+
+/** Cheap runner-summary heuristic (jest/vitest/pytest/node:test): `11 passed`, `2 failed`, `14 total`. */
+function testSummary(text: string): Stats | undefined {
+	const tail = text.slice(-2000);
+	const passed = firstCount(tail, /\b(\d+)\s+pass(?:ed|ing)?\b/i, /#\s*pass\s+(\d+)/i);
+	const failed = firstCount(tail, /\b(\d+)\s+fail(?:ed|ing|ures?)?\b/i, /#\s*fail\s+(\d+)/i);
+	if (passed === undefined && failed === undefined) return undefined;
+	const done = passed ?? 0;
+	const bad = failed ?? 0;
+	const total = Math.max(firstCount(tail, /\b(\d+)\s+total\b/i, /\bTests?\b[^\n]*\((\d+)\)/) ?? 0, done + bad);
+	const progress = total > 0 ? { done, total } : undefined;
+	return bad > 0
+		? { label: "failed", labelRole: "delMark", value: plainValue(geekNumber(bad)), progress }
+		: { label: "passed", labelRole: "dim", value: plainValue(geekNumber(done)), progress };
 }
 
 const statsCache = new WeakMap<object, { result: unknown; stats: Stats }>();
@@ -90,7 +124,10 @@ function resultStats(tool: any): Stats {
 	const text = stripTrailingNotice(stripAnsi(getTextOutput(tool.result)));
 	const countLabel = RESULT_COUNT_LABEL[tool.toolName];
 	let stats: Stats;
-	if (tool.result?.isError) {
+	const summary = tool.toolName === "bash" ? testSummary(text) : undefined;
+	if (summary) {
+		stats = summary;
+	} else if (tool.result?.isError) {
 		stats = { label: "failed", labelRole: "delMark" };
 	} else if (countLabel) {
 		const lines = typeof tool.result?.details?.truncation?.outputLines === "number" ? tool.result.details.truncation.outputLines : countLines(text);
