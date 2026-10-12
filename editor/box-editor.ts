@@ -6,7 +6,9 @@ import { safeWrapTextWithAnsi, safeTruncateToWidth, safeVisibleWidth } from "../
 import { fgHex, stripAnsi } from "../theme/ansi.js";
 import { getThemeExtra } from "../theme/theme-extras.js";
 import { resolveUserZoneStyle, type UserZoneStyle } from "../user-zone/designs.js";
-import { loadConfig, type InputBoxStyle } from "../config.js";
+import { loadConfig } from "../config.js";
+
+type InputBoxStyle = "auto" | "halfblock" | "line" | "solid"; // removed in M3 with the box
 
 /** Outline border plus the prompt gap, so the cli-dock status row lines up with the input text. */
 const CLI_DOCK_STATUS_INSET = 2;

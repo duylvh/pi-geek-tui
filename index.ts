@@ -14,7 +14,7 @@ import { registerToolCallTags } from "./tool-tags/register-tool-call-tags.js";
 import { recordToolCallTimingEnd, recordToolCallTimingStart } from "./tool-tags/elapsed.js";
 import { installStartupUiPatch, setCompactStartupHeader, suppressStartupModelScopeLog } from "./startup-ui.js";
 import { installInteractiveChatVirtualization } from "./performance/virtualize-chat.js";
-import { registerCompanionThemes } from "./theme/companion-themes.js";
+import { setGeekAccent } from "./theme/geek-palette.js";
 import { beginAssistantStream, endAssistantStream, trackAssistantStreamMessage } from "./messages/assistant-streaming-state.js";
 
 type SessionModules = typeof import("./session-modules.js");
@@ -24,10 +24,8 @@ type WorkingStateForAssistantMessage = SessionModules["workingStateForAssistantM
 type SetAssistantUpdateRenderRequester = SessionModules["setAssistantUpdateRenderRequester"];
 type RenderFrameDebugModule = typeof import("./performance/render-frame-debug.js");
 
-let syncThemeExtrasForCurrentSession: ((force?: boolean) => void) | undefined;
 let restoreTerminalBackgroundForCurrentSession: (() => void) | undefined;
 let disposePiTasksWidgetStylingForCurrentSession: (() => void) | undefined;
-const FORCE_THEME_SCAN_INTERVAL_MS = 1000;
 const TRUE_ENV_VALUES = new Set(["1", "true", "yes", "on"]);
 let setAssistantUpdateRenderRequesterForCurrentSession: SetAssistantUpdateRenderRequester | undefined;
 let sessionModulesPromise: Promise<SessionModules> | undefined;
@@ -75,7 +73,7 @@ export default function (pi: ExtensionAPI) {
 		});
 		return;
 	}
-	registerCompanionThemes(pi, InteractiveMode);
+	setGeekAccent(loadConfig().accent);
 	suppressStartupModelScopeLog();
 	installStartupUiPatch(InteractiveMode);
 	// Default matches config.ts; session_start refreshes from disk before messages render.
@@ -166,7 +164,6 @@ export default function (pi: ExtensionAPI) {
 		sessionRunSerial++;
 		profileCount("session.shutdown");
 		flushProfile("session_shutdown");
-		syncThemeExtrasForCurrentSession = undefined;
 		restoreTerminalBackgroundForCurrentSession?.();
 		restoreTerminalBackgroundForCurrentSession = undefined;
 		setAssistantUpdateRenderRequesterForCurrentSession?.(undefined);
@@ -222,7 +219,7 @@ export default function (pi: ExtensionAPI) {
 		}
 		const config = modules.loadConfig();
 		reportConfigIssue(sessionUi);
-		modules.setPresentationStyle(config.presentationStyle);
+		setGeekAccent(config.accent);
 		currentVisibleChatTail = config.visibleChatTail;
 		await ensureToolCallTagsRegistered();
 		if (!isCurrentSessionRun()) return;
@@ -230,7 +227,7 @@ export default function (pi: ExtensionAPI) {
 			? await loadRenderFrameDebugModule()
 			: undefined;
 		if (!isCurrentSessionRun()) return;
-		const userZoneStyle = modules.resolveUserZoneStyle(config.userZoneStyle);
+		const userZoneStyle = modules.resolveUserZoneStyle(undefined); // replaced by the geek input zone in M3
 		disposePiTasksWidgetStylingForCurrentSession?.();
 		disposePiTasksWidgetStylingForCurrentSession = modules.installPiTasksWidgetStyling(sessionUi, config.tasksWidgetStyle);
 		restoreTerminalBackgroundForCurrentSession?.();
@@ -245,40 +242,12 @@ export default function (pi: ExtensionAPI) {
 			sessionUi.setToolsExpanded(initialToolsExpanded);
 		}
 
-		// No setTheme() call — use whatever theme is selected in settings
 		modules.installAssistantStreamingMarkdownCache(AssistantMessageComponent);
 		modules.installAssistantMessagePrefix(sessionUi.theme);
 		modules.installUserMessagePrefix(sessionUi.theme);
 		modules.installAssistantUpdateDebounce(AssistantMessageComponent);
 		modules.installToolExecutionUpdateDebounce(ToolExecutionComponent);
 		modules.installFinishedRenderCache(AssistantMessageComponent, ToolExecutionComponent);
-
-		let lastForcedThemeScanAt = 0;
-		const syncThemeExtras = (force = false) => {
-			if (force) {
-				const now = Date.now();
-				if (lastForcedThemeScanAt > 0 && now - lastForcedThemeScanAt < FORCE_THEME_SCAN_INTERVAL_MS) {
-					force = false;
-				} else {
-					lastForcedThemeScanAt = now;
-				}
-			}
-			modules.setFullTheme(sessionUi.theme, force);
-		};
-		syncThemeExtrasForCurrentSession = syncThemeExtras;
-		syncThemeExtras(true);
-
-		const interactiveModePrototype = InteractiveMode.prototype as any;
-		const originalUpdateEditorBorderColor = interactiveModePrototype.updateEditorBorderColor;
-		// Keep the legacy marker name so extension reloads do not stack wrappers.
-		if (typeof originalUpdateEditorBorderColor === "function" && !originalUpdateEditorBorderColor.__geekTerminalThemeSync) {
-			const wrappedUpdateEditorBorderColor = function (this: any, ...args: any[]) {
-				syncThemeExtrasForCurrentSession?.(true);
-				return originalUpdateEditorBorderColor.apply(this, args);
-			};
-			(wrappedUpdateEditorBorderColor as any).__geekTerminalThemeSync = true;
-			interactiveModePrototype.updateEditorBorderColor = wrappedUpdateEditorBorderColor;
-		}
 
 		modules.setDefaultBadgeTheme(sessionUi.theme);
 		modules.setToolSpacingTheme(sessionUi.theme);
@@ -336,7 +305,7 @@ export default function (pi: ExtensionAPI) {
 				() => tracker.getWordsPerSecond(),
 				modules.getFooterStatusLine,
 				userZoneStyle,
-				config.inputBox.style,
+				"auto",
 				modules.getFooterTokenUsageLine,
 			);
 		});

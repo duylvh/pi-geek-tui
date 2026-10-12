@@ -158,34 +158,20 @@ await runConfigSmoke("partial custom labels backfilled", '{"customWorkingMessage
 	assert(config.customWorkingMessage.thinking === "Pondering", "custom thinking label did not normalize");
 });
 
-await runConfigSmoke("inputBox.style scaffold default", undefined, ({ config, raw }) => {
-	assert(raw.inputBox?.style === "auto", "scaffold did not write default inputBox.style");
-	assert(config.inputBox.style === "auto", "default config missing inputBox.style");
+await runConfigSmoke("accent scaffold default", undefined, ({ config, raw }) => {
+	assert(raw.accent === "#dd5670", "scaffold did not write default accent");
+	assert(config.accent === "#dd5670", "default config missing accent");
+	assert(!("inputBox" in raw) && !("presentationStyle" in raw) && !("userZoneStyle" in raw), "removed preset keys must not be scaffolded");
 });
 
-await runConfigSmoke("inputBox.style custom halfblock", '{"inputBox":{"style":"halfblock"}}', ({ config, raw }) => {
-	assert(raw.inputBox?.style === "halfblock", "custom halfblock style was not preserved");
-	assert(config.inputBox.style === "halfblock", "custom halfblock style did not normalize");
+await runConfigSmoke("accent custom hex normalized", '{"accent":"#D85"}', ({ config, raw }) => {
+	assert(config.accent === "#dd8855", "short/upper hex should normalize to #rrggbb");
+	assert(raw.accent === "#dd8855", "normalized accent should be written back");
 });
 
-await runConfigSmoke("inputBox.style custom line", '{"inputBox":{"style":"line"}}', ({ config, raw }) => {
-	assert(raw.inputBox?.style === "line", "custom line style was not preserved");
-	assert(config.inputBox.style === "line", "custom line style did not normalize");
-});
-
-await runConfigSmoke("inputBox.style custom solid", '{"inputBox":{"style":"solid"}}', ({ config, raw }) => {
-	assert(raw.inputBox?.style === "solid", "custom solid style was not preserved");
-	assert(config.inputBox.style === "solid", "custom solid style did not normalize");
-});
-
-await runConfigSmoke("inputBox.style invalid fallback", '{"inputBox":{"style":"invalid"}}', ({ config, raw }) => {
-	assert(raw.inputBox?.style === "auto", "invalid style was not backfilled to auto");
-	assert(config.inputBox.style === "auto", "invalid style did not fallback to default");
-});
-
-await runConfigSmoke("inputBox missing style field", '{"inputBox":{}}', ({ config, raw }) => {
-	assert(raw.inputBox?.style === "auto", "missing style field was not backfilled");
-	assert(config.inputBox.style === "auto", "missing style field did not normalize to default");
+await runConfigSmoke("accent invalid fallback", '{"accent":"red","inputBox":{"style":"line"}}', ({ config, raw }) => {
+	assert(raw.accent === "#dd5670" && config.accent === "#dd5670", "invalid accent should fall back to default");
+	assert(!("inputBox" in raw), "removed inputBox key should be dropped from the file");
 });
 
 // A config that breaks after a good load keeps the last good values and is never touched;
@@ -199,28 +185,28 @@ async function runBrokenConfigSmoke() {
 		const when = new Date(Date.now() + offsetMs);
 		utimesSync(configPath, when, when);
 	};
-	writeInitialConfig(homeDir, '{"inputBox":{"style":"line"}}');
+	writeInitialConfig(homeDir, '{"accent":"#d8785b"}');
 	process.env.HOME = homeDir;
 	process.env.USERPROFILE = homeDir;
 	const { loadConfig, getConfigIssue } = await importBuilt("config.js");
-	assert(loadConfig().inputBox.style === "line" && getConfigIssue() === undefined, "valid config should load without an issue");
+	assert(loadConfig().accent === "#d8785b" && getConfigIssue() === undefined, "valid config should load without an issue");
 
 	// loadConfig re-stats at most once per second: move the clock instead of sleeping.
 	const realNow = Date.now;
 	let clock = realNow();
 	Date.now = () => clock;
 	try {
-		const broken = '{"inputBox":{"style":"solid"},}\n';
+		const broken = '{"accent":"#88c6a3",}\n';
 		writeAt(broken, 5000);
 		clock += 2000;
-		assert(loadConfig().inputBox.style === "line", "broken edit should keep the last good config, not defaults");
+		assert(loadConfig().accent === "#d8785b", "broken edit should keep the last good config, not defaults");
 		assert(getConfigIssue()?.includes(configPath), "config issue should name the file");
 		assert(readFileSync(configPath, "utf8") === broken, "broken config must not be rewritten");
 		assert(readdirSync(configDir).join() === "pi-geek-tui.json", "broken config must not be renamed or shadowed");
 
-		writeAt('{"inputBox":{"style":"solid"}}', 10000);
+		writeAt('{"accent":"#88c6a3"}', 10000);
 		clock += 2000;
-		assert(loadConfig().inputBox.style === "solid" && getConfigIssue() === undefined, "fixed config should load and clear the issue");
+		assert(loadConfig().accent === "#88c6a3" && getConfigIssue() === undefined, "fixed config should load and clear the issue");
 	} finally {
 		Date.now = realNow;
 	}
@@ -230,7 +216,7 @@ async function runBrokenConfigSmoke() {
 	process.env.HOME = freshHome;
 	process.env.USERPROFILE = freshHome;
 	const fresh = await importBuilt("config.js");
-	assert(fresh.loadConfig().inputBox.style === "auto" && fresh.getConfigIssue() === undefined, "missing config should serve defaults without an issue");
+	assert(fresh.loadConfig().accent === "#dd5670" && fresh.getConfigIssue() === undefined, "missing config should serve defaults without an issue");
 	assert(existsSync(join(freshHome, ".pi", "agent", "pi-geek-tui.json")), "missing config should be scaffolded");
 	console.log("config smoke ok: broken json keeps last good config");
 }

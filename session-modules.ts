@@ -2,7 +2,6 @@ export { BoxEditor } from "./editor/box-editor.js";
 export { createAssistantSpeedTracker } from "./core/assistant-speed.js";
 export { createGitBranchFetcher } from "./core/git-status.js";
 export { loadConfig } from "./config.js";
-export { setPresentationStyle } from "./presentation/state.js";
 export { resolveUserZoneStyle } from "./user-zone/designs.js";
 export { installAssistantMessagePrefix } from "./messages/assistant-prefix.js";
 export { installMarkdownCodeBlockRenderer } from "./messages/markdown-codeblock-renderer.js";
@@ -18,7 +17,6 @@ export { installRenderPhysicalSync } from "./performance/render-physical-sync.js
 export { installRenderThrottle, requestRenderWithFrameMs } from "./performance/render-throttle.js";
 export { installRenderWidthGuard } from "./performance/render-width-guard.js";
 export { installInteractiveChatVirtualization, virtualizeChatContainer, virtualizeChatContainerInstance } from "./performance/virtualize-chat.js";
-export { setFullTheme } from "./theme/theme-extras.js";
 export { applyTerminalPageBackgroundOsc11, clearTerminalPageBackgroundOsc111 } from "./theme/terminal-background.js";
 export { installCompactToolSpacing, setToolSpacingTheme } from "./tool-tags/compact-tool-spacing.js";
 export { setToolGroupTheme } from "./tool-tags/tool-groups.js";

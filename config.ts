@@ -1,16 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import { homedir } from "os";
-import { DEFAULT_PRESENTATION_STYLE, isPresentationStyleName, normalizePresentationStyleName, type PresentationStyleName } from "./presentation/designs.js";
-import { DEFAULT_USER_ZONE_STYLE, FALLBACK_USER_ZONE_STYLE, isUserZoneStyleName, normalizeUserZoneStyleName, type UserZoneStyleName } from "./user-zone/designs.js";
+import { DEFAULT_GEEK_ACCENT } from "./theme/geek-palette.js";
 
 export type CustomWorkingMessageConfig = Record<"working" | "thinking" | "answering" | "running", string>;
-
-export type InputBoxStyle = "auto" | "halfblock" | "line" | "solid";
-
-export interface InputBoxConfig {
-	style: InputBoxStyle;
-} 
 
 export type TasksWidgetStyle = "default" | "compact";
 
@@ -51,14 +44,13 @@ function normalizeTasksWidgetStyle(value: unknown): TasksWidgetStyle {
 	return isTasksWidgetStyle(value) ? value : DEFAULTS.tasksWidgetStyle;
 }
 
-export interface DroidStylingConfig {
+export interface GeekTuiConfig {
 	alwaysExpanded: boolean;
 	maxExpandedLines: number;
 	dimToolOutput: boolean;
 	customWorkingMessage: CustomWorkingMessageConfig;
-	presentationStyle: PresentationStyleName;
-	userZoneStyle: UserZoneStyleName;
-	inputBox: InputBoxConfig;
+	/** Accent color: one of GEEK_ACCENT_OPTIONS or any #rgb / #rrggbb hex. */
+	accent: string;
 	tasksWidgetStyle: TasksWidgetStyle;
 	collapsedThinking: CollapsedThinkingStyle;
 	diffMode: DiffMode;
@@ -74,18 +66,12 @@ const DEFAULT_CUSTOM_WORKING_MESSAGE: CustomWorkingMessageConfig = {
 	running: "Cooking",
 };
 
-const DEFAULT_INPUT_BOX: InputBoxConfig = {
-	style: "auto",
-};
-
-const DEFAULTS: DroidStylingConfig = {
+const DEFAULTS: GeekTuiConfig = {
 	alwaysExpanded: false,
 	maxExpandedLines: 50,
 	dimToolOutput: false,
 	customWorkingMessage: DEFAULT_CUSTOM_WORKING_MESSAGE,
-	presentationStyle: DEFAULT_PRESENTATION_STYLE,
-	userZoneStyle: DEFAULT_USER_ZONE_STYLE,
-	inputBox: DEFAULT_INPUT_BOX,
+	accent: DEFAULT_GEEK_ACCENT,
 	tasksWidgetStyle: "compact",
 	collapsedThinking: "tail",
 	diffMode: "auto",
@@ -96,9 +82,9 @@ const DEFAULTS: DroidStylingConfig = {
 
 const CONFIG_PATH = join(homedir(), ".pi", "agent", "pi-geek-tui.json");
 const MAX_EXPANDED_LINES_LIMIT = 1000;
-const DEPRECATED_CONFIG_KEYS = ["fixedUserZoneMouseScroll", "fixedUserZoneSidebar", "fixedUserZone"] as const;
+const DEPRECATED_CONFIG_KEYS = ["fixedUserZoneMouseScroll", "fixedUserZoneSidebar", "fixedUserZone", "presentationStyle", "userZoneStyle", "inputBox"] as const;
 
-let cached: DroidStylingConfig = defaultConfig();
+let cached: GeekTuiConfig = defaultConfig();
 let cachedMtimeMs = -1;
 let lastStatAt = 0;
 let configIssue: string | undefined;
@@ -108,7 +94,7 @@ function defaultCustomWorkingMessage(): CustomWorkingMessageConfig {
 	return { ...DEFAULT_CUSTOM_WORKING_MESSAGE };
 }
 
-function defaultConfig(): DroidStylingConfig {
+function defaultConfig(): GeekTuiConfig {
 	return { ...DEFAULTS, customWorkingMessage: defaultCustomWorkingMessage() };
 }
 
@@ -144,20 +130,8 @@ function customWorkingMessageOrDefault(value: unknown): CustomWorkingMessageConf
 	return labels;
 }
 
-function isInputBoxStyle(value: unknown): value is InputBoxStyle {
-	return value === "auto" || value === "halfblock" || value === "line" || value === "solid";
-}
-
-function inputBoxOrDefault(value: unknown): InputBoxConfig {
-	const config: InputBoxConfig = { ...DEFAULT_INPUT_BOX };
-	if (!isRecord(value)) return config;
-	if (isInputBoxStyle(value.style)) config.style = value.style;
-	return config;
-}
-
-function defaultValueForKey(key: keyof DroidStylingConfig): unknown {
+function defaultValueForKey(key: keyof GeekTuiConfig): unknown {
 	if (key === "customWorkingMessage") return defaultCustomWorkingMessage();
-	if (key === "inputBox") return { ...DEFAULT_INPUT_BOX };
 	return DEFAULTS[key];
 }
 
@@ -177,38 +151,18 @@ function backfillCustomWorkingMessage(config: Record<string, unknown>): boolean 
 	return changed;
 }
 
-function backfillPresentationStyle(config: Record<string, unknown>): boolean {
-	const value = config.presentationStyle;
-	if (value === undefined) {
-		config.presentationStyle = DEFAULT_PRESENTATION_STYLE;
-		return true;
-	}
-	if (isPresentationStyleName(value)) return false;
-	if (typeof value === "string" && value.trim().length > 0) return false;
-	config.presentationStyle = DEFAULT_PRESENTATION_STYLE;
-	return true;
+function normalizeAccent(value: unknown): string {
+	if (typeof value !== "string") return DEFAULTS.accent;
+	const hex = value.trim().toLowerCase();
+	if (/^#[0-9a-f]{6}$/.test(hex)) return hex;
+	if (/^#[0-9a-f]{3}$/.test(hex)) return `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`;
+	return DEFAULTS.accent;
 }
 
-function backfillUserZoneStyle(config: Record<string, unknown>): boolean {
-	const value = config.userZoneStyle;
-	if (value === undefined) {
-		config.userZoneStyle = DEFAULT_USER_ZONE_STYLE;
-		return true;
-	}
-	if (isUserZoneStyleName(value)) return false;
-	if (typeof value === "string" && value.trim().length > 0) return false;
-	config.userZoneStyle = FALLBACK_USER_ZONE_STYLE;
-	return true;
-}
-
-function backfillInputBox(config: Record<string, unknown>): boolean {
-	if (!isRecord(config.inputBox)) {
-		config.inputBox = { ...DEFAULT_INPUT_BOX };
-		return true;
-	}
-	const inputBox = config.inputBox as Record<string, unknown>;
-	if (isInputBoxStyle(inputBox.style)) return false;
-	inputBox.style = DEFAULT_INPUT_BOX.style;
+function backfillAccent(config: Record<string, unknown>): boolean {
+	const accent = normalizeAccent(config.accent);
+	if (accent === config.accent) return false;
+	config.accent = accent;
 	return true;
 }
 
@@ -245,7 +199,7 @@ function backfillDiffMode(config: Record<string, unknown>): boolean {
 	return true;
 }
 
-function normalizeConfig(raw: unknown): DroidStylingConfig {
+function normalizeConfig(raw: unknown): GeekTuiConfig {
 	if (!isRecord(raw)) return defaultConfig();
 	const config = raw as Record<string, unknown>;
 	return {
@@ -253,9 +207,7 @@ function normalizeConfig(raw: unknown): DroidStylingConfig {
 		maxExpandedLines: maxExpandedLinesOrDefault(config.maxExpandedLines),
 		dimToolOutput: booleanOrDefault(config.dimToolOutput, DEFAULTS.dimToolOutput),
 		customWorkingMessage: customWorkingMessageOrDefault(config.customWorkingMessage),
-		presentationStyle: normalizePresentationStyleName(config.presentationStyle),
-		userZoneStyle: normalizeUserZoneStyleName(config.userZoneStyle),
-		inputBox: inputBoxOrDefault(config.inputBox),
+		accent: normalizeAccent(config.accent),
 		tasksWidgetStyle: normalizeTasksWidgetStyle(config.tasksWidgetStyle),
 		collapsedThinking: normalizeCollapsedThinkingStyle(config.collapsedThinking),
 		diffMode: normalizeDiffMode(config.diffMode),
@@ -301,15 +253,13 @@ function backfillMissingDefaults(raw: unknown): void {
 		delete config[key];
 		changed = true;
 	}
-	for (const key of Object.keys(DEFAULTS) as Array<keyof DroidStylingConfig>) {
+	for (const key of Object.keys(DEFAULTS) as Array<keyof GeekTuiConfig>) {
 		if (key in config) continue;
 		config[key] = defaultValueForKey(key);
 		changed = true;
 	}
 	if (backfillCustomWorkingMessage(config)) changed = true;
-	if (backfillPresentationStyle(config)) changed = true;
-	if (backfillUserZoneStyle(config)) changed = true;
-	if (backfillInputBox(config)) changed = true;
+	if (backfillAccent(config)) changed = true;
 	if (backfillTasksWidgetStyle(config)) changed = true;
 	if (backfillCollapsedThinking(config)) changed = true;
 	if (backfillDiffMode(config)) changed = true;
@@ -331,7 +281,7 @@ export function getConfigIssue(): string | undefined {
 	return configIssue;
 }
 
-export function loadConfig(): DroidStylingConfig {
+export function loadConfig(): GeekTuiConfig {
 	const now = Date.now();
 	if (now - lastStatAt < STAT_INTERVAL_MS) return cached;
 	lastStatAt = now;
