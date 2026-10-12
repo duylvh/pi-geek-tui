@@ -3,7 +3,7 @@ import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import { GEEK_PREFIX_WIDTH, geekRow } from "../presentation/geek-rows.js";
 import { isImageRenderLine } from "../render-budget.js";
 import { stripAnsi } from "../theme/ansi.js";
-import { isToolRunning } from "./tool-summary.js";
+import { toolRail } from "./tool-summary.js";
 
 const PATCHED = Symbol.for("pi-geek-tui.tool-spacing.patched");
 const RUNTIME = Symbol.for("pi-geek-tui.tool-spacing.runtime");
@@ -44,7 +44,7 @@ function renderToolRows(tool: any, baseRender: RenderFn, width: number): string[
 	const rendered = baseRender.call(tool, width - GEEK_PREFIX_WIDTH);
 	if (rendered.length === 0) return rendered;
 	const { content, tail } = splitImageTail(rendered);
-	const rail = isToolRunning(tool) ? "active" : "line";
+	const rail = toolRail([tool]);
 	const rows = trimOuterBlankLines(content).map((line) => geekRow(rail, line, width));
 	return [...rows, ...tail, geekRow("line", "", width)];
 }

@@ -332,6 +332,19 @@ async function runBuiltinToolRenderersSmoke() {
 		if (width >= 80) assert(row.includes("// 5 call"), `@${width}: count lost: ${row}`);
 	}
 
+	// Rail color: ┃ accent while running, kw when finished, del marker when a call failed; the closing blank row stays │.
+	const palette = await import(pathToFileURL(join(buildDir, "theme", "geek-palette.js")).href);
+	palette.setGeekAccent("#d8d4b4"); // distinct from the del marker so accent vs error is observable
+	const railOf = (row) => row.match(/\x1b\[38;2;(\d+;\d+;\d+)m(┃|│)/)?.slice(1).join(" ");
+	const KW = "104;158;128 ┃", ACCENT = "216;212;180 ┃", DEL = "221;86;112 ┃", PLAIN = "58;58;52 │";
+	const okRows = groups.renderChatChildren([tool("read", { path: "a.ts" })], 100);
+	assert(railOf(okRows[0]) === KW && railOf(okRows.at(-1)) === PLAIN, `finished ok group: kw ┃ head, plain │ blank: ${railOf(okRows[0])} / ${railOf(okRows.at(-1))}`);
+	const errRows = groups.renderChatChildren([tool("read", { path: "a.ts" }), tool("bash", { command: "ls" }, { expanded: true, result: { content: [{ type: "text", text: "boom" }], isError: true } })], 100);
+	assert(errRows.slice(0, -1).every((row) => railOf(row) === DEL) && railOf(errRows.at(-1)) === PLAIN, "a failed call turns every group row (head + tree) to the del-marker ┃");
+	const liveRows = groups.renderChatChildren([tool("bash", { command: "ls" }, { result: undefined, isPartial: true })], 100);
+	assert(railOf(liveRows[0]) === ACCENT, `running group keeps the accent ┃: ${railOf(liveRows[0])}`);
+	palette.setGeekAccent("#dd5670");
+
 	const expandedChildren = treeChildren.map((c) => (c.toolName ? { ...c, expanded: true, isPartial: false } : c));
 	const expandedTree = groups.renderChatChildren(expandedChildren, 100).map(strip);
 	const readBody = expandedTree.filter((row) => /line \d+/.test(row));
@@ -348,9 +361,10 @@ async function runBuiltinToolRenderersSmoke() {
 	spacing.installCompactToolSpacing(FakeToolExecution);
 	const block = new FakeToolExecution().render(WIDTH).map(strip);
 	assert(block.every((row) => visibleWidth(row) === WIDTH), "standalone rows must be exactly the chat width");
-	assert(block[0].startsWith("      │ › edit src/auth/session.ts") && block[0].includes("// +2 -2 · 0.1s"), `edit call row: ${block[0]}`);
-	assert(block[1].startsWith("      │   ") && block[1].includes("20 - const exp"), `diff rows sit under the call, indented 2: ${block[1]}`);
+	assert(block[0].startsWith("      ┃ › edit src/auth/session.ts") && block[0].includes("// +2 -2 · 0.1s"), `edit call row: ${block[0]}`);
+	assert(block[1].startsWith("      ┃   ") && block[1].includes("20 - const exp"), `diff rows sit under the call, indented 2: ${block[1]}`);
 	assert(block.at(-1).trim() === "│", "block must end with one blank rail row");
+	assert(new FakeToolExecution().render(WIDTH).slice(0, -1).every((row) => /\x1b\[38;2;104;158;128m┃/.test(row)) && /\x1b\[38;2;58;58;52m│/.test(new FakeToolExecution().render(WIDTH).at(-1)), "finished standalone edit block: every row kw ┃, closing blank plain │");
 
 	// Running progress bar only for unambiguous n/m forms.
 	const progressRow = (last) => groups.renderChatChildren([tool("bash", { command: "build" }, { expanded: true, isPartial: true, result: { content: [{ type: "text", text: `step\n${last}` }] } })], 100).map(strip).find((row) => row.includes("── ")) ?? "";
@@ -379,7 +393,7 @@ async function runBuiltinToolRenderersSmoke() {
 	const imageLines = new FakeImageTool().render(80);
 	assert(imageLines.includes(kitty) && imageLines.includes(iterm) && imageLines.indexOf(kitty) < imageLines.indexOf(iterm), "kitty/iTerm2 image lines must pass through untouched and in order");
 	assert(imageLines[imageLines.indexOf(kitty) - 1] === "", "one spacer row must stay before the image block");
-	assert(strip(imageLines[0]).startsWith("      │ › read photo.png"), `text rows around images still get gutter + rail: ${strip(imageLines[0])}`);
+	assert(strip(imageLines[0]).startsWith("      ┃ › read photo.png"), `text rows around images still get gutter + rail: ${strip(imageLines[0])}`);
 	const wrapped = FakeImageTool.prototype.render;
 	spacing.installCompactToolSpacing(FakeImageTool);
 	const reloaded = await import(`${buildToolTags("compact-tool-spacing.js")}?reload=1`);

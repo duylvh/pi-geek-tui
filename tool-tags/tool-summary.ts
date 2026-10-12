@@ -1,6 +1,7 @@
 import { basename } from "node:path";
 
 import { safeTruncateToWidth, safeVisibleWidth } from "../render-budget.js";
+import type { GeekRail } from "../presentation/geek-rows.js";
 import { geekFg } from "../theme/geek-palette.js";
 import { resolveToolCallElapsedMs, runningElapsedMs } from "./elapsed.js";
 
@@ -20,6 +21,12 @@ export function isToolComponent(component: any): boolean {
 /** Cheap "still executing" test, also the signal the conversation rail reads for the active `┃`. */
 export function isToolRunning(tool: any): boolean {
 	return !tool?.result || Boolean(tool.isPartial);
+}
+
+/** Rail for a tool block's rows: accent while any call runs, del marker if one failed, else kw. */
+export function toolRail(tools: any[]): GeekRail {
+	if (tools.some(isToolRunning)) return "active";
+	return tools.some((tool) => Boolean(tool.result?.isError)) ? "tool-error" : "tool-ok";
 }
 
 export function toolElapsedMs(tool: any, now = performance.now()): number | undefined {

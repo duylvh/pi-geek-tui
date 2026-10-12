@@ -12,6 +12,7 @@ import {
 	secondsText,
 	summarizeCalls,
 	toolElapsedMs,
+	toolRail,
 } from "./tool-summary.js";
 
 /**
@@ -79,7 +80,7 @@ export function renderToolGroup(members: any[], width: number): string[] {
 	// Leave the left side everything the right meta does not use, so no call is cut off silently.
 	const room = Math.max(1, bodyWidth - safeVisibleWidth(right) - 1 - 2);
 	const left = `${geekFg(running ? "accent" : "ink", "› ")}${summarizeCalls(tools.map((tool) => describeCall(tool.toolName, tool.args)), room)}`;
-	const rail = running ? "active" : "line";
+	const rail = toolRail(tools);
 	const rows = [
 		...members.filter((member) => !isToolComponent(member)).flatMap((member) => turnHeadRows(member, width)),
 		geekRow(rail, geekSplitRow(left, right, bodyWidth), width),

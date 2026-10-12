@@ -14,7 +14,7 @@ is forked from pi-geek-tui and must keep working — change visuals, not the eng
 | dim | `#a8a385` | secondary text (`@host`, `// meta`, labels) |
 | faint | `#525b54` | separators ` · `, backticks, `^o`, line numbers, `░` empty bar, tree glyphs |
 | num | `#d8785b` | numbers, `$` (bash) badge bg |
-| kw | `#689e80` | `(branch)`, keywords, thinking level, agent rail dot, edit badge bg, ctx bar fill |
+| kw | `#689e80` | `(branch)`, keywords, thinking level, agent rail dot, finished tool rail `┃`, edit badge bg, ctx bar fill |
 | str/mono | `#88c6a3` | inline code text, `+N`, `+` diff marker |
 | punct | `#727060` | `~/path`, code punctuation |
 | rail | `#3a3a34` | idle rail `│` |
@@ -30,8 +30,9 @@ Every conversation row = `gutter(5, right-aligned time, dim @55%) + rail(3, cent
 Whole UI has a left/right margin (mockup: 4ch inside the window padding) — reuse tui-padding.
 
 Rail glyphs: `•` head of a block (ink for user, kw for agent), `│` continuation (rail color),
-`┃` accent while the block's tool group is running, ` ` (blank) on the input row.
-Blank separator rows keep the rail `│` so the rail is continuous through a turn.
+`┃` on every row of a tool block (summary head, tree, edit/write rows): accent while it runs, kw once finished,
+del marker (`#dd5670`) if any call failed. ` ` (blank) on the input row.
+Blank separator rows — including the one closing a tool block — keep the rail `│` so the rail is continuous through a turn.
 
 ### 1. Startup header (replaces pixel logo)
 ```
@@ -48,7 +49,7 @@ Agent: `pi@agent …` with kw dot. Time = message timestamp HH:MM, only on head 
 `│ › refresh token expires after 5 minutes, fix it` (`› ` then text, ink).
 
 ### 4. Collapsed tool group (finished)
-`│ › read session.ts token.ts · grep REFRESH_TTL            ^o  // 3 call · 1 thought · 1.9s`
+`┃ › read session.ts token.ts · grep REFRESH_TTL            ^o  // 3 call · 1 thought · 1.9s` (`┃` kw: finished ok)
 Left: `› ` + calls summarised as `verb args`, joined by faint ` · `. Right-aligned: faint `^o  ` (expand hint),
 dim `// N call · N thought · ` + num seconds + dim `s`.
 
@@ -57,7 +58,7 @@ dim `// N call · N thought · ` + num seconds + dim `s`.
 list bullet `- ` accent.
 
 ### 6. Edit call
-`│ › edit src/auth/session.ts                                  // +2 -2 · 0.1s` (`+2` mono, `-2` del marker).
+`┃ › edit src/auth/session.ts                                  // +2 -2 · 0.1s` (`+2` mono, `-2` del marker).
 Diff rows indented 2ch, fixed width block (mockup 72ch, clamp to body width) with row bg:
 `  20 - const exp = now + REFRESH_TTL;` (line no faint, marker colored, code syntax-colored).
 Gap: `       ··· 16 unchanged lines ···` faint.
@@ -69,7 +70,7 @@ Gap: `       ··· 16 unchanged lines ···` faint.
       ┃   ├── R refresh.test.ts    lines    1'204
       ┃   └── T thinking           "3 remaining tests all call rotate() before sign…"
 ```
-Rail `┃` accent; head `› ` accent; `running` accent. Tree glyphs faint. Call column 22ch:
+Rail `┃` accent while running (kw finished, del marker on failure); head `› ` accent; `running` accent. Tree glyphs faint. Call column 22ch:
 1-cell badge (bash `$` num bg, read `R` default, think `T` accent bg, edit `E` kw bg) + space + label.
 Then dim label padded to 9, num value right-aligned 6, optional progress bar (accent fill `█`, faint `░`, 16 cells) + dim `n/m`.
 Number grouping uses `'` (1'204), like hancore.

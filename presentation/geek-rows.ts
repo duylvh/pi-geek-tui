@@ -9,8 +9,11 @@ export const GEEK_GUTTER_WIDTH = 5;
 export const GEEK_RAIL_WIDTH = 3;
 export const GEEK_PREFIX_WIDTH = GEEK_GUTTER_WIDTH + GEEK_RAIL_WIDTH;
 
-/** head = `•` (ink for user, kw for agent); line = `│` rail color; active = `┃` accent; blank = space. */
-export type GeekRail = "head-user" | "head-agent" | "line" | "active" | "blank";
+/**
+ * head = `•` (ink for user, kw for agent); line = `│` rail color; blank = space. Tool-block rows use `┃`:
+ * active = accent (running), tool-ok = kw (finished), tool-error = del marker (a call failed).
+ */
+export type GeekRail = "head-user" | "head-agent" | "line" | "active" | "tool-ok" | "tool-error" | "blank";
 
 // Spec: gutter time is `dim @55%`. Terminals have no alpha, so pre-blend dim over bg once.
 function blendedDimRgb(alpha: number): string {
@@ -39,6 +42,10 @@ function railGlyph(rail: GeekRail): string {
 			return geekFg("rail", "│");
 		case "active":
 			return geekFg("accent", "┃");
+		case "tool-ok":
+			return geekFg("kw", "┃");
+		case "tool-error":
+			return geekFg("delMark", "┃");
 		case "blank":
 			return " ";
 	}
