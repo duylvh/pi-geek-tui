@@ -109,7 +109,7 @@ export function renderChatChildren(children: any[], width: number): string[] {
 		let end = index;
 		while (end < children.length && isGroupMember(children[end])) end++;
 		if (end === index) {
-			pushLines(lines, frameChatChild(children[index], width, children[index + 1]));
+			pushLines(lines, frameChatChild(children[index], width, children[index + 1], children[index - 1]));
 			index++;
 			continue;
 		}
