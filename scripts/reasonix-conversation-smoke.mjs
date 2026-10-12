@@ -1,0 +1,832 @@
+#!/usr/bin/env node
+
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const repoRoot = process.cwd();
+const workDir = join(repoRoot, ".pi", "reasonix-conversation-smoke");
+const buildDir = join(workDir, "build");
+const stubPath = join(workDir, "node-stubs.d.ts");
+const tsc = join(repoRoot, "node_modules", "typescript", "lib", "tsc.js");
+let importCounter = 0;
+
+function assert(condition, message) {
+	if (!condition) throw new Error(message);
+}
+
+function prepareBuild() {
+	rmSync(workDir, { recursive: true, force: true });
+	mkdirSync(buildDir, { recursive: true });
+	writeFileSync(join(buildDir, "package.json"), '{"type":"module"}\n', "utf8");
+	writeFileSync(stubPath, `declare module "fs" {
+	export const existsSync: (path: string) => boolean;
+	export const mkdirSync: (path: string, options?: unknown) => unknown;
+	export const readFileSync: (path: string, encoding: string) => string;
+	export const readdirSync: any;
+	export const statSync: (path: string) => { mtimeMs: number };
+	export const writeFileSync: (path: string, data: string, encoding?: string) => void;
+}
+declare module "node:fs" {
+	export * from "fs";
+}
+declare module "path" {
+	export const dirname: (path: string) => string;
+	export const join: (...parts: string[]) => string;
+	export const resolve: (...parts: string[]) => string;
+	export const relative: (from: string, to: string) => string;
+}
+declare module "node:path" {
+	export * from "path";
+}
+declare module "os" {
+	export const homedir: () => string;
+}
+declare module "node:os" {
+	export * from "os";
+}
+declare module "node:url" {
+	export const fileURLToPath: (url: string | URL) => string;
+}
+declare const process: any;
+`, "utf8");
+
+	const result = spawnSync(process.execPath, [
+		tsc,
+		"--target", "ES2022",
+		"--module", "NodeNext",
+		"--moduleResolution", "NodeNext",
+		"--outDir", buildDir,
+		"--rootDir", repoRoot,
+		"--skipLibCheck",
+		"--noImplicitAny", "false",
+		stubPath,
+		join(repoRoot, "config.ts"),
+		join(repoRoot, "user-zone", "designs.ts"),
+		join(repoRoot, "presentation", "designs.ts"),
+		join(repoRoot, "presentation", "state.ts"),
+		join(repoRoot, "messages", "user-prefix.ts"),
+		join(repoRoot, "messages", "assistant-prefix.ts"),
+		join(repoRoot, "messages", "streaming-markdown-cache.ts"),
+		join(repoRoot, "tool-tags", "common.ts"),
+		join(repoRoot, "tool-tags", "bash.ts"),
+		join(repoRoot, "tool-tags", "quick-edit.ts"),
+		join(repoRoot, "tool-tags", "compact-tool-spacing.ts"),
+		join(repoRoot, "tool-tags", "loader-align.ts"),
+		join(repoRoot, "tool-tags", "tool-groups.ts"),
+		join(repoRoot, "performance", "virtualize-chat.ts"),
+	], { cwd: repoRoot, encoding: "utf8" });
+	if (result.status !== 0) throw new Error(`tsc failed\n${result.stdout}\n${result.stderr}`);
+}
+
+async function importBuilt(relativePath) {
+	return import(`${pathToFileURL(join(buildDir, relativePath)).href}?module=${importCounter++}`);
+}
+
+async function loadConfigCase(name, initialConfig) {
+	const home = join(workDir, name.replaceAll(" ", "-"));
+	const configDir = join(home, ".pi", "agent");
+	const configPath = join(configDir, "pi-droid-styling.json");
+	mkdirSync(configDir, { recursive: true });
+	if (initialConfig !== undefined) writeFileSync(configPath, `${JSON.stringify(initialConfig)}\n`, "utf8");
+
+	process.env.HOME = home;
+	const moduleUrl = `${pathToFileURL(join(buildDir, "config.js")).href}?case=${importCounter++}`;
+	const { loadConfig } = await import(moduleUrl);
+	const config = loadConfig();
+	assert(existsSync(configPath), `${name}: config file was not scaffolded`);
+	return { config, raw: JSON.parse(readFileSync(configPath, "utf8")) };
+}
+
+prepareBuild();
+
+const scaffolded = await loadConfigCase("scaffold", undefined);
+assert(scaffolded.config.presentationStyle === "droid", "presentationStyle should default to droid");
+assert(scaffolded.raw.presentationStyle === "droid", "presentationStyle should be scaffolded as droid");
+
+const reasonix = await loadConfigCase("reasonix", { presentationStyle: "reasonix" });
+assert(reasonix.config.presentationStyle === "reasonix", "reasonix presentationStyle should be preserved");
+
+const invalid = await loadConfigCase("invalid", { presentationStyle: "neon" });
+assert(invalid.config.presentationStyle === "droid", "invalid presentationStyle should fall back to droid");
+assert(invalid.raw.presentationStyle === "neon", "unknown string should remain on disk for forward compatibility");
+
+const { initTheme, UserMessageComponent, AssistantMessageComponent } = await import("@earendil-works/pi-coding-agent");
+initTheme("dark");
+const { setPresentationStyle } = await import(pathToFileURL(join(buildDir, "presentation", "state.js")).href);
+const { installUserMessagePrefix } = await importBuilt("messages/user-prefix.js");
+const { installAssistantMessagePrefix } = await importBuilt("messages/assistant-prefix.js");
+
+const fgCalls = [];
+const fgInputs = [];
+const activeTheme = {
+	fg: (color, text) => {
+		fgCalls.push(color);
+		fgInputs.push({ color, text });
+		return `\x1b[38;5;7m${text}\x1b[39m`;
+	},
+	bg: (_color, text) => `\x1b[48;5;8m${text}\x1b[49m`,
+	bold: (text) => `\x1b[1m${text}\x1b[22m`,
+	italic: (text) => `\x1b[3m${text}\x1b[23m`,
+	getBgAnsi: () => "\x1b[48;2;32;35;42m",
+	getFgAnsi: () => "\x1b[38;2;180;180;180m",
+	getColorMode: () => "256",
+};
+const stripAnsi = (text) => String(text).replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "").replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
+
+setPresentationStyle("reasonix");
+installUserMessagePrefix(activeTheme);
+installAssistantMessagePrefix(activeTheme);
+const userLines = new UserMessageComponent("hello\nworld").render(40).map(stripAnsi);
+assert(userLines[0]?.startsWith("❯ hello") && userLines[0]?.indexOf("hello") === 2, "reasonix user content should start one space after its marker");
+assert(userLines[1]?.indexOf("world") === 2, "reasonix user continuation content should align with the first-line content column");
+assert(!userLines.some((line) => line.includes("─".repeat(40))), "reasonix user should not render a full-width divider");
+assert(!new UserMessageComponent("hello").render(40).some((line) => line.includes("\x1b[48;")), "reasonix user should not render a background card");
+assert(userLines.at(-1) === "", "reasonix user block should keep one trailing spacer row");
+
+const assistantMessage = { role: "assistant", content: [{ type: "text", text: "answer\nmore" }] };
+const assistantLines = new AssistantMessageComponent(assistantMessage).render(40).map(stripAnsi);
+assert(assistantLines[0]?.startsWith("• answer") && assistantLines[0]?.indexOf("answer") === 2, "reasonix assistant answer should stay inline with the themed marker");
+assert(assistantLines[1]?.indexOf("more") === 2, "reasonix assistant continuation should align with its answer body");
+const thinkingAssistantMessage = { role: "assistant", content: [{ type: "thinking", thinking: "considering" }, { type: "text", text: "response" }] };
+const thinkingFgStart = fgInputs.length;
+const thinkingAssistantRaw = new AssistantMessageComponent(thinkingAssistantMessage).render(40);
+const thinkingAssistantLines = thinkingAssistantRaw.map(stripAnsi);
+const thinkingLine = thinkingAssistantLines.find((line) => line.includes("considering"));
+assert(thinkingLine?.startsWith("• considering") && thinkingLine.indexOf("considering") === 2, "reasonix thinking should move to the first row beside the themed marker");
+assert(fgInputs.slice(thinkingFgStart).some(({ color, text }) => color === "thinkingText" && stripAnsi(text).includes("considering")), "reasonix assistant thinking should use the theme-native thinkingText color");
+assert(thinkingAssistantRaw.some((line) => line.includes("considering") && line.includes("\x1b[3m") && line.includes("\x1b[23m")), "reasonix assistant thinking should use theme italic styling");
+assert(thinkingAssistantLines.find((line) => line.includes("response"))?.indexOf("response") === 2, "reasonix assistant response after thinking should keep the shared body gutter");
+const streamingAssistant = new AssistantMessageComponent({ role: "assistant", content: [{ type: "thinking", thinking: "streaming thought" }] });
+const thinkingOnlyLines = streamingAssistant.render(40).map(stripAnsi);
+assert(thinkingOnlyLines.find((line) => line.includes("streaming thought"))?.startsWith("• streaming thought"), "reasonix thinking-only streaming state should use the first assistant row");
+streamingAssistant.updateContent({ role: "assistant", content: [{ type: "thinking", thinking: "streaming thought" }, { type: "text", text: "streamed answer" }] });
+const streamedAnswerLines = streamingAssistant.render(40).map(stripAnsi);
+assert(streamedAnswerLines.find((line) => line.includes("streaming thought"))?.indexOf("streaming thought") === 2, "reasonix streaming transition should keep thinking in the marker content column");
+assert(streamedAnswerLines.find((line) => line.includes("streamed answer"))?.indexOf("streamed answer") === 2, "reasonix streaming transition should keep the answer in the shared body gutter");
+assert(!assistantLines.some((line) => line.includes("─".repeat(40))), "reasonix assistant should not render a full-width divider");
+assert(fgCalls.includes("accent"), "reasonix prefix should use the active theme accent token");
+assert(assistantLines.at(-1) === "", "reasonix assistant block should keep one trailing spacer row");
+
+// Issue #20: Pi core renders consecutive thinking blocks as one child, so every child lookup
+// must address rendered runs. These cases must hold on any Pi core in the supported peer range.
+const isItalic = (line) => typeof line === "string" && line.includes("\x1b[3m");
+const rowWith = (rawLines, needle) => rawLines.find((line) => stripAnsi(line).includes(needle));
+
+for (const thoughts of [["alpha"], ["alpha", "beta"], ["alpha", "beta", "gamma"]]) {
+	for (const hideThinking of [false, true]) {
+		const label = `${thoughts.length} thinking + final (hideThinking=${hideThinking})`;
+		const content = [...thoughts.map((thinking) => ({ type: "thinking", thinking })), { type: "text", text: "FINALANSWER" }];
+		const raw = new AssistantMessageComponent({ role: "assistant", content }, hideThinking).render(46);
+		const finalRow = rowWith(raw, "FINALANSWER");
+		assert(finalRow !== undefined, `${label}: final response row should render`);
+		assert(!isItalic(finalRow), `${label}: final response must not inherit thinking italics`);
+		assert(stripAnsi(finalRow).indexOf("FINALANSWER") === 2, `${label}: final response should keep the shared body gutter`);
+		if (hideThinking) {
+			// US-024: the collapsed row is `Thinking ▸/· …tail` with a bold upright label; it must be the thinking child, not the answer.
+			const hiddenRow = rowWith(raw, "Thinking");
+			assert(hiddenRow !== undefined, `${label}: hidden thinking row should render`);
+			assert(hiddenRow.includes("\x1b[1m") && !isItalic(hiddenRow), `${label}: hidden thinking label should be bold and upright`);
+			assert(!finalRow.includes("\x1b[1m"), `${label}: final response must not inherit the collapsed label bold`);
+		} else {
+			for (const thought of thoughts) {
+				assert(isItalic(rowWith(raw, thought)), `${label}: thinking "${thought}" should stay italic`);
+			}
+		}
+	}
+}
+
+const splitRunsRaw = new AssistantMessageComponent({
+	role: "assistant",
+	content: [
+		{ type: "thinking", thinking: "firstthought" },
+		{ type: "text", text: "MIDANSWER" },
+		{ type: "thinking", thinking: "secondthought" },
+		{ type: "text", text: "FINALANSWER" },
+	],
+}).render(46);
+assert(isItalic(rowWith(splitRunsRaw, "firstthought")) && isItalic(rowWith(splitRunsRaw, "secondthought")), "thinking runs split by text should each stay italic");
+assert(!isItalic(rowWith(splitRunsRaw, "MIDANSWER")) && !isItalic(rowWith(splitRunsRaw, "FINALANSWER")), "text runs between thinking runs should stay normal assistant text");
+
+const toolCallOnly = new AssistantMessageComponent({
+	role: "assistant",
+	content: [{ type: "toolCall", id: "1", name: "read", arguments: {} }],
+}).render(46);
+assert(toolCallOnly.every((line) => stripAnsi(line).trim() === ""), "tool-call-only assistant message should stay visually empty");
+
+// The installed core cannot exercise both layouts, so drive the shared mapper with stub
+// components that reproduce each core's contentContainer layout exactly.
+const { Markdown: TuiMarkdown, Spacer: TuiSpacer } = await import("@earendil-works/pi-tui");
+const isVisibleBlock = (block) => (block.type === "text" && block.text.trim()) || (block.type === "thinking" && block.thinking.trim());
+
+class GroupedLayoutStub {
+	static constructions = 0;
+	constructor(message) {
+		GroupedLayoutStub.constructions += 1;
+		this.contentContainer = { children: [] };
+		if (message) this.updateContent(message);
+	}
+	// mirrors Pi >= 0.84: consecutive thinking blocks collapse into a single child
+	updateContent(message) {
+		const children = [];
+		if (message.content.some(isVisibleBlock)) children.push(new TuiSpacer(1));
+		for (let i = 0; i < message.content.length; i++) {
+			const block = message.content[i];
+			if (block.type === "text" && block.text.trim()) {
+				children.push(new TuiMarkdown(block.text.trim(), 1, 0));
+				continue;
+			}
+			if (block.type !== "thinking") continue;
+			const thinkingBlocks = [];
+			for (; i < message.content.length && message.content[i].type === "thinking"; i++) {
+				if (message.content[i].thinking.trim()) thinkingBlocks.push(message.content[i].thinking.trim());
+			}
+			i--;
+			if (thinkingBlocks.length === 0) continue;
+			children.push(new TuiMarkdown(thinkingBlocks.join("\n\n"), 1, 0));
+			if (message.content.slice(i + 1).some(isVisibleBlock)) children.push(new TuiSpacer(1));
+		}
+		this.contentContainer.children = children;
+	}
+}
+
+class PerBlockLayoutStub {
+	constructor(message) {
+		this.contentContainer = { children: [] };
+		if (message) this.updateContent(message);
+	}
+	// mirrors Pi 0.78: every visible thinking block gets its own child
+	updateContent(message) {
+		const children = [];
+		if (message.content.some(isVisibleBlock)) children.push(new TuiSpacer(1));
+		for (let i = 0; i < message.content.length; i++) {
+			const block = message.content[i];
+			if (block.type === "text" && block.text.trim()) {
+				children.push(new TuiMarkdown(block.text.trim(), 1, 0));
+				continue;
+			}
+			if (block.type !== "thinking" || !block.thinking.trim()) continue;
+			children.push(new TuiMarkdown(block.thinking.trim(), 1, 0));
+			if (message.content.slice(i + 1).some(isVisibleBlock)) children.push(new TuiSpacer(1));
+		}
+		this.contentContainer.children = children;
+	}
+}
+
+// Cold start: the first message the mapper ever sees is an errored one whose trailing core
+// children hide the real layout. A fresh module instance per host proves the resolved layout
+// depends on the host alone, not on message history, order or stop reason.
+const ambiguousMessage = {
+	role: "assistant",
+	stopReason: "error",
+	content: [
+		{ type: "thinking", thinking: "alpha" },
+		{ type: "thinking", thinking: "   " },
+		{ type: "thinking", thinking: "beta" },
+		{ type: "text", text: "final" },
+	],
+};
+const layoutExpectations = [
+	{
+		StubClass: GroupedLayoutStub,
+		label: "grouped (Pi >= 0.84)",
+		runs: [
+			{ kind: "thinking", childIndex: 1, text: "alpha\n\nbeta" },
+			{ kind: "text", childIndex: 3, text: "final" },
+		],
+	},
+	{
+		StubClass: PerBlockLayoutStub,
+		label: "per-block (Pi 0.78)",
+		runs: [
+			{ kind: "thinking", childIndex: 1, text: "alpha" },
+			{ kind: "thinking", childIndex: 3, text: "beta" },
+			{ kind: "text", childIndex: 5, text: "final" },
+		],
+	},
+];
+
+for (const { StubClass, label, runs: expectedRuns } of layoutExpectations) {
+	const coldModule = await importBuilt("messages/assistant-content-runs.js");
+	const component = new StubClass(ambiguousMessage);
+	component.contentContainer.children.push(new TuiSpacer(1), new TuiMarkdown("request failed", 1, 0));
+	const runs = coldModule.getAssistantContentRuns(component, ambiguousMessage);
+	assert(runs.length === expectedRuns.length, `${label} cold start: should resolve ${expectedRuns.length} rendered runs`);
+	for (let i = 0; i < expectedRuns.length; i++) {
+		const expected = expectedRuns[i];
+		assert(
+			runs[i].kind === expected.kind && runs[i].childIndex === expected.childIndex && runs[i].text === expected.text,
+			`${label} cold start: run ${i} should be ${expected.kind} at child ${expected.childIndex}`,
+		);
+	}
+}
+
+// One module instance must keep answering per host, whatever order the hosts arrive in.
+const sharedModule = await importBuilt("messages/assistant-content-runs.js");
+for (const StubClass of [PerBlockLayoutStub, GroupedLayoutStub, PerBlockLayoutStub, GroupedLayoutStub]) {
+	const expectedLength = StubClass === GroupedLayoutStub ? 2 : 3;
+	const runs = sharedModule.getAssistantContentRuns(new StubClass(ambiguousMessage), ambiguousMessage);
+	assert(runs.length === expectedLength, `${StubClass.name}: interleaved hosts must not share layout state`);
+}
+
+// Consumer 3: the streaming markdown cache must seed each rendered run's own child.
+const { installAssistantStreamingMarkdownCache } = await importBuilt("messages/streaming-markdown-cache.js");
+installAssistantStreamingMarkdownCache(GroupedLayoutStub);
+const constructionsBeforeStreaming = GroupedLayoutStub.constructions;
+const streamingStub = new GroupedLayoutStub({
+	role: "assistant",
+	content: [
+		{ type: "thinking", thinking: "cachedthought one" },
+		{ type: "thinking", thinking: "cachedthought two" },
+		{ type: "text", text: "CACHEDANSWER" },
+	],
+});
+// The host is now patched, so probing re-enters the mapper through updateContent. It must
+// answer from cache instead of probing again: one explicit build plus exactly one probe.
+assert(
+	GroupedLayoutStub.constructions - constructionsBeforeStreaming === 2,
+	`probing a patched host must not recurse (built ${GroupedLayoutStub.constructions - constructionsBeforeStreaming} components)`,
+);
+
+const stubChildren = streamingStub.contentContainer.children;
+assert(stubChildren.length === 4, "grouped stub should build four content children");
+const cachedFinal = stubChildren[3].render(46).map(stripAnsi).join("\n");
+assert(cachedFinal.includes("CACHEDANSWER"), "streaming cache must seed the final text child with the final response");
+assert(!cachedFinal.includes("cachedthought"), "streaming cache must not seed the final text child with thinking content");
+
+setPresentationStyle("droid");
+const droidUserRaw = new UserMessageComponent("hello").render(40);
+const droidUser = droidUserRaw.map(stripAnsi);
+assert(droidUserRaw.some((line) => line.includes("\x1b[48;")), "droid user should retain its background card");
+assert(droidUser.some((line) => line.includes("─".repeat(40))), "droid user should retain its divider");
+const droidAssistant = new AssistantMessageComponent(assistantMessage).render(40).map(stripAnsi);
+assert(droidAssistant.some((line) => line.includes("─".repeat(40))), "droid assistant should retain its divider");
+assert(droidAssistant.some((line) => line.includes("•  answer")), "droid assistant should retain its legacy inline bullet marker");
+
+const { formatToolParamLines, renderBoxedToolCall, renderCompactBoxedToolCall, renderCompactBoxedFooter, renderBoxedToolResult, setCompactBoxedFooter } = await importBuilt("tool-tags/common.js");
+const { installQuickEditRenderer } = await importBuilt("tool-tags/quick-edit.js");
+const { installCompactToolSpacing, normalizeReasonixToolLines, setToolSpacingTheme } = await importBuilt("tool-tags/compact-tool-spacing.js");
+const { renderBashCall } = await importBuilt("tool-tags/bash.js");
+
+setPresentationStyle("reasonix");
+const reasonixBashCall = renderBashCall({ command: "npm test" }, activeTheme, {}).render(80).map(stripAnsi);
+assert(reasonixBashCall[0]?.startsWith("● Bash npm test") && !reasonixBashCall[0]?.includes("$"), "reasonix Bash tool call should place the command directly after the tool name");
+
+const realDateNow = Date.now;
+const reasonixSpinnerFrames = ["◐", "◓", "◑", "◒"];
+try {
+	for (const [index, frame] of reasonixSpinnerFrames.entries()) {
+		Date.now = () => index * 160;
+		const frameLine = renderBoxedToolCall(activeTheme, "Bash", ["npm test"], { isPending: true }).render(80).map(stripAnsi)[0];
+		assert(frameLine?.startsWith(frame) && !frameLine?.includes("●") && !frameLine?.includes("•"), `reasonix pending tool call should animate clockwise through ${frame} at ${index * 160}ms`);
+	}
+	Date.now = () => 0;
+	const pendingWithSuffix = renderBoxedToolCall(activeTheme, "Bash", ["npm test"], { isPending: true }).render(80).map(stripAnsi)[0];
+	assert(pendingWithSuffix?.includes("Waiting for output"), "reasonix pending tool call should keep the waiting-for-output suffix");
+	Date.now = () => 160;
+	const partialToolState = {};
+	setCompactBoxedFooter(partialToolState, "partial output", { isPartial: true });
+	const partialToolCall = renderBoxedToolCall(activeTheme, "Bash", ["npm test"], { state: partialToolState }).render(80).map(stripAnsi);
+	assert(partialToolCall[0]?.startsWith("◓") && !partialToolCall[0]?.includes("●") && !partialToolCall[0]?.includes("•"), "reasonix partial tool call should animate through the same spinner");
+	const successToolCall = renderBoxedToolCall(activeTheme, "Bash", ["npm test"]).render(80).map(stripAnsi);
+	assert(successToolCall[0]?.startsWith("●") && !reasonixSpinnerFrames.some((frame) => successToolCall[0]?.startsWith(frame)), "reasonix success tool call should stay a static filled circle");
+	const errorToolCall = renderBoxedToolCall(activeTheme, "Bash", ["npm test"], { isError: true }).render(80).map(stripAnsi);
+	assert(errorToolCall[0]?.startsWith("✗") && !reasonixSpinnerFrames.some((frame) => errorToolCall[0]?.startsWith(frame)), "reasonix error tool call should stay a static error");
+	const overlapToolCall = renderBoxedToolCall(activeTheme, "Bash", ["npm test"], { isError: true, isPending: true }).render(80).map(stripAnsi);
+	assert(overlapToolCall[0]?.startsWith("✗"), "reasonix error marker should win over the pending spinner");
+} finally {
+	Date.now = realDateNow;
+}
+setPresentationStyle("claudecode");
+{
+	const ccBash = renderBashCall({ command: "npm test" }, activeTheme, {}).render(80).map(stripAnsi);
+	assert(ccBash[0] === "● Bash(npm test)", `claudecode Bash call should read like a call, got ${JSON.stringify(ccBash[0])}`);
+	const ccState = {};
+	renderCompactBoxedFooter(activeTheme, { content: [{ type: "text", text: "updated file" }] }, { state: ccState });
+	const ccRead = renderCompactBoxedToolCall(activeTheme, "Read", `${activeTheme.fg("dim", "Path: ")}src/config.ts`, { state: ccState }).render(80).map(stripAnsi);
+	assert(ccRead.length === 2 && ccRead[0] === "● Read(src/config.ts)", `claudecode compact call should drop the styled field label and keep parens, got ${JSON.stringify(ccRead)}`);
+	assert(ccRead[1]?.startsWith("  └ ") && !ccRead[1]?.includes("└─"), "claudecode result should sit on its own `  └ ` row");
+	const ccPending = renderBoxedToolCall(activeTheme, "Bash", ["npm test"], { isPending: true }).render(80).map(stripAnsi)[0];
+	assert(ccPending?.startsWith("● Bash(npm test)") && !reasonixSpinnerFrames.some((frame) => ccPending.includes(frame)), "claudecode pending call should keep a steady dot");
+	const ccPendingFg = fgInputs.length;
+	renderBoxedToolCall(activeTheme, "Bash", ["npm test"], { isPending: true }).render(80);
+	assert(fgInputs.slice(ccPendingFg).some(({ color, text }) => color === "dim" && text === "●"), "claudecode pending dot should be dim");
+	const ccErrFg = fgInputs.length;
+	const ccError = renderBoxedToolCall(activeTheme, "Bash", ["npm test"], { isError: true }).render(80).map(stripAnsi)[0];
+	assert(ccError?.startsWith("● ") && fgInputs.slice(ccErrFg).some(({ color, text }) => color === "error" && text === "●"), "claudecode error should use an error-colored dot");
+	const ccMulti = renderBoxedToolCall(activeTheme, "Tool", formatToolParamLines({ path: "a.ts", query: "x" }, activeTheme)).render(80).map(stripAnsi)[0];
+	assert(ccMulti?.startsWith("● Tool(") && ccMulti.includes(" · ") && ccMulti.endsWith(")"), `claudecode multi-param call should join args with · inside parens, got ${JSON.stringify(ccMulti)}`);
+	const ccLong = renderBoxedToolCall(activeTheme, "Bash", ["echo " + "x".repeat(300)]).render(80).map(stripAnsi);
+	assert(ccLong.length === 1 && ccLong[0].length <= 64 && ccLong[0].startsWith("● Bash(echo x") && ccLong[0].endsWith(" …"), `claudecode long call should stay on one row truncated at the 80% cap: ${JSON.stringify(ccLong)}`);
+	const ccManyParams = renderBoxedToolCall(activeTheme, "Tool", formatToolParamLines({ path: "a".repeat(60), summary: "b".repeat(200), facts: "c".repeat(200) }, activeTheme)).render(80).map(stripAnsi);
+	assert(ccManyParams.length === 1 && ccManyParams[0].endsWith(" …"), `claudecode many-param call should stay on one row: ${JSON.stringify(ccManyParams)}`);
+	const ccNormalized = normalizeReasonixToolLines(["", "● Read(a.ts)", "  └ ◷ 0.14s  · ✎ ~5 words"], 100, false).map(stripAnsi);
+	assert(ccNormalized[1] === "  └ ◷ 0.14s  · ✎ ~5 words", `claudecode result row must keep a single └ connector: ${JSON.stringify(ccNormalized)}`);
+	const ccBareFooter = normalizeReasonixToolLines(["● Read(a.ts)", "◷ 0.14s"], 100, false).map(stripAnsi);
+	assert(ccBareFooter[1] === "  └ ◷ 0.14s", `claudecode should add its own └ connector to a bare footer: ${JSON.stringify(ccBareFooter)}`);
+	const ccBody = renderBoxedToolResult(activeTheme, () => [activeTheme.fg("dim", "↳ Read 1 image."), "↳ second row keeps its arrow"]).render(80).map(stripAnsi);
+	assert(ccBody[0] === "  └ Read 1 image." && ccBody[1]?.trim() === "↳ second row keeps its arrow", `the first body row must not stack ↳ after └: ${JSON.stringify(ccBody)}`);
+	const ccNoArgs = renderBoxedToolCall(activeTheme, "Tool", []).render(80).map(stripAnsi)[0];
+	assert(ccNoArgs === "● Tool", "claudecode call without args should not print empty parens");
+}
+{
+	const { setToolGroupTheme } = await importBuilt("tool-tags/tool-groups.js");
+	const { virtualizeChatContainerInstance } = await importBuilt("performance/virtualize-chat.js");
+	setToolGroupTheme(activeTheme);
+	const stub = (lines, fields) => ({ ...fields, render: () => lines.slice() });
+	const tool = (name, fields = {}) => stub(["", `TOOLROW ${name}`], { toolName: name, toolCallId: `id-${name}`, result: { content: [] }, isPartial: false, expanded: false, ...fields });
+	const assistant = (content, label) => stub([`ASSISTANT ${label}`], { lastMessage: { role: "assistant", content } });
+	const chatOf = (children) => {
+		const chat = { children, addChild(child) { this.children.push(child); }, clear() { this.children = []; }, render() { return []; } };
+		virtualizeChatContainerInstance(chat, 0);
+		return (width = 100) => chat.render(width).map(stripAnsi);
+	};
+	const toolOnly = (withThought) => assistant([...(withThought ? [{ type: "thinking", thinking: "plan" }] : []), { type: "toolCall", id: "x", name: "read", arguments: {} }], "toolonly");
+	const lead = assistant([{ type: "text", text: "Let me check." }, { type: "toolCall", id: "a", name: "read", arguments: {} }], "lead");
+	const final = assistant([{ type: "text", text: "Done." }], "final");
+
+	setPresentationStyle("claudecode");
+	const folded = chatOf([lead, tool("Read"), toolOnly(true), tool("Bash"), final])();
+	assert(folded.includes("● Done(2 tool calls · 1 thought)"), `claudecode should fold a tool run into one Done row: ${JSON.stringify(folded)}`);
+	assert(folded.includes("ASSISTANT lead") && folded.includes("ASSISTANT final"), "assistant turns with answer text must stay outside the group");
+	const summaryAt = folded.indexOf("● Done(2 tool calls · 1 thought)");
+	assert(JSON.stringify(folded.slice(summaryAt + 1, summaryAt + 4)) === JSON.stringify(["  ├─ TOOLROW Read", "  ├─ ASSISTANT toolonly", "  └─ TOOLROW Bash"]), `members should hang from the tree in order, blanks dropped: ${JSON.stringify(folded)}`);
+	assert(folded[summaryAt + 4] === "" && folded[summaryAt + 5] === "ASSISTANT final", `the next turn should be separated from the tree by one blank row: ${JSON.stringify(folded)}`);
+	assert(!folded.some((line) => line.startsWith("TOOLROW")), "folded members must not also render at the top level");
+	const multi = chatOf([Object.assign(tool("Read"), { render: () => ["● Read(a)", "  └ 3 lines"] }), Object.assign(tool("Bash"), { render: () => ["● Bash(b)", "  └ ok"] })])();
+	assert(JSON.stringify(multi.slice(-5)) === JSON.stringify(["  ├─ • Read(a)", "  │    └ 3 lines", "  └─ • Bash(b)", "       └ ok", ""]), `member continuation rows should keep the tree pipe: ${JSON.stringify(multi)}`);
+
+	const renderWidths = [];
+	const spied = (name) => Object.assign(tool(name), { render: (width) => { renderWidths.push(width); return ["", `TOOLROW ${name}`]; } });
+	chatOf([spied("Read"), spied("Bash")])(120);
+	assert(renderWidths.length === 2 && renderWidths.every((width) => width === 120), `tree members must render at the chat width so width-keyed image caches stay warm: ${JSON.stringify(renderWidths)}`);
+
+	const running = chatOf([tool("Read"), tool("Bash", { result: undefined })])();
+	assert(running.includes("● Running(2 tool calls · Bash)"), `a run with an unfinished tool should read Running with the active tool: ${JSON.stringify(running)}`);
+	const failed = chatOf([tool("Read", { result: { isError: true } }), tool("Bash")])();
+	assert(failed.includes("● Done(2 tool calls · 1 failed)"), `failed tools should be counted: ${JSON.stringify(failed)}`);
+	const expanded = chatOf([tool("Read", { expanded: true }), tool("Bash", { expanded: true })])();
+	assert(expanded.includes("TOOLROW Read") && expanded.includes("TOOLROW Bash") && !expanded.some((line) => line.includes("Done(")), "Ctrl+O (expanded tools) should show every member");
+	const single = chatOf([lead, tool("Read"), final])();
+	assert(single.includes("TOOLROW Read") && !single.some((line) => line.includes("Done(")), "a single tool call should keep its own row");
+	const split = chatOf([tool("Read"), assistant([{ type: "text", text: "mid" }], "mid"), tool("Bash")])();
+	assert(split.includes("TOOLROW Read") && split.includes("TOOLROW Bash"), "answer text between tools must break the run");
+
+	setPresentationStyle("reasonix");
+	const reasonixChat = chatOf([tool("Read"), tool("Bash")])();
+	assert(reasonixChat.includes("TOOLROW Read") && !reasonixChat.some((line) => line.includes("Done(")), "reasonix must not fold tool runs");
+}
+setPresentationStyle("droid");
+const droidBashCall = renderBashCall({ command: "npm test" }, activeTheme, {}).render(80).map(stripAnsi);
+assert(droidBashCall.some((line) => line.includes("$ npm test")), "droid Bash tool call should retain its shell prompt");
+setPresentationStyle("reasonix");
+const toolState = {};
+renderCompactBoxedFooter(activeTheme, { content: [{ type: "text", text: "updated file" }] }, { state: toolState });
+const compactTool = renderCompactBoxedToolCall(activeTheme, "Read", "src/config.ts", { state: toolState });
+const compactToolLines = compactTool.render(80).map(stripAnsi);
+assert(compactToolLines.length === 1, "reasonix compact tools should keep Droid's single-row collapsed contract");
+assert(compactToolLines[0]?.startsWith("●") && compactToolLines[0]?.includes("Read") && compactToolLines[0]?.includes("src/config.ts") && compactToolLines[0]?.includes("◷"), "reasonix compact row should retain status, tool name, subject, and metrics");
+assert(compactToolLines[0]?.indexOf("Read") === 2, "reasonix tool names should share the user/assistant content column");
+assert(!compactToolLines[0]?.includes("└─"), "reasonix compact tools should not create a nested metrics row");
+const nonCompactState = {};
+renderCompactBoxedFooter(activeTheme, { content: [{ type: "text", text: "command output" }] }, { state: nonCompactState });
+const collapsedConnectorFgStart = fgInputs.length;
+const nonCompactToolLines = renderBoxedToolCall(activeTheme, "Bash", ["echo hello"], { state: nonCompactState }).render(80).map(stripAnsi);
+assert(nonCompactToolLines.length === 2 && nonCompactToolLines[1]?.startsWith("  └─ "), "reasonix non-compact tools should retain the separate nested metrics row");
+const collapsedConnectorFg = fgInputs.slice(collapsedConnectorFgStart);
+assert(collapsedConnectorFg.some(({ color, text }) => color === "dim" && text === "└─ ") && !collapsedConnectorFg.some(({ color, text }) => color === "borderMuted" && text === "└─ "), "reasonix collapsed connector should match the dim status line color");
+assert(!compactToolLines.some((line) => line.includes("┌")), "reasonix collapsed tool should not render an outer box");
+
+const longMultilineSubject = Array.from({ length: 40 }, (_, index) => `part-${index}`).join("\n");
+const responsiveSubjectNarrow = renderCompactBoxedToolCall(activeTheme, "Bash", longMultilineSubject).render(24).map(stripAnsi);
+const responsiveSubjectMedium = renderCompactBoxedToolCall(activeTheme, "Bash", longMultilineSubject).render(80).map(stripAnsi);
+const responsiveSubjectWide = renderCompactBoxedToolCall(activeTheme, "Bash", longMultilineSubject).render(160).map(stripAnsi);
+assert(responsiveSubjectNarrow.length === 1 && !responsiveSubjectNarrow[0]?.includes("\n") && (responsiveSubjectNarrow[0]?.length ?? 0) <= 24, "reasonix collapsed tool subject should stay on one physical row at narrow widths");
+assert((responsiveSubjectMedium[0]?.length ?? 0) === 64, "reasonix collapsed tool subject should use the shared 80% cap at medium widths");
+assert((responsiveSubjectWide[0]?.length ?? 0) === 128, "reasonix collapsed tool subject should use the shared 80% cap on wide terminals");
+const dimEllipsisTheme = { ...activeTheme, fg: (color, text) => color === "dim" ? `\x1b[2m${text}\x1b[22m` : activeTheme.fg(color, text) };
+const longCompactPathRaw = renderCompactBoxedToolCall(dimEllipsisTheme, "Read", `Path: src/${"nested/".repeat(20)}config.ts`, { state: toolState }).render(80);
+const longCompactPath = longCompactPathRaw.map(stripAnsi);
+assert(longCompactPath.length === 1 && longCompactPath[0]?.includes("◷") && (longCompactPath[0]?.length ?? 0) === 64, "reasonix compact row should use the shared 80% cap before dropping right-side metrics");
+assert(longCompactPathRaw[0]?.includes("\x1b[2m …\x1b[22m"), "reasonix compact subject truncation should retain the dim spaced ellipsis");
+const dimEllipsisRaw = renderCompactBoxedToolCall(dimEllipsisTheme, "Bash", longMultilineSubject).render(80);
+assert(dimEllipsisRaw[0]?.includes("\x1b[2m …\x1b[22m"), "reasonix collapsed subject ellipsis should be dimmed with one leading space");
+const noEllipsisRaw = renderCompactBoxedToolCall(dimEllipsisTheme, "Bash", "npm test").render(80);
+assert(!noEllipsisRaw[0]?.includes("…"), "reasonix collapsed subject should not show ellipsis when it fits the soft cap");
+const pathUnderSoftCapRaw = renderCompactBoxedToolCall(dimEllipsisTheme, "Target Edit", "Path: scripts/reasonix-conversation-smoke.mjs").render(160);
+assert(!pathUnderSoftCapRaw[0]?.includes("…"), "reasonix collapsed path under the 80% cap should not show ellipsis");
+
+const wrappedParamCallRaw = renderBoxedToolCall(dimEllipsisTheme, "Tool", formatToolParamLines({ params: "x".repeat(400) }, dimEllipsisTheme)).render(80);
+const wrappedParamCall = wrappedParamCallRaw.map(stripAnsi);
+assert(wrappedParamCall.length === 3, "reasonix should wrap one long tool-call param across physical rows");
+assert(wrappedParamCall.every((line) => line.length <= 64), "reasonix wrapped param rows should stay within 80% of terminal width");
+assert(wrappedParamCall.slice(1).every((line) => line[2] === "│" && !line.includes("└─")), "reasonix wrapped param rows should hang from a vertical connector without repeating the output corner");
+assert(wrappedParamCall.slice(1).every((line) => line.indexOf("x") === 7), "reasonix wrapped param continuation payload should align at the dynamic detail column");
+
+const longParamCallRaw = renderBoxedToolCall(dimEllipsisTheme, "Tool", formatToolParamLines({
+	path: `src/${"nested/".repeat(20)}config.ts`,
+	command: `node -e ${"console.log(1);".repeat(20)}`,
+	content: "x".repeat(400),
+	reason: "needs a long explanation ".repeat(20),
+	extra: "more",
+}, dimEllipsisTheme)).render(80);
+const longParamCall = longParamCallRaw.map(stripAnsi);
+assert(longParamCall.length === 3, "reasonix tool-call params should render at most three rows");
+assert(longParamCall.every((line) => line.length <= 64), "reasonix tool-call params should cap each row at 80% of terminal width");
+assert(longParamCall.slice(1).every((line) => line[2] === "│" && !line.includes("└─")), "reasonix multiline tool-call params should hang from a vertical connector");
+assert(longParamCall[0]?.indexOf("Path:") === 7, "reasonix multiline param detail should begin at visible column 7");
+assert(longParamCallRaw.some((line) => line.includes("\x1b[2m …\x1b[22m")), "reasonix truncated tool-call params should use the dim spaced ellipsis");
+
+const bashLongCallRaw = renderBoxedToolCall(activeTheme, "Bash", ["srcwalk show config.ts --section 25-70 2>/dev/null; echo " + "x".repeat(300)]).render(80);
+const bashLongCall = bashLongCallRaw.map(stripAnsi);
+assert(bashLongCall.length === 3, "reasonix long bash call should wrap across three rows");
+assert(bashLongCall.every((line) => line.length <= 64), "reasonix long bash rows should each stay within the 80% cap");
+assert(bashLongCall[0]?.startsWith("● Bash ") && bashLongCall[0]?.indexOf("srcwalk") === 7, "reasonix bash detail should begin at visible column 7 after the marker");
+assert(bashLongCall.slice(1).every((line) => line[2] === "│"), "reasonix bash continuation rows should put the vertical connector at visible index 2");
+assert(bashLongCall.slice(1).every((line) => line.indexOf("x") === 7), "reasonix bash continuation payload should align at visible column 7");
+
+const targetEditLongCall = renderBoxedToolCall(activeTheme, "Target Edit", ["Path: scripts/reasonix-conversation-smoke.mjs " + "x".repeat(300)]).render(80).map(stripAnsi);
+assert(targetEditLongCall[0]?.indexOf("Path:") === 14, "reasonix target-edit detail should begin at its dynamic column 14");
+assert(targetEditLongCall.slice(1).every((line) => line[2] === "│"), "reasonix target-edit continuation rows should keep the vertical connector at index 2");
+assert(targetEditLongCall.slice(1).every((line) => line.indexOf("x") === 14), "reasonix target-edit continuation payload should align at the dynamic detail column");
+assert(targetEditLongCall.every((line) => line.length <= 64), "reasonix target-edit rows should stay within the 80% cap");
+
+const connectorFgStart = fgInputs.length;
+renderBoxedToolCall(activeTheme, "Bash", ["srcwalk show config.ts --section 25-70 2>/dev/null; echo " + "x".repeat(300)]).render(80);
+const connectorFg = fgInputs.slice(connectorFgStart);
+assert(connectorFg.some(({ color, text }) => color === "dim" && text === "│") && !connectorFg.some(({ color, text }) => color === "borderMuted" && text === "│"), "reasonix vertical connector should use the dim semantic color, not borderMuted");
+
+const wrappedParamWithOutput = [
+	...wrappedParamCallRaw,
+	`  ${dimEllipsisTheme.fg("dim", "└─ ")}preview`,
+	`     ${dimEllipsisTheme.fg("text", "◷")} ${dimEllipsisTheme.fg("dim", "1.20s · 4 words")}`,
+];
+const collapsedWrappedParam = normalizeReasonixToolLines(wrappedParamWithOutput, 80, false).map(stripAnsi);
+assert(collapsedWrappedParam.length === 5 && collapsedWrappedParam.at(-1) === "", "reasonix collapsed tool should keep three call rows, one status row, and one spacer");
+assert(collapsedWrappedParam.slice(0, 3).join("\n") === wrappedParamCall.join("\n"), "reasonix collapsed tool should preserve all three wrapped call rows at the 80% width cap");
+assert(collapsedWrappedParam.slice(0, 3).every((line) => !line.includes("└─")), "reasonix collapsed param rows should not repeat the output connector");
+assert(collapsedWrappedParam[3]?.startsWith("  └─ ") && collapsedWrappedParam.filter((line) => line.includes("└─")).length === 1, "reasonix collapsed tool should render exactly one connector for output status");
+assert(collapsedWrappedParam.slice(1, 3).every((line) => line[2] === "│"), "reasonix collapsed tool should preserve the vertical connector rows before the status corner");
+
+const longErrorState = {};
+setCompactBoxedFooter(longErrorState, activeTheme.fg("error", Array.from({ length: 40 }, (_, index) => `failure-${index}`).join("\n")), { isError: true });
+const responsiveErrorLines = renderCompactBoxedToolCall(activeTheme, "Bash", "failing command", { state: longErrorState }).render(80).map(stripAnsi);
+assert(responsiveErrorLines.length === 1 && !responsiveErrorLines[0]?.includes("\n") && (responsiveErrorLines[0]?.length ?? 0) <= 64, "reasonix compact error should stay on one row within the shared 80% cap");
+const statusUnderSoftCapState = {};
+setCompactBoxedFooter(statusUnderSoftCapState, `${dimEllipsisTheme.fg("text", "◷")} ${dimEllipsisTheme.fg("dim", "4.61s · ⏹ 180s · ✎ ~957 words")}`);
+const statusUnderSoftCapRaw = renderCompactBoxedToolCall(dimEllipsisTheme, "Bash", "npm test", { state: statusUnderSoftCapState }).render(160);
+assert(!statusUnderSoftCapRaw[0]?.includes("…"), "reasonix compact status under the 80% cap should not show ellipsis");
+const dimErrorState = {};
+setCompactBoxedFooter(dimErrorState, dimEllipsisTheme.fg("error", Array.from({ length: 40 }, (_, index) => `failure-${index}`).join("\n")), { isError: true });
+const dimErrorRaw = renderCompactBoxedToolCall(dimEllipsisTheme, "Bash", "failing command", { state: dimErrorState }).render(80);
+assert(dimErrorRaw[0]?.includes("\x1b[2m …\x1b[22m"), "reasonix compact error ellipsis should be dimmed with one leading space");
+
+const expandedTool = renderBoxedToolResult(activeTheme, () => ["full detail line one", "full detail line two"], { footerLines: ["0.20s"] });
+const expandedConnectorFgStart = fgInputs.length;
+const expandedToolLines = expandedTool.render(80).map(stripAnsi);
+assert(expandedToolLines.some((line) => line.includes("full detail line one")), "reasonix expanded tool should retain full body");
+assert(expandedToolLines.some((line) => line.includes("full detail line two")), "reasonix expanded tool should retain all body lines");
+assert(!expandedToolLines.some((line) => line.includes("┌") || line.includes("│")), "reasonix expanded tool should use indentation without a box or rail");
+assert(expandedToolLines[0]?.startsWith("  └─ "), "reasonix expanded tool should connect the first output line with a corner");
+const expandedConnectorFg = fgInputs.slice(expandedConnectorFgStart);
+assert(expandedConnectorFg.some(({ color, text }) => color === "dim" && text === "└─ ") && !expandedConnectorFg.some(({ color, text }) => color === "borderMuted" && text === "└─ "), "reasonix expanded connector should match the dim status line color");
+assert(expandedToolLines.slice(1).every((line) => line.startsWith("     ")), "reasonix expanded continuation lines should align below the corner");
+assert(expandedTool.render(24).every((line) => stripAnsi(line).length <= 24), "reasonix expanded body should fit narrow terminals");
+
+const expandedBodyWidths = [];
+const paddedExpandedTool = renderBoxedToolResult(dimEllipsisTheme, (bodyWidth) => {
+	expandedBodyWidths.push(bodyWidth);
+	return [
+		`${dimEllipsisTheme.fg("text", "short")}${" ".repeat(bodyWidth)}\x1b[0m`,
+		"x".repeat(bodyWidth + 10),
+	];
+}, { footerLines: [`${dimEllipsisTheme.fg("dim", "metrics")}${" ".repeat(200)}\x1b[0m`] });
+for (const width of [24, 80, 160]) {
+	const rawLines = paddedExpandedTool.render(width);
+	const plainLines = rawLines.map(stripAnsi);
+	const bodyWidth = Math.max(1, width - 6);
+	assert(expandedBodyWidths.at(-1) === bodyWidth, `reasonix expanded renderer should receive ${bodyWidth} content columns at width ${width}`);
+	assert(plainLines.every((line) => line.length <= width - 1), `reasonix expanded rows should preserve one right-margin column at width ${width}`);
+	assert(plainLines[0] === "  └─ short", "reasonix expanded first output should start in column 6 without false padding ellipsis");
+	assert(plainLines[1]?.startsWith("     x") && plainLines[1]?.indexOf("x") === 5, "reasonix expanded continuation should align with first-row content in column 6");
+	assert(plainLines[2] === "     metrics", "reasonix expanded footer should align with body content without false padding ellipsis");
+	assert(rawLines[1]?.includes("\x1b[2m …\x1b[22m"), "reasonix genuinely truncated expanded output should use the dim spaced ellipsis");
+}
+
+setToolSpacingTheme(activeTheme);
+const bashLikeLines = [
+	activeTheme.fg("text", "✓ Bash npm test"),
+	"  └─ preview one",
+	"     preview two",
+	`     ${activeTheme.fg("text", "◷")} ${activeTheme.fg("dim", "1.20s · 4 words")}`,
+];
+const collapsedBashLike = normalizeReasonixToolLines(bashLikeLines, 80, false).map(stripAnsi);
+assert(collapsedBashLike.length === 3 && collapsedBashLike.at(-1) === "", "reasonix collapsed tool should render two visible rows plus one spacer");
+assert(collapsedBashLike[0]?.includes("Bash npm test") && !collapsedBashLike[0]?.includes("1.20s"), "reasonix collapsed header should retain call subject without inline metrics");
+assert(collapsedBashLike[1]?.startsWith("  └─ ") && collapsedBashLike[1]?.includes("1.20s"), "reasonix collapsed metrics should occupy the first output position");
+assert(!collapsedBashLike.some((line) => line.includes("preview")), "reasonix collapsed tool should discard every preview body line");
+const narrowCollapsedBashLike = normalizeReasonixToolLines(bashLikeLines, 24, false).map(stripAnsi);
+assert((narrowCollapsedBashLike[1]?.length ?? 0) <= 24 && narrowCollapsedBashLike[1]?.includes("1.20s"), "reasonix narrow collapsed metrics should retain duration without overflow");
+const kittyImageLine = "\x1b_Gf=100,t=d,a=T;QUFBQQ==\x1b\\";
+class FakeImageToolComponent {
+	render() {
+		return [activeTheme.fg("text", "✓ Read photo.png"), `  └─ ${activeTheme.fg("text", "◷")} ${activeTheme.fg("dim", "0.50s")}`, "", kittyImageLine];
+	}
+}
+installCompactToolSpacing(FakeImageToolComponent);
+const reasonixImageLines = new FakeImageToolComponent().render(80);
+assert(reasonixImageLines.includes(kittyImageLine), "reasonix collapsed tool should keep terminal image lines appended by the core component");
+assert(reasonixImageLines.indexOf(kittyImageLine) > 0 && reasonixImageLines[reasonixImageLines.indexOf(kittyImageLine) - 1] === "", "reasonix should keep one spacer row before the terminal image line");
+setPresentationStyle("droid");
+class FakeBoxedImageToolComponent {
+	render() {
+		return ["┌─ Read ─┐", "│ photo │", "└────────┘", "", kittyImageLine];
+	}
+}
+installCompactToolSpacing(FakeBoxedImageToolComponent);
+const boxedImageLines = new FakeBoxedImageToolComponent().render(80);
+assert(boxedImageLines.includes(kittyImageLine), "droid boxed tool should keep terminal image lines appended by the core component");
+setPresentationStyle("reasonix");
+const iterm2ImageLine = "\x1b]1337;File=inline=1:QUFBQQ==\x07";
+class FakeMultiImageToolComponent {
+	expanded = true;
+	render() {
+		return [activeTheme.fg("text", "✓ Read photos"), "", kittyImageLine, "", iterm2ImageLine];
+	}
+}
+installCompactToolSpacing(FakeMultiImageToolComponent);
+const multiImageLines = new FakeMultiImageToolComponent().render(80);
+assert(multiImageLines.includes(kittyImageLine) && multiImageLines.includes(iterm2ImageLine), "reasonix expanded tool should keep kitty and iTerm2 image lines");
+assert(multiImageLines.indexOf(kittyImageLine) < multiImageLines.indexOf(iterm2ImageLine), "multiple image lines should keep their original order");
+// Live-upgrade path: a session that still holds the delegate-aware v10 wrapper
+// must pick up image preservation through the refreshed runtime delegate alone.
+const runtimeStateKey = Symbol.for("pi-droid-styling.compact-tool-spacing.runtime-state");
+class FakeUpgradedToolComponent {
+	render() {
+		return [activeTheme.fg("text", "✓ Read photo.png"), `  └─ ${activeTheme.fg("text", "◷")} ${activeTheme.fg("dim", "0.50s")}`, "", kittyImageLine];
+	}
+}
+const upgradedProto = FakeUpgradedToolComponent.prototype;
+const upgradedBase = upgradedProto.render;
+const v10Render = function (width) {
+	const lines = upgradedBase.call(this, width);
+	if (lines.length === 0 || width <= 0) return lines;
+	const runtime = upgradedProto[runtimeStateKey];
+	if (runtime.usesReasonix()) return runtime.normalizeReasonix(lines, width, Boolean(this.expanded));
+	// stale v10 inline droid path: lossy stand-in that drops image lines
+	return lines.filter((line) => stripAnsi(line).trim() !== "");
+};
+v10Render.__compactToolSpacingPatchVersion__ = 10;
+upgradedProto.render = v10Render;
+installCompactToolSpacing(FakeUpgradedToolComponent);
+assert(upgradedProto.render === v10Render, "upgrade install must refresh the delegate without stacking a new wrapper on a v10 session");
+const upgradedReasonixLines = new FakeUpgradedToolComponent().render(80);
+assert(upgradedReasonixLines.includes(kittyImageLine), "v10 wrapper with refreshed delegate should keep image lines in reasonix");
+setPresentationStyle("droid");
+class FakeUpgradedBoxedToolComponent {
+	render() {
+		return ["┌─ Read ─┐", "│ photo │", "└────────┘", "", kittyImageLine];
+	}
+}
+const upgradedBoxedProto = FakeUpgradedBoxedToolComponent.prototype;
+const upgradedBoxedBase = upgradedBoxedProto.render;
+const v10BoxedRender = function (width) {
+	const lines = upgradedBoxedBase.call(this, width);
+	if (lines.length === 0 || width <= 0) return lines;
+	const runtime = upgradedBoxedProto[runtimeStateKey];
+	if (runtime.usesReasonix()) return runtime.normalizeReasonix(lines, width, Boolean(this.expanded));
+	return lines.filter((line) => stripAnsi(line).trim() !== "");
+};
+v10BoxedRender.__compactToolSpacingPatchVersion__ = 10;
+upgradedBoxedProto.render = v10BoxedRender;
+installCompactToolSpacing(FakeUpgradedBoxedToolComponent);
+const upgradedBoxedLines = new FakeUpgradedBoxedToolComponent().render(80);
+assert(upgradedBoxedLines.includes(kittyImageLine), "v10 wrapper with refreshed delegate should keep image lines in droid boxed mode");
+assert(upgradedBoxedLines[0]?.startsWith("┌"), "v10 wrapper with refreshed delegate should still normalize the droid box");
+setPresentationStyle("reasonix");
+const underToolCallCapHeader = `✓ Bash ${"x".repeat(50)}`;
+const pendingUnderToolCallCap = normalizeReasonixToolLines([activeTheme.fg("text", underToolCallCapHeader)], 80, false).map(stripAnsi);
+assert(pendingUnderToolCallCap[0] === underToolCallCapHeader && !pendingUnderToolCallCap[0]?.includes("…"), "reasonix pending call should use the same 80% cap before output exists");
+const underToolCallCap = normalizeReasonixToolLines([activeTheme.fg("text", underToolCallCapHeader), `  └─ ${activeTheme.fg("text", "◷")} ${activeTheme.fg("dim", "1.20s")}`], 80, false).map(stripAnsi);
+assert(underToolCallCap[0] === underToolCallCapHeader && !underToolCallCap[0]?.includes("…"), "reasonix collapsed non-compact call below the 80% cap should remain complete on one row");
+const softCappedBashLike = normalizeReasonixToolLines([activeTheme.fg("text", `✓ Bash ${"x".repeat(200)}`), ...bashLikeLines.slice(1)], 80, false).map(stripAnsi);
+assert((softCappedBashLike[0]?.length ?? 0) === 64 && (softCappedBashLike[1]?.length ?? 0) <= 64, "reasonix collapsed header and status should share the 80% cap");
+setToolSpacingTheme(dimEllipsisTheme);
+const dimGenericBashLike = normalizeReasonixToolLines([dimEllipsisTheme.fg("text", `✓ Bash ${"x".repeat(200)}`), ...bashLikeLines.slice(1)], 80, false);
+assert(dimGenericBashLike[0]?.includes("\x1b[2m …\x1b[22m"), "reasonix generic collapsed ellipsis should be dimmed with one leading space");
+const paddedTargetHeader = `${dimEllipsisTheme.fg("text", "✓ Target Edit Path: scripts/reasonix-conversation-smoke.mjs")}${" ".repeat(80)}\x1b[0m`;
+const paddedTargetStatus = `  └─ ${dimEllipsisTheme.fg("text", "◷")} ${dimEllipsisTheme.fg("dim", "4.61s · ⏹ 180s · ✎ ~957 words")}${" ".repeat(80)}\x1b[0m`;
+setToolSpacingTheme(activeTheme);
+const genericConnectorFgStart = fgInputs.length;
+const normalizedPaddedTarget = normalizeReasonixToolLines([paddedTargetHeader, paddedTargetStatus], 160, false).map(stripAnsi);
+assert(normalizedPaddedTarget[0] === "✓ Target Edit Path: scripts/reasonix-conversation-smoke.mjs", "reasonix should remove upstream trailing header padding before truncation");
+assert(normalizedPaddedTarget[1] === "  └─ ◷ 4.61s · ⏹ 180s · ✎ ~957 words", "reasonix should remove upstream trailing status padding before truncation");
+const genericConnectorFg = fgInputs.slice(genericConnectorFgStart);
+assert(genericConnectorFg.some(({ color, text }) => color === "dim" && text === "└─ ") && !genericConnectorFg.some(({ color, text }) => color === "borderMuted" && text === "└─ "), "reasonix generic connector should be recolored to match the dim status line");
+setToolSpacingTheme(activeTheme);
+const expandedFullWidthBashLike = normalizeReasonixToolLines([activeTheme.fg("text", `✓ Bash ${"x".repeat(200)}`), ...bashLikeLines.slice(1)], 80, true).map(stripAnsi);
+assert((expandedFullWidthBashLike[0]?.length ?? 0) === 80, "reasonix expanded tools should keep the full available terminal width");
+const genericExpandedConnectorFgStart = fgInputs.length;
+const expandedBashLike = normalizeReasonixToolLines(["", "─".repeat(80), ...bashLikeLines, ""], 80, true).map(stripAnsi);
+assert(expandedBashLike.length === 5 && expandedBashLike.at(-1) === "", "reasonix expanded tool should preserve summary, output, footer, and one spacer");
+assert(!expandedBashLike[0]?.includes("1.20s"), "reasonix expanded header should not inline footer metrics");
+assert(expandedBashLike[1]?.startsWith("  └─ ") && expandedBashLike[2]?.startsWith("     "), "reasonix expanded output should keep its corner connector and aligned continuation");
+const genericExpandedConnectorFg = fgInputs.slice(genericExpandedConnectorFgStart);
+assert(genericExpandedConnectorFg.some(({ color, text }) => color === "dim" && text === "└─ ") && !genericExpandedConnectorFg.some(({ color, text }) => color === "borderMuted" && text === "└─ "), "reasonix generic expanded connector should match the dim status line color");
+assert(expandedBashLike[3]?.includes("1.20s"), "reasonix expanded footer metrics should remain below output");
+setToolSpacingTheme(dimEllipsisTheme);
+const paddedExpandedGenericRaw = normalizeReasonixToolLines([
+	`${dimEllipsisTheme.fg("text", "✓ Bash npm test")}${" ".repeat(80)}\x1b[0m`,
+	`  └─ ${dimEllipsisTheme.fg("text", "short output")}${" ".repeat(80)}\x1b[0m`,
+	`     ${"x".repeat(100)}`,
+	`     ${dimEllipsisTheme.fg("dim", "metrics")}${" ".repeat(80)}\x1b[0m`,
+], 80, true);
+const paddedExpandedGeneric = paddedExpandedGenericRaw.map(stripAnsi);
+assert(paddedExpandedGeneric[0] === "✓ Bash npm test", "reasonix generic expanded header should ignore upstream trailing render padding");
+assert(paddedExpandedGeneric[1] === "  └─ short output", "reasonix generic expanded first output should ignore upstream trailing render padding");
+assert(paddedExpandedGeneric[2]?.startsWith("     x") && (paddedExpandedGeneric[2]?.length ?? 0) <= 80, "reasonix generic expanded continuation should retain column-6 alignment without overflow");
+assert(paddedExpandedGeneric[3] === "     metrics", "reasonix generic expanded footer should ignore upstream trailing render padding");
+assert(paddedExpandedGenericRaw[2]?.includes("\x1b[2m …\x1b[22m"), "reasonix generic expanded overflow should use the dim spaced ellipsis");
+setToolSpacingTheme(activeTheme);
+
+class FakeSpacingToolExecution {
+	constructor(expanded) { this.expanded = expanded; }
+	render() { return ["", "─".repeat(80), ...bashLikeLines, ""]; }
+}
+installCompactToolSpacing(FakeSpacingToolExecution);
+assert(new FakeSpacingToolExecution(false).render(80).length === 3, "reasonix ToolExecution patch should enforce two collapsed visible rows plus spacing");
+assert(new FakeSpacingToolExecution(true).render(80).length === 5, "reasonix ToolExecution patch should preserve expanded body/footer plus spacing");
+
+class FakeToolExecutionComponent {
+	constructor() { this.toolName = "quick_edit"; }
+	getResultRenderer() { return () => ({ render: () => [], invalidate() {} }); }
+	getCallRenderer() { return () => ({ render: () => [], invalidate() {} }); }
+}
+installQuickEditRenderer(FakeToolExecutionComponent);
+const quickEdit = new FakeToolExecutionComponent();
+const quickEditRenderer = quickEdit.getResultRenderer();
+const quickEditCallRenderer = quickEdit.getCallRenderer();
+const quickEditState = {};
+const quickEditResult = { content: [{ type: "text", text: "── diff ──\n:1\n- old\n+ new\n---" }] };
+const quickEditCall = quickEditCallRenderer({ path: "src/demo.ts" }, activeTheme, { state: quickEditState, cwd: process.cwd() });
+const collapsedQuickEdit = quickEditRenderer(quickEditResult, { expanded: false }, activeTheme, { state: quickEditState, args: { path: "src/demo.ts" }, cwd: process.cwd() });
+assert(collapsedQuickEdit.render(80).length === 0, "reasonix quick-edit collapsed result should fold into the call row");
+const collapsedQuickEditLines = quickEditCall.render(80).map(stripAnsi);
+assert(collapsedQuickEditLines.length === 2, "reasonix quick-edit collapsed component should render header plus metrics row");
+assert(collapsedQuickEditLines[1]?.startsWith("  └─ ") && collapsedQuickEditLines[1]?.includes("+1") && collapsedQuickEditLines[1]?.includes("-1"), "reasonix quick-edit collapsed metrics row should retain diff stats");
+
+const quickEditErrorState = {};
+const quickEditErrorCall = quickEditCallRenderer({ path: "src/demo.ts" }, activeTheme, { state: quickEditErrorState, cwd: process.cwd() });
+const collapsedQuickEditError = quickEditRenderer(
+	{ isError: true, content: [{ type: "text", text: "edit failed" }] },
+	{ expanded: false },
+	activeTheme,
+	{ state: quickEditErrorState, isError: true, args: { path: "src/demo.ts" }, cwd: process.cwd() },
+);
+assert(collapsedQuickEditError.render(80).length === 0, "reasonix quick-edit error should fold into the call row");
+const quickEditErrorLines = quickEditErrorCall.render(80).map(stripAnsi);
+assert(quickEditErrorLines[0]?.includes("✗") && quickEditErrorLines[1]?.startsWith("  └─ ") && quickEditErrorLines[1]?.includes("edit failed"), "reasonix quick-edit collapsed error should retain status and message across header/output rows");
+
+const quickEditOutput = quickEditRenderer(
+	quickEditResult,
+	{ expanded: true },
+	activeTheme,
+	{ state: quickEditState, args: { path: "src/demo.ts" }, cwd: process.cwd() },
+);
+const quickEditLines = quickEditOutput.render(80).map(stripAnsi);
+assert(quickEditLines.some((line) => line.includes("old")), "reasonix quick-edit expanded view should retain removals");
+assert(quickEditLines.some((line) => line.includes("new")), "reasonix quick-edit expanded view should retain additions");
+assert(quickEditLines.every((line) => line.startsWith("  ") && !line.startsWith("│ ")), "reasonix quick-edit should use indentation without an outer rail");
+
+setPresentationStyle("droid");
+const droidToolLines = renderCompactBoxedToolCall(activeTheme, "Read", "src/config.ts", { state: toolState }).render(80).map(stripAnsi);
+assert(droidToolLines.some((line) => line.includes("┌")), "droid tool presentation should retain its outer box");
+
+// Status indicator alignment: under reasonix the working loader drops Pi's
+// one-column Text margin so its glyph shares the tool/assistant marker column.
+{
+	const { Loader } = await import("@earendil-works/pi-tui");
+	const { installWorkingLoaderAlignment } = await importBuilt("tool-tags/loader-align.js");
+	class StatusLoader extends Loader {
+		kind = "working";
+	}
+	const plain = (text) => text;
+	const make = (LoaderClass) => new LoaderClass(null, plain, plain, "Thinking", { frames: ["○"] });
+	setPresentationStyle("droid");
+	installWorkingLoaderAlignment(Loader);
+	installWorkingLoaderAlignment(Loader); // reload path
+	assert(typeof Loader.prototype.render[Symbol.for("pi-droid-styling.loader-align.original-render")][Symbol.for("pi-droid-styling.loader-align.original-render")] === "undefined", "a reload should rewrap the original render, not stack wrappers");
+	const status = make(StatusLoader);
+	const dialog = make(Loader);
+	assert(status.render(40)[1]?.startsWith(" ○ Thinking"), "droid layout should keep the loader margin");
+	setPresentationStyle("reasonix");
+	assert(status.render(40)[1]?.startsWith("○ Thinking"), "reasonix status loader should start at column 0");
+	assert(dialog.render(40)[1]?.startsWith(" ○ Thinking"), "non-status loaders should keep their margin");
+	const inBorder = status.render(42)[1] ?? "";
+	assert((inBorder.startsWith(" ") ? inBorder.slice(1) : inBorder).startsWith("○ Thinking"), "in-border path should still see the same content");
+	status.stop();
+	dialog.stop();
+}
+
+console.log("reasonix conversation presentation smoke ok");

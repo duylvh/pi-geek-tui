@@ -1,0 +1,599 @@
+#!/usr/bin/env node
+// Smoke test for the compact one-line tasks widget renderer + tasksWidgetStyle config.
+
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const repoRoot = process.cwd();
+const workDir = join(repoRoot, ".pi", "tasks-widget-compact-smoke");
+const buildDir = join(workDir, "build");
+const stubPath = join(workDir, "node-stubs.d.ts");
+const tsc = join(repoRoot, "node_modules", "typescript", "lib", "tsc.js");
+let importCounter = 0;
+
+function assert(condition, message) {
+	if (!condition) throw new Error(message);
+}
+
+function stripAnsi(text) {
+	return String(text)
+		.replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "")
+		.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
+}
+
+function prepareWorkDir() {
+	rmSync(workDir, { recursive: true, force: true });
+	mkdirSync(buildDir, { recursive: true });
+	writeFileSync(join(buildDir, "package.json"), "{\"type\":\"module\"}\n", "utf8");
+	writeFileSync(stubPath, `declare module "fs" {
+	export const existsSync: (path: string) => boolean;
+	export const mkdirSync: (path: string, options?: unknown) => unknown;
+	export const readFileSync: (path: string, encoding: string) => string;
+	export const statSync: (path: string) => { mtimeMs: number };
+	export const writeFileSync: (path: string, data: string, encoding?: string) => void;
+	export const appendFileSync: (path: string, data: string, encoding?: string) => void;
+	// Keep in step with config.ts's fs imports: this script is isolated from Node's types (it declares
+	// process itself), so this block is the only source for "fs" here; elsewhere it just augments @types/node.
+	export const renameSync: (from: string, to: string) => void;
+	export const unlinkSync: (path: string) => void;
+}
+declare module "node:fs" {
+	export const existsSync: (path: string) => boolean;
+	export const mkdirSync: (path: string, options?: unknown) => unknown;
+	export const readFileSync: (path: string, encoding: string) => string;
+	export const statSync: (path: string) => { mtimeMs: number };
+	export const writeFileSync: (path: string, data: string, encoding?: string) => void;
+	export const appendFileSync: (path: string, data: string, encoding?: string) => void;
+	export const renameSync: (from: string, to: string) => void;
+	export const unlinkSync: (path: string) => void;
+}
+declare module "path" {
+	export const dirname: (path: string) => string;
+	export const join: (...parts: string[]) => string;
+}
+declare module "node:path" {
+	export const dirname: (path: string) => string;
+	export const join: (...parts: string[]) => string;
+}
+declare module "os" {
+	export const homedir: () => string;
+}
+declare module "node:os" {
+	export const homedir: () => string;
+}
+declare module "node:buffer" {
+	export const Buffer: any;
+}
+declare module "node:perf_hooks" {
+	export const monitorEventLoopDelay: any;
+	export const performance: any;
+}
+declare const process: any;
+declare function setInterval(...args: any[]): any;
+declare function clearInterval(handle: any): void;
+`, "utf8");
+}
+
+function compileSurface() {
+	if (!existsSync(tsc)) throw new Error("typescript is not installed; run npm install before npm run test:tasks-widget-compact");
+	const result = spawnSync(process.execPath, [
+		tsc,
+		"--outDir", buildDir,
+		"--rootDir", repoRoot,
+		"--module", "NodeNext",
+		"--moduleResolution", "NodeNext",
+		"--target", "ES2022",
+		"--skipLibCheck",
+		"--noImplicitAny", "false",
+		stubPath,
+		"user-zone/designs.ts",
+		"config.ts",
+		"performance/profiler.ts",
+		"performance/virtualize-chat.ts",
+		"render-budget.ts",
+		"theme/ansi.ts",
+		"widgets/pi-tasks-widget.ts",
+	], { cwd: repoRoot, encoding: "utf8" });
+	if (result.status !== 0) {
+		process.stderr.write(result.stdout || "");
+		process.stderr.write(result.stderr || "");
+		throw new Error(`TypeScript compile failed with code ${result.status}`);
+	}
+	console.log("tsc focused ok");
+}
+
+async function importBuilt(relativePath) {
+	importCounter += 1;
+	return import(`${pathToFileURL(join(buildDir, relativePath)).href}?smoke=${importCounter}`);
+}
+
+const noTheme = {};
+
+async function runCompactRendererSmoke() {
+	const widget = await importBuilt("widgets/pi-tasks-widget.js");
+	const { stylePiTasksWidgetLines } = widget;
+
+	const one = (lines, width = 80) => stripAnsi(stylePiTasksWidgetLines(lines, noTheme, width, "compact").join("\n"));
+
+	// active task with upstream no-token metrics: keep time, strip active ellipsis
+	let r = one([
+		"● 3 tasks (1 done, 1 in progress, 1 open)",
+		"✔ #1 Scan repo",
+		"✳ #2 Refactor editor… (4s)",
+		"◻ #3 Add tests",
+	]);
+	assert(r.includes("● Tasks › [2] Refactor editor · 4s"), `active time, got: ${r}`);
+	assert(/ \(1\/3 done · 1 running\)$/.test(r), `counts (1/3 done · 1 running), got: ${r}`);
+	assert(!r.includes("… · 4s"), `active ellipsis should be stripped, got: ${r}`);
+	console.log("compact: active time ok");
+
+	// all completed uses header counts
+	r = one([
+		"● 2 tasks (2 done)",
+		"✔ #1 Scan repo",
+		"✔ #2 Refactor editor",
+	]);
+	assert(/● Tasks done \(2\/2 done\)$/.test(r), `all done, got: ${r}`);
+	console.log("compact: all done ok");
+
+	// idle/no rows fallback
+	r = one(["● Tasks"]);
+	assert(r.trim() === "● Tasks · idle", `idle, got: ${r}`);
+	console.log("compact: idle ok");
+
+	// blocked indicator is based on visible blocked rows
+	r = one([
+		"● 3 tasks (1 done, 1 in progress, 1 open)",
+		"✔ #1 Scan repo",
+		"✳ #2 Write tests… (5s) › blocked by #1",
+		"◻ #3 Add docs",
+	]);
+	assert(r.includes("1 blocked"), `blocked indicator, got: ${r}`);
+	assert(/ \(1\/3 done · 1 running\)/.test(r), `counts with blocked, got: ${r}`);
+	console.log("compact: blocked ok");
+
+	// header counts win over visible rows when overflow hides tasks
+	r = one([
+		"● 5 tasks (4 done, 1 in progress)",
+		"✳ #1 Scan repo… (9s)",
+		"✔ #2 Refactor editor",
+		"… and 3 more",
+	]);
+	assert(/ \(4\/5 done · 1 running\)$/.test(r), `overflow uses header counts (4/5 done · 1 running), got: ${r}`);
+	console.log("compact: overflow header counts ok");
+
+	// if header says work is running but the current row is hidden, do not report idle
+	r = one([
+		"● 5 tasks (4 done, 1 in progress)",
+		"✔ #1 Completed visible",
+		"✔ #2 Also completed",
+		"… and 3 more",
+	]);
+	assert(/● Tasks idle \(4\/5 done · 1 running\)$/.test(r), `hidden running should not look idle, got: ${r}`);
+	console.log("compact: hidden running summary ok");
+
+	// active spinner is the current task, not a stale non-active in-progress row
+	r = one([
+		"● 3 tasks (0 done, 2 in progress, 1 open)",
+		"◼ #2 Waiting on IO",
+		"✳ #3 Actually running… (7s)",
+		"◻ #4 Add docs",
+	]);
+	assert(r.includes("› [3] Actually running · 7s"), `active should win over running, got: ${r}`);
+	assert(!r.includes("Waiting on IO"), `stale running picked, got: ${r}`);
+	console.log("compact: active selection ok");
+
+	// multiple non-active in-progress rows rotate every 3 seconds
+	const realNow = Date.now;
+	try {
+		const rotating = [
+			"● 3 tasks (0 done, 2 in progress, 1 open)",
+			"◼ #2 First running",
+			"◼ #3 Second running",
+			"◻ #4 Add docs",
+		];
+		Date.now = () => 0;
+		r = one(rotating);
+		assert(r.includes("› [2] First running"), `cycle bucket 0, got: ${r}`);
+		Date.now = () => 3000;
+		r = one(rotating);
+		assert(r.includes("› [3] Second running"), `cycle bucket 1, got: ${r}`);
+		Date.now = () => 6000;
+		r = one(rotating);
+		assert(r.includes("› [2] First running"), `cycle bucket 2 wraps, got: ${r}`);
+
+		Date.now = () => 3000;
+		r = one([
+			"● 3 tasks (0 done, 2 in progress, 1 open)",
+			"◼ #2 Stale running",
+			"✳ #3 Active spinner… (7s)",
+			"◻ #4 Add docs",
+		]);
+		assert(r.includes("› [3] Active spinner · 7s"), `active should still win over non-active running, got: ${r}`);
+		assert(!r.includes("Stale running"), `non-active running should not beat active, got: ${r}`);
+	} finally {
+		Date.now = realNow;
+	}
+	console.log("compact: 3s current-task cycle ok");
+
+	// compact drops token arrows, keeps time dim segment text (real parenthesized format)
+	r = one([
+		"● 3 tasks (1 done, 1 in progress, 1 open)",
+		"✔ #1 Scan repo",
+		"✳ #2 Refactor editor… (2m 49s · ↑ 4.1k ↓ 1.2k)",
+		"◻ #3 Add tests",
+	]);
+	assert(r.includes("› [2] Refactor editor · 2m 49s"), `keep time, got: ${r}`);
+	assert(!/↑|↓|4\.1k|1\.2k/.test(r), `drop token arrows, got: ${r}`);
+	console.log("compact: parenthesized metrics ok");
+
+	// compact also keeps time from older/trailing metric shape, but only when token segment is metric-like
+	r = one([
+		"● 3 tasks (1 done, 1 in progress, 1 open)",
+		"✔ #1 Scan repo",
+		"✳ #2 Refactor editor · 4s · 0.8k tok",
+		"◻ #3 Add tests",
+	]);
+	assert(r.includes("› [2] Refactor editor · 4s"), `keep trailing time, got: ${r}`);
+	assert(!/tok|0\.8k/.test(r), `drop trailing token, got: ${r}`);
+	console.log("compact: trailing metrics ok");
+
+	// ordinary parentheses in task names are preserved; only the final metric suffix is stripped
+	r = one([
+		"● 2 tasks (0 done, 1 in progress, 1 open)",
+		"✳ #2 Handle files (3 cases)… (4s)",
+		"◻ #3 Add tests",
+	]);
+	assert(r.includes("› [2] Handle files (3 cases) · 4s"), `ordinary parentheses preserved, got: ${r}`);
+	console.log("compact: ordinary parentheses ok");
+
+	// real width is respected: no min-width 100 lie
+	const longName = "✳ #2 " + "A".repeat(120) + "… (4s)";
+	r = one([
+		"● 3 tasks (1 done, 1 in progress, 1 open)",
+		"✔ #1 Scan repo",
+		longName,
+		"◻ #3 Add tests",
+	], 60);
+	assert(r.includes("(1/3 done · 1 running)"), `long name keeps counts, got: ${r}`);
+	assert(stripAnsi(r).length <= 60, `long name respects width=60, got len ${stripAnsi(r).length}: ${r}`);
+	assert(r.includes("›"), `long name shows current marker, got: ${r}`);
+	console.log("compact: real-width truncation ok");
+
+	// default style is a pass-through: no token stripping, recoloring, or truncation.
+	const defaultLines = [
+		"● 2 tasks (0 done, 1 in progress, 1 open)",
+		"✳ #1 Handle files (3 cases)… (4s · ↑ 800 ↓ 300)",
+	];
+	const multi = stylePiTasksWidgetLines(defaultLines, noTheme, 10, "default");
+	assert(multi === defaultLines, "default renderer should pass through by identity");
+	assert(multi[1].includes("↑ 800 ↓ 300"), `default renderer should not strip token metrics, got: ${multi[1]}`);
+	console.log("compact: default renderer pass-through ok");
+}
+
+async function runCompactCacheSmoke() {
+	const widget = await importBuilt("widgets/pi-tasks-widget.js");
+	const { installPiTasksWidgetStyling } = widget;
+
+	function createWrappedComponent(lines) {
+		let storedContent;
+		const sessionUi = {
+			theme: noTheme,
+			terminal: { columns: 80 },
+			setWidget(_key, content) { storedContent = content; },
+		};
+		const dispose = installPiTasksWidgetStyling(sessionUi, "compact");
+		sessionUi.setWidget("tasks", () => ({ render: () => lines }), { placement: "aboveEditor" });
+		const component = storedContent({ terminal: { columns: 80 } }, noTheme);
+		return { component, dispose };
+	}
+
+	const realNow = Date.now;
+	try {
+		Date.now = () => 0;
+		let wrapped = createWrappedComponent([
+			"● 2 tasks (0 done, 1 in progress, 1 open)",
+			"✳ #1 Single active… (4s)",
+			"◻ #2 Add docs",
+		]);
+		const singleFirst = wrapped.component.render();
+		Date.now = () => 3000;
+		const singleSecond = wrapped.component.render();
+		assert(singleSecond === singleFirst, "single running task should not invalidate cache every 3s");
+		wrapped.dispose?.();
+
+		Date.now = () => 0;
+		wrapped = createWrappedComponent([
+			"● 3 tasks (0 done, 2 in progress, 1 open)",
+			"◼ #1 First running",
+			"◼ #2 Second running",
+			"◻ #3 Add docs",
+		]);
+		const multiFirst = stripAnsi(wrapped.component.render()[0]);
+		Date.now = () => 3000;
+		const multiSecond = stripAnsi(wrapped.component.render()[0]);
+		assert(multiFirst !== multiSecond, `multiple running tasks should invalidate cache each cycle, got ${multiFirst}`);
+		assert(multiFirst.includes("[1] First running") && multiSecond.includes("[2] Second running"), `cycle cache output wrong: ${multiFirst} -> ${multiSecond}`);
+		wrapped.dispose?.();
+	} finally {
+		Date.now = realNow;
+	}
+	console.log("compact: conditional cycle cache ok");
+}
+
+async function runDefaultNoInterferenceSmoke() {
+	const widget = await importBuilt("widgets/pi-tasks-widget.js");
+	const { installPiTasksWidgetStyling } = widget;
+	const taskLines = [
+		"● 2 tasks (0 done, 1 in progress, 1 open)",
+		"✳ #1 Handle files… (4s · ↑ 800 ↓ 300)",
+	];
+	let storedContent;
+	const sessionUi = {
+		theme: noTheme,
+		terminal: { columns: 80 },
+		setWidget(_key, content) { storedContent = content; },
+	};
+	const originalSetWidget = sessionUi.setWidget;
+
+	const compactDispose = installPiTasksWidgetStyling(sessionUi, "compact");
+	assert(typeof compactDispose === "function", "compact style should install a pi-tasks patch");
+	assert(sessionUi.setWidget !== originalSetWidget, "compact style should patch setWidget");
+
+	const defaultDispose = installPiTasksWidgetStyling(sessionUi, "default");
+	assert(defaultDispose === undefined, "default style should not install a pi-tasks patch");
+	assert(sessionUi.setWidget === originalSetWidget, "default style should restore original setWidget");
+
+	sessionUi.setWidget("tasks", taskLines, { placement: "aboveEditor" });
+	assert(storedContent === taskLines, "default style should pass pi-tasks content through by identity");
+	assert(storedContent[1].includes("↑ 800 ↓ 300"), `default style should not strip pi-tasks content, got: ${storedContent[1]}`);
+	console.log("compact: default no-interference ok");
+}
+
+async function runVirtualizeChatSmoke() {
+	const {
+		installInteractiveChatVirtualization,
+		isVirtualizedChatContainer,
+		virtualizeChatContainer,
+		virtualizeChatContainerInstance,
+	} = await importBuilt("performance/virtualize-chat.js");
+
+	const component = (label) => ({ render: () => [label] });
+	const createTui = () => ({
+		children: [
+			component("header"),
+			{
+				children: [component("m1"), component("m2"), component("m3"), component("m4")],
+				addChild(child) { this.children.push(child); },
+				removeChild(child) { this.children = this.children.filter((item) => item !== child); },
+				clear() { this.children = []; },
+				render() { return this.children.flatMap((child) => child.render(80)); },
+			},
+		],
+	});
+
+	let tui = createTui();
+	virtualizeChatContainer(tui, 2);
+	assert(tui.children[1].children.length === 2, `custom tail should structurally prune to 2 active children, got ${tui.children[1].children.length}`);
+	let lines = stripAnsi(tui.children[1].render(80).join("\n"));
+	assert(isVirtualizedChatContainer(tui.children[1]), "custom tail should mark chat as actively virtualized");
+	assert(lines.includes("2 older messages hidden"), `custom tail should hide 2, got: ${lines}`);
+	assert(!lines.includes("m1") && !lines.includes("m2") && lines.includes("m3") && lines.includes("m4"), `custom tail rendered wrong children: ${lines}`);
+
+	tui = createTui();
+	virtualizeChatContainer(tui, 0);
+	assert(tui.children[1].children.length === 4, `tail=0 should keep all children active, got ${tui.children[1].children.length}`);
+	lines = stripAnsi(tui.children[1].render(80).join("\n"));
+	assert(!isVirtualizedChatContainer(tui.children[1]), "tail=0 should not mark chat as actively virtualized");
+	assert(!lines.includes("older messages hidden"), `tail=0 should render all without indicator, got: ${lines}`);
+	assert(["m1", "m2", "m3", "m4"].every((label) => lines.includes(label)), `tail=0 missed children: ${lines}`);
+
+	tui = createTui();
+	virtualizeChatContainer(tui, 2);
+	virtualizeChatContainer(tui, 0);
+	assert(tui.children[1].children.length === 4, `reconfigured tail=0 should restore pruned children, got ${tui.children[1].children.length}`);
+	lines = stripAnsi(tui.children[1].render(80).join("\n"));
+	assert(!isVirtualizedChatContainer(tui.children[1]), "reconfigured tail=0 should clear active virtualization");
+	assert(!lines.includes("older messages hidden") && lines.includes("m1"), `reconfigured tail=0 should render all, got: ${lines}`);
+
+	// Nonzero tail growth must restore from hiddenChildren (2 → 3 with 4 total)
+	tui = createTui();
+	virtualizeChatContainer(tui, 2);
+	assert(tui.children[1].children.length === 2, "precondition: tail=2 prunes to 2");
+	virtualizeChatContainer(tui, 3);
+	assert(tui.children[1].children.length === 3, `reconfigured 2→3 should restore one hidden child, got ${tui.children[1].children.length}`);
+	lines = stripAnsi(tui.children[1].render(80).join("\n"));
+	assert(lines.includes("1 older messages hidden"), `reconfigured 2→3 should keep one hidden, got: ${lines}`);
+	assert(!lines.includes("m1") && lines.includes("m2") && lines.includes("m3") && lines.includes("m4"), `reconfigured 2→3 wrong window: ${lines}`);
+
+	// Growth beyond total history restores all parked children
+	virtualizeChatContainer(tui, 10);
+	assert(tui.children[1].children.length === 4, `reconfigured 3→10 should restore all 4 children, got ${tui.children[1].children.length}`);
+	lines = stripAnsi(tui.children[1].render(80).join("\n"));
+	assert(!lines.includes("older messages hidden") && lines.includes("m1"), `reconfigured 3→10 should render full history, got: ${lines}`);
+
+	// addChild after prune must keep the active window at the tail size
+	tui = createTui();
+	virtualizeChatContainer(tui, 2);
+	tui.children[1].addChild({ render: () => ["m5"] });
+	assert(tui.children[1].children.length === 2, `addChild should re-prune to tail size, got ${tui.children[1].children.length}`);
+	lines = stripAnsi(tui.children[1].render(80).join("\n"));
+	assert(lines.includes("3 older messages hidden"), `addChild prune should update hidden count, got: ${lines}`);
+	assert(lines.includes("m4") && lines.includes("m5") && !lines.includes("m3"), `addChild prune should keep newest pair: ${lines}`);
+
+	// InteractiveMode-style hook applies to the real chatContainer after message rebuild.
+	// Prefer clear()+addChild (container API) so overflow parked during rebuild is preserved.
+	let hookTail = 2;
+	class FakeInteractiveMode {
+		constructor() {
+			this.ui = { children: [] };
+			this.chatContainer = {
+				children: [component("h1"), component("h2"), component("h3"), component("h4"), component("h5")],
+				addChild(child) { this.children.push(child); },
+				removeChild(child) { this.children = this.children.filter((item) => item !== child); },
+				clear() { this.children = []; },
+				render() { return this.children.flatMap((child) => child.render(80)); },
+			};
+			this.ui.children = [component("header"), this.chatContainer];
+		}
+		renderInitialMessages() {
+			this.chatContainer.clear();
+			for (const label of ["a", "b", "c", "d", "e"]) {
+				this.chatContainer.addChild(component(label));
+			}
+		}
+	}
+	installInteractiveChatVirtualization(FakeInteractiveMode, () => hookTail);
+	const mode = new FakeInteractiveMode();
+	mode.renderInitialMessages();
+	assert(mode.chatContainer.children.length === 2, `interactive hook should prune chatContainer to tail, got ${mode.chatContainer.children.length}`);
+	const hookLines = stripAnsi(mode.chatContainer.render(80).join("\n"));
+	assert(hookLines.includes("3 older messages hidden"), `interactive hook should show indicator, got: ${hookLines}`);
+	assert(hookLines.split("\n").includes("d"), `interactive hook missing d: ${hookLines}`);
+	assert(hookLines.split("\n").includes("e"), `interactive hook missing e: ${hookLines}`);
+	assert(!hookLines.split("\n").includes("a") && !hookLines.split("\n").includes("b") && !hookLines.split("\n").includes("c"), `interactive hook kept wrong children: ${hookLines}`);
+
+	// clear()+addChild rebuild must keep freshly parked overflow (not wiped by applyFromMode).
+	mode.renderInitialMessages();
+	assert(mode.chatContainer.children.length === 2, `second clear+addChild rebuild should stay at tail=2, got ${mode.chatContainer.children.length}`);
+	const rebuildLines = stripAnsi(mode.chatContainer.render(80).join("\n"));
+	assert(rebuildLines.includes("3 older messages hidden"), `clear+addChild rebuild should keep indicator, got: ${rebuildLines}`);
+
+	// Extension reload reinstalls with a new getter; must not keep the first closure (tail=2).
+	installInteractiveChatVirtualization(FakeInteractiveMode, () => 4);
+	mode.renderInitialMessages();
+	assert(mode.chatContainer.children.length === 4, `reinstalled interactive hook should use new getter tail=4, got ${mode.chatContainer.children.length}`);
+	const reloadedLines = stripAnsi(mode.chatContainer.render(80).join("\n"));
+	assert(reloadedLines.includes("1 older messages hidden"), `reinstalled hook should hide 1 with tail=4, got: ${reloadedLines}`);
+	assert(
+		["b", "c", "d", "e"].every((label) => reloadedLines.split("\n").includes(label))
+		&& !reloadedLines.split("\n").includes("a"),
+		`reinstalled hook wrong window: ${reloadedLines}`,
+	);
+
+	// Wholesale children assignment (no clear/addChild) must drop stale overflow from the prior tree.
+	class FakeAssignMode {
+		constructor() {
+			this.ui = { children: [] };
+			this.chatContainer = {
+				children: [component("s1"), component("s2"), component("s3"), component("s4"), component("s5")],
+				addChild(child) { this.children.push(child); },
+				removeChild(child) { this.children = this.children.filter((item) => item !== child); },
+				clear() { this.children = []; },
+				render() { return this.children.flatMap((child) => child.render(80)); },
+			};
+			this.ui.children = [component("header"), this.chatContainer];
+		}
+		renderInitialMessages() {
+			this.chatContainer.children = [component("a"), component("b"), component("c"), component("d"), component("e")];
+		}
+	}
+	installInteractiveChatVirtualization(FakeAssignMode, () => 2);
+	const assignMode = new FakeAssignMode();
+	assignMode.renderInitialMessages();
+	assert(assignMode.chatContainer.children.length === 2, "assign-mode first prune should keep tail=2");
+	// Live mutation must not stick apiMutated across a later wholesale assign rebuild.
+	assignMode.chatContainer.addChild(component("live"));
+	assert(assignMode.chatContainer.children.length === 2, "live addChild should re-prune to tail");
+	assignMode.renderInitialMessages();
+	const assignLines = stripAnsi(assignMode.chatContainer.render(80).join("\n"));
+	assert(assignLines.includes("3 older messages hidden"), `assign-mode after live addChild should not accumulate stale hidden, got: ${assignLines}`);
+	assert(assignMode.chatContainer.children.length === 2, `assign-mode second rebuild should keep tail=2, got ${assignMode.chatContainer.children.length}`);
+	assert(!assignLines.split("\n").includes("live"), `assign-mode rebuild should drop prior live child: ${assignLines}`);
+
+	// Direct instance helper: virtualizes an already-built chat container given its TUI root
+	const directChat = {
+		children: [component("x1"), component("x2"), component("x3")],
+		addChild(child) { this.children.push(child); },
+		clear() { this.children = []; },
+		render() { return this.children.flatMap((child) => child.render(80)); },
+	};
+	const directTui = { children: [component("header"), directChat] };
+	virtualizeChatContainerInstance(directChat, 1, directTui);
+	assert(directChat.children.length === 1 && directChat.children[0].render(80)[0] === "x3", "instance helper should keep newest child only");
+
+	console.log("virtualize chat smoke ok");
+}
+
+async function runConfigSmoke() {
+	async function loadFresh(homeDir) {
+		mkdirSync(homeDir, { recursive: true });
+		process.env.HOME = homeDir;
+		process.env.USERPROFILE = homeDir;
+		const { loadConfig } = await importBuilt("config.js");
+		return loadConfig;
+	}
+
+	const homeDir = join(workDir, "home-config");
+	mkdirSync(join(homeDir, ".pi", "agent"), { recursive: true });
+
+	// default is compact
+	let loadConfig = await loadFresh(homeDir);
+	let config = loadConfig();
+	assert(config.tasksWidgetStyle === "compact", `default should be compact, got ${config.tasksWidgetStyle}`);
+	assert(config.visibleChatTail === 30, `default visibleChatTail should be 30, got ${config.visibleChatTail}`);
+
+	// invalid value normalizes to compact
+	writeFileSync(join(homeDir, ".pi", "agent", "pi-droid-styling.json"), JSON.stringify({ tasksWidgetStyle: "bogus" }) + "\n", "utf8");
+	loadConfig = await loadFresh(homeDir);
+	config = loadConfig();
+	assert(config.tasksWidgetStyle === "compact", `invalid should normalize to compact, got ${config.tasksWidgetStyle}`);
+
+	// explicit default is preserved
+	writeFileSync(join(homeDir, ".pi", "agent", "pi-droid-styling.json"), JSON.stringify({ tasksWidgetStyle: "default" }) + "\n", "utf8");
+	loadConfig = await loadFresh(homeDir);
+	config = loadConfig();
+	assert(config.tasksWidgetStyle === "default", `explicit default should persist, got ${config.tasksWidgetStyle}`);
+
+	// visibleChatTail accepts 0 as render-all
+	writeFileSync(join(homeDir, ".pi", "agent", "pi-droid-styling.json"), JSON.stringify({ visibleChatTail: 0 }) + "\n", "utf8");
+	loadConfig = await loadFresh(homeDir);
+	config = loadConfig();
+	assert(config.visibleChatTail === 0, `visibleChatTail=0 should be preserved, got ${config.visibleChatTail}`);
+
+	// invalid visibleChatTail falls back to default
+	writeFileSync(join(homeDir, ".pi", "agent", "pi-droid-styling.json"), JSON.stringify({ visibleChatTail: -1 }) + "\n", "utf8");
+	loadConfig = await loadFresh(homeDir);
+	config = loadConfig();
+	assert(config.visibleChatTail === 30, `invalid visibleChatTail should default to 30, got ${config.visibleChatTail}`);
+
+	// auto-scaffold on missing config includes tasksWidgetStyle and visibleChatTail
+	const freshHome = join(workDir, "home-fresh");
+	mkdirSync(freshHome, { recursive: true });
+	loadConfig = await loadFresh(freshHome);
+	loadConfig();
+	const scaffolded = JSON.parse(readFileSync(join(freshHome, ".pi", "agent", "pi-droid-styling.json"), "utf8"));
+	assert(scaffolded.tasksWidgetStyle === "compact", `scaffold should include tasksWidgetStyle=compact, got ${scaffolded.tasksWidgetStyle}`);
+	assert(scaffolded.visibleChatTail === 30, `scaffold should include visibleChatTail=30, got ${scaffolded.visibleChatTail}`);
+
+	// backfill adds missing keys to an existing config
+	const backfillHome = join(workDir, "home-backfill");
+	const backfillPath = join(backfillHome, ".pi", "agent", "pi-droid-styling.json");
+	mkdirSync(join(backfillHome, ".pi", "agent"), { recursive: true });
+	writeFileSync(backfillPath, JSON.stringify({ alwaysExpanded: true }) + "\n", "utf8");
+	loadConfig = await loadFresh(backfillHome);
+	loadConfig();
+	const backfilled = JSON.parse(readFileSync(backfillPath, "utf8"));
+	assert(backfilled.tasksWidgetStyle === "compact", `backfill should add tasksWidgetStyle, got ${backfilled.tasksWidgetStyle}`);
+	assert(backfilled.visibleChatTail === 30, `backfill should add visibleChatTail, got ${backfilled.visibleChatTail}`);
+	console.log("config smoke ok");
+}
+
+async function main() {
+	prepareWorkDir();
+	compileSurface();
+	await runCompactRendererSmoke();
+	await runCompactCacheSmoke();
+	await runDefaultNoInterferenceSmoke();
+	await runVirtualizeChatSmoke();
+	await runConfigSmoke();
+	console.log("tasks-widget-compact smoke ok");
+	rmSync(workDir, { recursive: true, force: true });
+}
+
+main().catch((err) => {
+	process.stderr.write(`${err.stack || err}\n`);
+	process.exit(1);
+});

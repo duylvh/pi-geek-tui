@@ -1,0 +1,172 @@
+export const USER_ZONE_STYLE_NAMES = ["droid", "gemini", "cli-dock", "nvim"] as const;
+
+export type UserZoneStyleName = typeof USER_ZONE_STYLE_NAMES[number];
+
+type UserZoneStyleNameSet = Record<UserZoneStyleName, true>;
+
+export interface UserZoneEditorStyle {
+	layout: "droid" | "gemini" | "cli-dock" | "nvim";
+	panelPaddingX: number;
+	prompt: string;
+	promptColor: string;
+	promptBold: boolean;
+	promptGap: number;
+	showHostBorder: boolean;
+	hostBorderFill: string;
+	hostPrefixColor: string;
+	hostBorderColor: string;
+	showMetadataRow: boolean;
+	showRuntimeRow: boolean;
+	showDivider: boolean;
+	dividerChar: string;
+	dividerColor: string;
+	dividerBold: boolean;
+	showTrailingBlankLine: boolean;
+	slashBorderColor: string;
+	inputBackgroundColor: string;
+	inputFrame: "auto" | "none" | "halfblock" | "line" | "solid" | "outline";
+	footerLabelColor: string;
+	footerValueColor: string;
+	placeholder?: string;
+}
+
+export interface UserZoneStyle {
+	name: UserZoneStyleName;
+	editor: UserZoneEditorStyle;
+}
+
+const USER_ZONE_STYLE_NAME_SET: UserZoneStyleNameSet = {
+	droid: true,
+	gemini: true,
+	"cli-dock": true,
+	nvim: true,
+};
+
+export const DEFAULT_USER_ZONE_STYLE: UserZoneStyleName = "gemini";
+export const FALLBACK_USER_ZONE_STYLE: UserZoneStyleName = "droid";
+
+export const USER_ZONE_STYLES: Record<UserZoneStyleName, UserZoneStyle> = {
+	droid: {
+		name: "droid",
+		editor: {
+			layout: "droid",
+			panelPaddingX: 2,
+			prompt: "❯",
+			promptColor: "accent",
+			promptBold: true,
+			promptGap: 2,
+			showHostBorder: true,
+			hostBorderFill: "⋯",
+			hostPrefixColor: "accent",
+			hostBorderColor: "border",
+			showMetadataRow: true,
+			showRuntimeRow: true,
+			showDivider: true,
+			dividerChar: "━",
+			dividerColor: "border",
+			dividerBold: true,
+			showTrailingBlankLine: true,
+			slashBorderColor: "border",
+			inputBackgroundColor: "selectedBg",
+			inputFrame: "none",
+			footerLabelColor: "dim",
+			footerValueColor: "muted",
+		},
+	},
+	gemini: {
+		name: "gemini",
+		editor: {
+			layout: "gemini",
+			panelPaddingX: 1,
+			prompt: "❯",
+			promptColor: "accent",
+			promptBold: true,
+			promptGap: 2,
+			showHostBorder: false,
+			hostBorderFill: "",
+			hostPrefixColor: "accent",
+			hostBorderColor: "borderMuted",
+			showMetadataRow: false,
+			showRuntimeRow: true,
+			showDivider: true,
+			dividerChar: "─",
+			dividerColor: "border",
+			dividerBold: true,
+			showTrailingBlankLine: false,
+			slashBorderColor: "borderMuted",
+			inputBackgroundColor: "selectedBg",
+			inputFrame: "auto",
+			footerLabelColor: "dim",
+			footerValueColor: "dim",
+		},
+	},
+	"cli-dock": {
+		name: "cli-dock",
+		editor: {
+			layout: "cli-dock",
+			panelPaddingX: 0,
+			prompt: "›",
+			promptColor: "accent",
+			promptBold: true,
+			promptGap: 1,
+			showHostBorder: false,
+			hostBorderFill: "",
+			hostPrefixColor: "accent",
+			hostBorderColor: "borderMuted",
+			showMetadataRow: false,
+			showRuntimeRow: true,
+			showDivider: false,
+			dividerChar: "─",
+			dividerColor: "borderMuted",
+			dividerBold: false,
+			showTrailingBlankLine: false,
+			slashBorderColor: "borderMuted",
+			inputBackgroundColor: "selectedBg",
+			inputFrame: "outline",
+			footerLabelColor: "dim",
+			footerValueColor: "muted",
+			placeholder: " Type a prompt or / for commands",
+		},
+	},
+	nvim: {
+		name: "nvim",
+		editor: {
+			layout: "nvim",
+			panelPaddingX: 1,
+			prompt: "❯",
+			promptColor: "accent",
+			promptBold: true,
+			promptGap: 2,
+			showHostBorder: false,
+			hostBorderFill: "",
+			hostPrefixColor: "accent",
+			hostBorderColor: "borderMuted",
+			showMetadataRow: false,
+			showRuntimeRow: false,
+			showDivider: false,
+			dividerChar: "─",
+			dividerColor: "border",
+			dividerBold: true,
+			showTrailingBlankLine: false,
+			slashBorderColor: "borderMuted",
+			inputBackgroundColor: "selectedBg",
+			inputFrame: "line",
+			footerLabelColor: "dim",
+			footerValueColor: "muted",
+			placeholder: "Type a prompt  ·  / commands  ·  ! bash",
+		},
+	},
+};
+
+export function isUserZoneStyleName(value: unknown): value is UserZoneStyleName {
+	return typeof value === "string" && Object.prototype.hasOwnProperty.call(USER_ZONE_STYLE_NAME_SET, value);
+}
+
+export function normalizeUserZoneStyleName(value: unknown): UserZoneStyleName {
+	if (value === undefined) return DEFAULT_USER_ZONE_STYLE;
+	return isUserZoneStyleName(value) ? value : FALLBACK_USER_ZONE_STYLE;
+}
+
+export function resolveUserZoneStyle(value: unknown): UserZoneStyle {
+	return USER_ZONE_STYLES[normalizeUserZoneStyleName(value)];
+}

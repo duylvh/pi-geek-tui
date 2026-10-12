@@ -1,0 +1,298 @@
+#!/usr/bin/env node
+
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
+const repoRoot = process.cwd();
+// Unique per run: concurrent smoke runs (or parallel agent sessions) must not
+// race each other on a shared fixed build dir.
+const workDir = mkdtempSync(join(repoRoot, ".pi", "builtin-tool-renderers-smoke-"));
+const buildDir = join(workDir, "build");
+const stubPath = join(workDir, "node-stubs.d.ts");
+const tsc = join(repoRoot, "node_modules", "typescript", "lib", "tsc.js");
+// edit reads diffMode from ~/.pi/agent/pi-droid-styling.json: keep the user's real config out of the run.
+process.env.HOME = workDir;
+
+function assert(condition, message) {
+	if (!condition) throw new Error(message);
+}
+
+function prepareWorkDir() {
+	mkdirSync(buildDir, { recursive: true });
+	writeFileSync(join(buildDir, "package.json"), "{\"type\":\"module\"}\n", "utf8");
+	writeFileSync(stubPath, `declare module "@earendil-works/pi-coding-agent" {
+	export type AgentToolResult<T> = any;
+	export type ToolRenderResultOptions = any;
+	export type ExtensionAPI = any;
+	export type Theme = any;
+	export const getLanguageFromPath: any;
+	export const highlightCode: any;
+	export const createEditToolDefinition: any;
+	export const getAgentDir: any;
+}
+declare module "@earendil-works/pi-tui" {
+	export type Component = any;
+	export const Text: any;
+	export const truncateToWidth: any;
+	export const visibleWidth: any;
+	export const wrapTextWithAnsi: any;
+}
+declare module "node:fs";
+declare module "node:path";
+declare module "node:url";
+declare module "node:os";
+declare module "fs";
+declare module "path";
+declare module "os";
+declare const process: any;
+`, "utf8");
+
+	// Runtime stubs so the compiled modules do not load the real SDK.
+	const stubAgentPkgDir = join(buildDir, "node_modules", "@earendil-works", "pi-coding-agent");
+	mkdirSync(stubAgentPkgDir, { recursive: true });
+	writeFileSync(join(stubAgentPkgDir, "package.json"), "{\"name\":\"@earendil-works/pi-coding-agent\",\"version\":\"0.0.0-stub\",\"type\":\"module\",\"main\":\"index.js\"}\n", "utf8");
+	writeFileSync(join(stubAgentPkgDir, "index.js"), `export const getLanguageFromPath = () => undefined;
+export const highlightCode = () => [];
+export const getAgentDir = () => "/nonexistent-agent-dir";
+`, "utf8");
+
+	const stubTuiPkgDir = join(buildDir, "node_modules", "@earendil-works", "pi-tui");
+	mkdirSync(stubTuiPkgDir, { recursive: true });
+	writeFileSync(join(stubTuiPkgDir, "package.json"), "{\"name\":\"@earendil-works/pi-tui\",\"version\":\"0.0.0-stub\",\"type\":\"module\",\"main\":\"index.js\"}\n", "utf8");
+	writeFileSync(join(stubTuiPkgDir, "index.js"), `export class Text {
+	constructor(text) { this.text = String(text ?? ""); }
+	invalidate() {}
+	render() { return this.text ? this.text.split("\\n") : []; }
+}
+export const truncateToWidth = (text) => text;
+export const visibleWidth = (text) => String(text ?? "").length;
+export const wrapTextWithAnsi = (text) => [String(text ?? "")];
+`, "utf8");
+}
+
+function compileBuiltinToolRenderers() {
+	if (!existsSync(tsc)) throw new Error("typescript is not installed; run npm install before npm run test:builtin-tool-renderers");
+	const result = spawnSync(process.execPath, [
+		tsc,
+		"--outDir", buildDir,
+		"--rootDir", repoRoot,
+		"--module", "NodeNext",
+		"--moduleResolution", "NodeNext",
+		"--target", "ES2022",
+		"--skipLibCheck",
+		"--noImplicitAny", "false",
+		stubPath,
+		"tool-tags/builtin-tool-renderers.ts",
+		"tool-tags/elapsed.ts",
+		"tool-tags/common.ts",
+		"tool-tags/register-tool-call-tags.ts",
+	], { cwd: repoRoot, encoding: "utf8" });
+	if (result.status !== 0) {
+		process.stderr.write(result.stdout || "");
+		process.stderr.write(result.stderr || "");
+		throw new Error(`TypeScript compile failed with code ${result.status}`);
+	}
+	console.log("tsc builtin tool renderers ok");
+}
+
+function makeFakeComponentClass() {
+	let baseCallCalls = 0;
+	let baseResultCalls = 0;
+	let baseShellCalls = 0;
+	class FakeToolExecutionComponent {
+		getCallRenderer() {
+			baseCallCalls++;
+			return this.toolDefinition?.renderCall;
+		}
+		getResultRenderer() {
+			baseResultCalls++;
+			return this.toolDefinition?.renderResult;
+		}
+		getRenderShell() {
+			baseShellCalls++;
+			return this.toolDefinition?.renderShell;
+		}
+	}
+	return { FakeToolExecutionComponent, baseCallCount: () => baseCallCalls, baseResultCount: () => baseResultCalls, baseShellCount: () => baseShellCalls };
+}
+
+async function runBuiltinToolRenderersSmoke() {
+	const buildToolTags = (name) => pathToFileURL(join(buildDir, "tool-tags", name)).href;
+	const renderers = await import(buildToolTags("builtin-tool-renderers.js"));
+	const elapsed = await import(buildToolTags("elapsed.js"));
+	const common = await import(buildToolTags("common.js"));
+
+	const theme = { fg: (_color, text) => text };
+
+	const toolModules = {
+		read: await import(buildToolTags("read.js")),
+		write: await import(buildToolTags("write.js")),
+		edit: await import(buildToolTags("edit.js")),
+		ls: await import(buildToolTags("ls.js")),
+		find: await import(buildToolTags("find.js")),
+		grep: await import(buildToolTags("grep.js")),
+		bash: await import(buildToolTags("bash.js")),
+	};
+
+	// --- 1. Patch resolution ---
+	const { FakeToolExecutionComponent, baseCallCount, baseResultCount, baseShellCount } = makeFakeComponentClass();
+	renderers.installBuiltinToolRenderers(FakeToolExecutionComponent);
+
+	const expected = {
+		read: ["renderReadCall", "renderReadResult"],
+		write: ["renderWriteCall", "renderWriteResult"],
+		edit: ["renderEditCall", "renderEditResult"],
+		ls: ["renderLsCall", "renderLsResult"],
+		find: ["renderFindCall", "renderFindResult"],
+		grep: ["renderGrepCall", "renderGrepResult"],
+		bash: ["renderBashCall", "renderBashResult"],
+	};
+
+	for (const [toolName, [callName, resultName]] of Object.entries(expected)) {
+		const instance = Object.assign(new FakeToolExecutionComponent(), { toolName, toolDefinition: {} });
+		const callRenderer = instance.getCallRenderer();
+		const resultRenderer = instance.getResultRenderer();
+		assert(typeof callRenderer === "function", `${toolName}: patched getCallRenderer did not return a function`);
+		assert(callRenderer === toolModules[toolName][callName], `${toolName}: call renderer is not the droid ${callName}`);
+		assert(typeof resultRenderer === "function", `${toolName}: patched getResultRenderer did not return a function`);
+		assert(resultRenderer === toolModules[toolName][resultName], `${toolName}: result renderer is not the droid ${resultName}`);
+		assert(instance.getRenderShell() === "default", `${toolName}: getRenderShell did not return "default"`);
+	}
+
+	// Unknown names fall through to the base methods.
+	const unknownInstance = Object.assign(new FakeToolExecutionComponent(), { toolName: "other_tool", toolDefinition: { renderShell: "self" } });
+	assert(unknownInstance.getCallRenderer() === undefined, "unknown tool name did not fall through to base getCallRenderer");
+	assert(unknownInstance.getResultRenderer() === undefined, "unknown tool name did not fall through to base getResultRenderer");
+	assert(unknownInstance.getRenderShell() === "self", "unknown tool name did not fall through to base getRenderShell");
+	assert(baseCallCount() === 1 && baseResultCount() === 1 && baseShellCount() === 1, "base methods were not called exactly once for the unknown tool name");
+
+	// Double install must not double-wrap (Symbol.for guards).
+	const callRendererFn = FakeToolExecutionComponent.prototype.getCallRenderer;
+	const resultRendererFn = FakeToolExecutionComponent.prototype.getResultRenderer;
+	const renderShellFn = FakeToolExecutionComponent.prototype.getRenderShell;
+	renderers.installBuiltinToolRenderers(FakeToolExecutionComponent);
+	assert(FakeToolExecutionComponent.prototype.getCallRenderer === callRendererFn, "double install re-wrapped getCallRenderer");
+	assert(FakeToolExecutionComponent.prototype.getResultRenderer === resultRendererFn, "double install re-wrapped getResultRenderer");
+	assert(FakeToolExecutionComponent.prototype.getRenderShell === renderShellFn, "double install re-wrapped getRenderShell");
+
+	// --- 2. Timing resolution ---
+	// Recorded start/end events resolve by toolCallId.
+	elapsed.recordToolCallTimingStart("t1");
+	elapsed.recordToolCallTimingEnd("t1");
+	const recorded = elapsed.resolveToolCallElapsedMs({ toolCallId: "t1" }, undefined);
+	assert(typeof recorded === "number" && recorded >= 0, "recorded start/end did not resolve elapsed by toolCallId");
+
+	// Frozen state wins over later records.
+	elapsed.recordToolCallTimingStart("t2");
+	elapsed.recordToolCallTimingEnd("t2");
+	const frozenState = { __droidElapsedMs: 999 };
+	assert(elapsed.resolveToolCallElapsedMs({ state: frozenState, toolCallId: "t2" }, undefined) === 999, "frozen state value did not win over event records");
+
+	// result.details.__elapsedMs fallback when no record exists.
+	assert(elapsed.resolveToolCallElapsedMs({ toolCallId: "t3" }, { details: { __elapsedMs: 1234 } }) === 1234, "details.__elapsedMs fallback did not resolve");
+
+	// No source at all → footer wall time shows "--".
+	const footer = common.formatBoxedFooterFromValues(theme, undefined, "output");
+	assert(footer.includes("--"), "footer did not render \"--\" when no elapsed source exists");
+	const footerWithValue = common.formatBoxedFooterFromValues(theme, 1500, "output");
+	assert(!footerWithValue.includes("--") && footerWithValue.includes("1.50s"), "footer did not render the resolved elapsed value");
+
+	// --- 3. registerToolCallTags registers edit only when pi-ctx-kit is present (issue #26) ---
+	const { registerToolCallTags } = await import(buildToolTags("register-tool-call-tags.js"));
+	const registerWith = async () => {
+		const registered = [];
+		const previousCwd = process.cwd();
+		process.chdir(buildDir); // keep the cwd-relative pi-ctx-kit probes off the developer checkout
+		try {
+			await registerToolCallTags({ registerTool(definition) { registered.push(definition); } });
+		} finally {
+			process.chdir(previousCwd);
+		}
+		return registered;
+	};
+	const withoutKit = await registerWith();
+	assert(withoutKit.length === 0, `without pi-ctx-kit nothing may override builtin edit, got ${JSON.stringify(withoutKit.map((d) => d?.name))}`);
+	const kitDir = join(buildDir, "node_modules", "pi-ctx-kit");
+	mkdirSync(kitDir, { recursive: true });
+	writeFileSync(join(kitDir, "package.json"), "{\"name\":\"pi-ctx-kit\",\"type\":\"module\",\"exports\":{\"./edit-core\":\"./edit-core.js\"}}\n", "utf8");
+	writeFileSync(join(kitDir, "edit-core.js"), "export const EDIT_TOOL_DESCRIPTION = \"kit edit\";\nexport const EditArgsSchema = {};\nexport const executeEnhancedEdit = async () => ({ content: [] });\n", "utf8");
+	const withKit = await registerWith();
+	assert(withKit.length === 1 && withKit[0].name === "edit" && withKit[0].description === "kit edit", `with pi-ctx-kit only the enhanced edit should register, got ${JSON.stringify(withKit.map((d) => d?.name))}`);
+
+	// --- 4. Script-mode edit results render line by line and per file ---
+	const diffTheme = { ...theme, getBgAnsi: () => "", getFgAnsi: () => "" };
+	const scriptContext = (isError = false) => ({ args: { paths: ["src/a.ts", "b.md"], code: "x" }, isError, cwd: "/repo" });
+	const renderEdit = (result, isError) =>
+		toolModules.edit.renderEditResult(result, { expanded: false, isPartial: false }, diffTheme, scriptContext(isError)).render(90);
+
+	const errorLines = renderEdit({
+		isError: true,
+		content: [{ type: "text", text: "script edit failed (exit 1) — rolled back to snapshot.\nstderr:\nreplaceOnce: expected 1 match(es) of \"missing\" in n.txt, found 0" }],
+		details: { diff: "", patch: "" },
+	}, true);
+	assert(errorLines.every((line) => !line.includes("\n")), "edit error output embedded a newline inside a box row");
+	assert(errorLines.some((line) => line.includes("found 0")), "edit error output hid the stderr cause");
+
+	const noopLines = renderEdit({ content: [{ type: "text", text: "WARNING: no declared file changed.\nstdout:\n0 matches for foo" }], details: { diff: "", patch: "" } });
+	assert(noopLines.some((line) => line.includes("0 matches for foo")), "edit no-change output hid the script stdout");
+
+	const multiLines = renderEdit({
+		content: [{ type: "text", text: "x" }],
+		details: { patch: "--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1,1 +1,1 @@\n-one\n+ONE\n--- a/b.md\n+++ b/b.md\n@@ -0,0 +1,1 @@\n+---" },
+	});
+	assert(multiLines.some((line) => line.includes("▸ src/a.ts")) && multiLines.some((line) => line.includes("▸ b.md")), "multi-file edit diff lost its file titles");
+	assert(multiLines.some((line) => line.includes("+2") && line.includes("-1")), "script-mode diff stats skipped a '+---' content line");
+
+	// --- 5. diffMode "auto" (default): unified below 140 columns, split from 140 ---
+	const twoHunks = { content: [{ type: "text", text: "x" }], details: { patch: "--- a/src/a.ts\n+++ b/src/a.ts\n@@ -2,1 +2,1 @@\n-two\n+TWO\n@@ -10,1 +10,1 @@\n-ten\n+TEN" } };
+	const editAt = (result, width) => toolModules.edit.renderEditResult(result, { expanded: false, isPartial: false }, diffTheme, { args: { paths: ["src/a.ts"], code: "x" }, cwd: "/repo" }).render(width);
+	const narrow = editAt(twoHunks, 90);
+	const wide = editAt(twoHunks, 160);
+	assert(narrow.some((line) => line.includes("unified")) && !narrow.some((line) => line.includes("split")), "auto diffMode did not pick unified below 140 columns");
+	assert(wide.some((line) => line.includes("split")), "auto diffMode did not pick split at 140+ columns");
+	for (const lines of [narrow, wide]) {
+		assert(lines.some((line) => line.includes("··· 7 unmodified lines ···")), "hunk gap between @@ -3 and @@ -10 was not marked");
+	}
+
+	// Pi's builtin gutter diff folds context with an unnumbered "..." line: one gap, counted from the next line.
+	const splitDiff = await import(pathToFileURL(join(buildDir, "split-diff.js")).href);
+	const piRows = splitDiff.buildSplitRows(["  7 line 7", "    ...", " 27 line 27", "-28 old", "+28 new", " 29 line 29", "    ..."].join("\n"));
+	const piGaps = piRows.filter((row) => row.kind === "gap");
+	assert(piGaps.length === 2 && piGaps[0].count === 19 && piGaps[1].count === undefined, `Pi "..." markers should become gap rows (19, unknown), got ${JSON.stringify(piGaps)}`);
+	assert(!piRows.some((row) => row.left?.line.trim() === "..."), "Pi \"...\" marker still rendered as a code line");
+	const afterGap = piRows.find((row) => row.left?.line === "line 27");
+	assert(afterGap?.right?.lineNumber.trim() === "27", `new-side numbering did not skip the folded lines, got ${afterGap?.right?.lineNumber}`);
+
+	// Same guarantees under the reasonix (compact) presentation.
+	const presentation = await import(pathToFileURL(join(buildDir, "presentation", "state.js")).href);
+	const previousStyle = presentation.getPresentationStyle();
+	presentation.setPresentationStyle("reasonix");
+	try {
+		const reasonixError = renderEdit({
+			isError: true,
+			content: [{ type: "text", text: "script edit failed (exit 1).\nstderr:\nreplace_once: expected 1 match(es), found 0" }],
+			details: { diff: "", patch: "" },
+		}, true);
+		assert(reasonixError[0]?.includes("└─"), "reasonix presentation was not active for the edit result");
+		assert(reasonixError.every((line) => !line.includes("\n")) && reasonixError.some((line) => line.includes("found 0")), "reasonix edit error hid or broke the stderr cause");
+		const reasonixMulti = renderEdit({ content: [{ type: "text", text: "x" }], details: { patch: "--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1,1 +1,1 @@\n-one\n+ONE\n--- a/b.md\n+++ b/b.md\n@@ -0,0 +1,1 @@\n+new" } });
+		assert(reasonixMulti.some((line) => line.includes("▸ b.md")), "reasonix multi-file edit diff lost its file titles");
+	} finally {
+		presentation.setPresentationStyle(previousStyle);
+	}
+
+	console.log("builtin tool renderers smoke ok (7-name resolution, timing precedence, edit-only registration, script-mode edit rendering, diffMode auto + gaps)");
+}
+
+prepareWorkDir();
+try {
+	compileBuiltinToolRenderers();
+	await runBuiltinToolRenderersSmoke();
+} finally {
+	// Keep the work dir for post-mortem on failure; clean up on the happy path only.
+	if (process.exitCode === undefined || process.exitCode === 0) {
+		rmSync(workDir, { recursive: true, force: true });
+	}
+}

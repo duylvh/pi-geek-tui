@@ -1,0 +1,369 @@
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "fs";
+import { dirname, join } from "path";
+import { homedir } from "os";
+import { DEFAULT_PRESENTATION_STYLE, isPresentationStyleName, normalizePresentationStyleName, type PresentationStyleName } from "./presentation/designs.js";
+import { DEFAULT_USER_ZONE_STYLE, FALLBACK_USER_ZONE_STYLE, isUserZoneStyleName, normalizeUserZoneStyleName, type UserZoneStyleName } from "./user-zone/designs.js";
+
+export type CustomWorkingMessageConfig = Record<"working" | "thinking" | "answering" | "running", string>;
+
+export type InputBoxStyle = "auto" | "halfblock" | "line" | "solid";
+
+export interface InputBoxConfig {
+	style: InputBoxStyle;
+} 
+
+export type TasksWidgetStyle = "default" | "compact";
+
+export type CollapsedThinkingStyle = "tail" | "label";
+
+export type DiffMode = "split" | "unified" | "auto";
+
+const DIFF_MODE_SET: Record<DiffMode, true> = { split: true, unified: true, auto: true };
+
+function isDiffMode(value: unknown): value is DiffMode {
+	return typeof value === "string" && Object.prototype.hasOwnProperty.call(DIFF_MODE_SET, value);
+}
+
+function normalizeDiffMode(value: unknown): DiffMode {
+	if (value === undefined) return DEFAULTS.diffMode;
+	return isDiffMode(value) ? value : DEFAULTS.diffMode;
+}
+
+const COLLAPSED_THINKING_STYLE_SET: Record<CollapsedThinkingStyle, true> = { tail: true, label: true };
+
+function isCollapsedThinkingStyle(value: unknown): value is CollapsedThinkingStyle {
+	return typeof value === "string" && Object.prototype.hasOwnProperty.call(COLLAPSED_THINKING_STYLE_SET, value);
+}
+
+function normalizeCollapsedThinkingStyle(value: unknown): CollapsedThinkingStyle {
+	if (value === undefined) return DEFAULTS.collapsedThinking;
+	return isCollapsedThinkingStyle(value) ? value : DEFAULTS.collapsedThinking;
+}
+
+const TASKS_WIDGET_STYLE_SET: Record<TasksWidgetStyle, true> = { default: true, compact: true };
+
+function isTasksWidgetStyle(value: unknown): value is TasksWidgetStyle {
+	return typeof value === "string" && Object.prototype.hasOwnProperty.call(TASKS_WIDGET_STYLE_SET, value);
+}
+
+function normalizeTasksWidgetStyle(value: unknown): TasksWidgetStyle {
+	if (value === undefined) return DEFAULTS.tasksWidgetStyle;
+	return isTasksWidgetStyle(value) ? value : DEFAULTS.tasksWidgetStyle;
+}
+
+export interface DroidStylingConfig {
+	alwaysExpanded: boolean;
+	maxExpandedLines: number;
+	dimToolOutput: boolean;
+	customWorkingMessage: CustomWorkingMessageConfig;
+	presentationStyle: PresentationStyleName;
+	userZoneStyle: UserZoneStyleName;
+	inputBox: InputBoxConfig;
+	tasksWidgetStyle: TasksWidgetStyle;
+	collapsedThinking: CollapsedThinkingStyle;
+	diffMode: DiffMode;
+	forceOSC11: boolean;
+	transparentBackground: boolean;
+	visibleChatTail: number;
+}
+
+const DEFAULT_CUSTOM_WORKING_MESSAGE: CustomWorkingMessageConfig = {
+	working: "Working",
+	thinking: "Thinking",
+	answering: "Answering",
+	running: "Cooking",
+};
+
+const DEFAULT_INPUT_BOX: InputBoxConfig = {
+	style: "auto",
+};
+
+const DEFAULTS: DroidStylingConfig = {
+	alwaysExpanded: false,
+	maxExpandedLines: 50,
+	dimToolOutput: false,
+	customWorkingMessage: DEFAULT_CUSTOM_WORKING_MESSAGE,
+	presentationStyle: DEFAULT_PRESENTATION_STYLE,
+	userZoneStyle: DEFAULT_USER_ZONE_STYLE,
+	inputBox: DEFAULT_INPUT_BOX,
+	tasksWidgetStyle: "compact",
+	collapsedThinking: "tail",
+	diffMode: "auto",
+	forceOSC11: false,
+	transparentBackground: false,
+	visibleChatTail: 30,
+};
+
+const CONFIG_PATH = join(homedir(), ".pi", "agent", "pi-droid-styling.json");
+const MAX_EXPANDED_LINES_LIMIT = 1000;
+const DEPRECATED_CONFIG_KEYS = ["fixedUserZoneMouseScroll", "fixedUserZoneSidebar", "fixedUserZone"] as const;
+
+let cached: DroidStylingConfig = defaultConfig();
+let cachedMtimeMs = -1;
+let lastStatAt = 0;
+let configIssue: string | undefined;
+const STAT_INTERVAL_MS = 1000;
+
+function defaultCustomWorkingMessage(): CustomWorkingMessageConfig {
+	return { ...DEFAULT_CUSTOM_WORKING_MESSAGE };
+}
+
+function defaultConfig(): DroidStylingConfig {
+	return { ...DEFAULTS, customWorkingMessage: defaultCustomWorkingMessage() };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function booleanOrDefault(value: unknown, fallback: boolean): boolean {
+	return typeof value === "boolean" ? value : fallback;
+}
+
+function maxExpandedLinesOrDefault(value: unknown): number {
+	if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULTS.maxExpandedLines;
+	const normalized = Math.floor(value);
+	if (normalized < 0) return DEFAULTS.maxExpandedLines;
+	return Math.min(normalized, MAX_EXPANDED_LINES_LIMIT);
+}
+
+function visibleChatTailOrDefault(value: unknown): number {
+	if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULTS.visibleChatTail;
+	const normalized = Math.floor(value);
+	if (normalized < 0) return DEFAULTS.visibleChatTail;
+	return normalized;
+}
+
+function customWorkingMessageOrDefault(value: unknown): CustomWorkingMessageConfig {
+	const labels = defaultCustomWorkingMessage();
+	if (!isRecord(value)) return labels;
+	for (const key of Object.keys(labels) as Array<keyof CustomWorkingMessageConfig>) {
+		const label = value[key];
+		if (typeof label === "string" && label.trim().length > 0) labels[key] = label;
+	}
+	return labels;
+}
+
+function isInputBoxStyle(value: unknown): value is InputBoxStyle {
+	return value === "auto" || value === "halfblock" || value === "line" || value === "solid";
+}
+
+function inputBoxOrDefault(value: unknown): InputBoxConfig {
+	const config: InputBoxConfig = { ...DEFAULT_INPUT_BOX };
+	if (!isRecord(value)) return config;
+	if (isInputBoxStyle(value.style)) config.style = value.style;
+	return config;
+}
+
+function defaultValueForKey(key: keyof DroidStylingConfig): unknown {
+	if (key === "customWorkingMessage") return defaultCustomWorkingMessage();
+	if (key === "inputBox") return { ...DEFAULT_INPUT_BOX };
+	return DEFAULTS[key];
+}
+
+function backfillCustomWorkingMessage(config: Record<string, unknown>): boolean {
+	const value = config.customWorkingMessage;
+	if (!isRecord(value)) {
+		config.customWorkingMessage = defaultCustomWorkingMessage();
+		return true;
+	}
+	let changed = false;
+	for (const key of Object.keys(DEFAULT_CUSTOM_WORKING_MESSAGE) as Array<keyof CustomWorkingMessageConfig>) {
+		const label = value[key];
+		if (typeof label === "string" && label.trim().length > 0) continue;
+		value[key] = DEFAULT_CUSTOM_WORKING_MESSAGE[key];
+		changed = true;
+	}
+	return changed;
+}
+
+function backfillPresentationStyle(config: Record<string, unknown>): boolean {
+	const value = config.presentationStyle;
+	if (value === undefined) {
+		config.presentationStyle = DEFAULT_PRESENTATION_STYLE;
+		return true;
+	}
+	if (isPresentationStyleName(value)) return false;
+	if (typeof value === "string" && value.trim().length > 0) return false;
+	config.presentationStyle = DEFAULT_PRESENTATION_STYLE;
+	return true;
+}
+
+function backfillUserZoneStyle(config: Record<string, unknown>): boolean {
+	const value = config.userZoneStyle;
+	if (value === undefined) {
+		config.userZoneStyle = DEFAULT_USER_ZONE_STYLE;
+		return true;
+	}
+	if (isUserZoneStyleName(value)) return false;
+	if (typeof value === "string" && value.trim().length > 0) return false;
+	config.userZoneStyle = FALLBACK_USER_ZONE_STYLE;
+	return true;
+}
+
+function backfillInputBox(config: Record<string, unknown>): boolean {
+	if (!isRecord(config.inputBox)) {
+		config.inputBox = { ...DEFAULT_INPUT_BOX };
+		return true;
+	}
+	const inputBox = config.inputBox as Record<string, unknown>;
+	if (isInputBoxStyle(inputBox.style)) return false;
+	inputBox.style = DEFAULT_INPUT_BOX.style;
+	return true;
+}
+
+function backfillTasksWidgetStyle(config: Record<string, unknown>): boolean {
+	const value = config.tasksWidgetStyle;
+	if (value === undefined) {
+		config.tasksWidgetStyle = DEFAULTS.tasksWidgetStyle;
+		return true;
+	}
+	if (isTasksWidgetStyle(value)) return false;
+	config.tasksWidgetStyle = DEFAULTS.tasksWidgetStyle;
+	return true;
+}
+
+function backfillCollapsedThinking(config: Record<string, unknown>): boolean {
+	const value = config.collapsedThinking;
+	if (value === undefined) {
+		config.collapsedThinking = DEFAULTS.collapsedThinking;
+		return true;
+	}
+	if (isCollapsedThinkingStyle(value)) return false;
+	config.collapsedThinking = DEFAULTS.collapsedThinking;
+	return true;
+}
+
+function backfillDiffMode(config: Record<string, unknown>): boolean {
+	const value = config.diffMode;
+	if (value === undefined) {
+		config.diffMode = DEFAULTS.diffMode;
+		return true;
+	}
+	if (isDiffMode(value)) return false;
+	config.diffMode = DEFAULTS.diffMode;
+	return true;
+}
+
+function normalizeConfig(raw: unknown): DroidStylingConfig {
+	if (!isRecord(raw)) return defaultConfig();
+	const config = raw as Record<string, unknown>;
+	return {
+		alwaysExpanded: booleanOrDefault(config.alwaysExpanded, DEFAULTS.alwaysExpanded),
+		maxExpandedLines: maxExpandedLinesOrDefault(config.maxExpandedLines),
+		dimToolOutput: booleanOrDefault(config.dimToolOutput, DEFAULTS.dimToolOutput),
+		customWorkingMessage: customWorkingMessageOrDefault(config.customWorkingMessage),
+		presentationStyle: normalizePresentationStyleName(config.presentationStyle),
+		userZoneStyle: normalizeUserZoneStyleName(config.userZoneStyle),
+		inputBox: inputBoxOrDefault(config.inputBox),
+		tasksWidgetStyle: normalizeTasksWidgetStyle(config.tasksWidgetStyle),
+		collapsedThinking: normalizeCollapsedThinkingStyle(config.collapsedThinking),
+		diffMode: normalizeDiffMode(config.diffMode),
+		forceOSC11: booleanOrDefault(config.forceOSC11, DEFAULTS.forceOSC11),
+		transparentBackground: booleanOrDefault(config.transparentBackground, DEFAULTS.transparentBackground),
+		visibleChatTail: visibleChatTailOrDefault(config.visibleChatTail),
+	};
+}
+
+// Write a sibling temp file, then rename over the live file: concurrent Pi starts and
+// crashes mid-write never leave a half-written config behind.
+function writeConfigAtomic(config: unknown): void {
+	const tmpPath = `${CONFIG_PATH}.tmp-${process.pid}`;
+	try {
+		writeFileSync(tmpPath, JSON.stringify(config, null, 2) + "\n", "utf-8");
+		renameSync(tmpPath, CONFIG_PATH);
+	} catch (error) {
+		try {
+			unlinkSync(tmpPath);
+		} catch {
+			// ignore — nothing to clean up
+		}
+		throw error;
+	}
+}
+
+function scaffoldIfMissing(): void {
+	if (existsSync(CONFIG_PATH)) return;
+	try {
+		mkdirSync(dirname(CONFIG_PATH), { recursive: true });
+		writeConfigAtomic(defaultConfig());
+	} catch {
+		// ignore — read path will fall back to normalized defaults
+	}
+}
+
+function backfillMissingDefaults(raw: unknown): void {
+	if (!isRecord(raw)) return;
+	const config = raw as Record<string, unknown>;
+	let changed = false;
+	for (const key of DEPRECATED_CONFIG_KEYS) {
+		if (!(key in config)) continue;
+		delete config[key];
+		changed = true;
+	}
+	for (const key of Object.keys(DEFAULTS) as Array<keyof DroidStylingConfig>) {
+		if (key in config) continue;
+		config[key] = defaultValueForKey(key);
+		changed = true;
+	}
+	if (backfillCustomWorkingMessage(config)) changed = true;
+	if (backfillPresentationStyle(config)) changed = true;
+	if (backfillUserZoneStyle(config)) changed = true;
+	if (backfillInputBox(config)) changed = true;
+	if (backfillTasksWidgetStyle(config)) changed = true;
+	if (backfillCollapsedThinking(config)) changed = true;
+	if (backfillDiffMode(config)) changed = true;
+	if (!changed) return;
+	try {
+		writeConfigAtomic(config);
+	} catch {
+		// ignore — read path will keep using normalized defaults
+	}
+}
+
+function describeInvalidJson(error: SyntaxError): string {
+	return `pi-droid-styling: ${CONFIG_PATH} is not valid JSON (${error.message})`;
+}
+
+// Why the live file is being ignored right now (undefined while it parses). Set by loadConfig,
+// so callers read it from event handlers instead of render paths. Callers append what that means for them.
+export function getConfigIssue(): string | undefined {
+	return configIssue;
+}
+
+export function loadConfig(): DroidStylingConfig {
+	const now = Date.now();
+	if (now - lastStatAt < STAT_INTERVAL_MS) return cached;
+	lastStatAt = now;
+
+	let mtimeMs = -1;
+	try {
+		mtimeMs = statSync(CONFIG_PATH).mtimeMs;
+	} catch {
+		scaffoldIfMissing();
+		try {
+			mtimeMs = statSync(CONFIG_PATH).mtimeMs;
+		} catch {
+			cached = defaultConfig();
+			cachedMtimeMs = -1;
+			return cached;
+		}
+	}
+
+	if (mtimeMs === cachedMtimeMs) return cached;
+	cachedMtimeMs = mtimeMs;
+	try {
+		const raw = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
+		cached = normalizeConfig(raw);
+		backfillMissingDefaults(raw);
+		configIssue = undefined;
+	} catch (error) {
+		if (error instanceof SyntaxError) {
+			// A typo mid-session must not reset every option: keep the last good config and the file as is.
+			configIssue = describeInvalidJson(error);
+		} else {
+			cached = defaultConfig();
+		}
+	}
+	return cached;
+}
