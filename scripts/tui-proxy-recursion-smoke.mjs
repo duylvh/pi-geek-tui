@@ -260,7 +260,11 @@ console.log("Real renderer path (pre-0.84):");
 console.log("Fullscreen layout padding path (Pi 0.84):");
 {
 	const layoutNode = Symbol.for("@earendil-works/pi-tui/layout-node");
-	const originalNode = { type: "vstack", entries: [], gap: 0, align: "stretch" };
+	// Root as Pi builds it: vstack [transcript ScrollView, dock]. The ScrollView paints its transient bar on
+	// the last column of its rect, so its row must lose one right-gutter cell and reserve that cell itself.
+	const scrollView = { scrollbar: "auto", render: () => ["chat"], getContentWidth: (w) => w, [layoutNode]: () => ({ type: "scroll" }) };
+	const dock = { render: () => ["dock"], [layoutNode]: () => ({ type: "vstack", entries: [] }) };
+	const originalNode = { type: "vstack", entries: [{ component: scrollView, grow: 1 }, { component: dock, basis: "auto" }], gap: 0, align: "stretch" };
 	const root = {
 		render: () => ["content"],
 		invalidate: () => {},
@@ -274,15 +278,19 @@ console.log("Fullscreen layout padding path (Pi 0.84):");
 
 	installTuiPadding(tui);
 	const paddedNode = root[layoutNode]();
-	assert(paddedNode.type === "hstack", `fullscreen padding should wrap the root in an hstack, got ${paddedNode.type}`);
-	assert(paddedNode.entries.length === 3, `fullscreen padding should create left/content/right entries, got ${paddedNode.entries.length}`);
-	assert(paddedNode.entries[0].basis === 4 && paddedNode.entries[2].basis === 4, "fullscreen padding should keep the 4-cell spec gutters");
-	assert(paddedNode.entries[1].component[layoutNode]() === originalNode, "fullscreen padding should preserve the original root layout node");
+	assert(paddedNode.type === "vstack" && paddedNode.entries.length === 2, "fullscreen padding should keep the root stack and wrap each row");
+	const rows = paddedNode.entries.map((entry) => entry.component[layoutNode]());
+	assert(rows.every((row) => row.type === "hstack" && row.entries.length === 3), "each row should be [left gutter | row | right gutter]");
+	assert(rows[0].entries[1].component === scrollView && rows[1].entries[1].component === dock, "rows should keep the original components");
+	assert(rows[1].entries[0].basis === 4 && rows[1].entries[2].basis === 4, "dock row keeps the 4-cell spec gutters");
+	assert(rows[0].entries[0].basis === 4 && rows[0].entries[2].basis === 3, "transcript row gives one right-gutter cell to the scrollbar lane");
+	assert(scrollView.getContentWidth(100) === 99, "ScrollView must always reserve the lane cell (Pi only does for scrollbar:always)");
+	assert(paddedNode.entries[0].grow === 1 && paddedNode.entries[1].basis === "auto", "stack entry sizing must be preserved");
 
 	const installedLayoutNode = root[layoutNode];
 	installTuiPadding(tui);
 	assert(root[layoutNode] === installedLayoutNode, "fullscreen padding reinstall should not stack wrappers");
-	ok("fullscreen layout keeps 4-cell gutters without double wrapping");
+	ok("fullscreen layout: 4-cell gutters, scrollbar lane in the right margin, no double wrapping");
 }
 
 // ---------------------------------------------------------------------------

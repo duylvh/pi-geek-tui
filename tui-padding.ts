@@ -60,6 +60,44 @@ const HORIZONTAL_GUTTER: LayoutComponent = {
 	render: () => [],
 };
 
+type StackEntry = { component: LayoutComponent; [key: string]: unknown };
+type ScrollViewLike = LayoutComponent & { getContentWidth(width: number): number; scrollbar: unknown };
+
+function isScrollView(component: unknown): component is ScrollViewLike {
+	const candidate = component as Partial<ScrollViewLike> | undefined;
+	return typeof candidate?.getContentWidth === "function" && candidate.scrollbar !== undefined;
+}
+
+function gutterEntry(width: number): StackEntry {
+	return { component: HORIZONTAL_GUTTER, basis: width, minSize: width, maxSize: width };
+}
+
+// One margin-wrapped row per root stack entry. A transcript ScrollView draws its transient scrollbar on
+// the LAST column of its rect (Pi only reserves a column for scrollbar:"always"), i.e. over right-aligned
+// text. So its row gets a right gutter one cell narrower and the ScrollView reserves exactly that cell:
+// content width stays identical to every other row and the bar lives in the right margin.
+const rowWrappers = new WeakMap<object, LayoutComponent>();
+
+function marginRow(component: LayoutComponent): LayoutComponent {
+	let wrapper = rowWrappers.get(component);
+	if (wrapper) return wrapper;
+	const scroll = isScrollView(component);
+	if (scroll) component.getContentWidth = (width) => (width > 1 ? width - 1 : width);
+	const rightGutter = scroll ? Math.max(0, PAD_RIGHT - 1) : PAD_RIGHT;
+	wrapper = {
+		render: (width) => component.render(Math.max(1, width - PAD_LEFT - rightGutter)).map((line) => `${PADDING_PREFIX}${line}`),
+		invalidate: () => component.invalidate?.(),
+		[LAYOUT_NODE]: () => ({
+			type: "hstack",
+			entries: [gutterEntry(PAD_LEFT), { component, basis: 0, grow: 1, shrink: 1, minSize: 1 }, gutterEntry(rightGutter)],
+			gap: 0,
+			align: "stretch",
+		}),
+	};
+	rowWrappers.set(component, wrapper);
+	return wrapper;
+}
+
 function installFullscreenTuiPadding(tui: any): boolean {
 	if (tui?.mode !== "fullscreen" || typeof tui.setLayoutRoot !== "function") return false;
 	const root = tui.layoutRoot as LayoutComponent | undefined;
@@ -74,16 +112,19 @@ function installFullscreenTuiPadding(tui: any): boolean {
 		invalidate: () => root.invalidate?.(),
 		[LAYOUT_NODE]: () => originalLayoutNode.call(root),
 	};
-	root[LAYOUT_NODE] = () => ({
-		type: "hstack",
-		entries: [
-			{ component: HORIZONTAL_GUTTER, basis: PAD_LEFT, minSize: PAD_LEFT, maxSize: PAD_LEFT },
-			{ component: content, basis: 0, grow: 1, shrink: 1, minSize: 1 },
-			{ component: HORIZONTAL_GUTTER, basis: PAD_RIGHT, minSize: PAD_RIGHT, maxSize: PAD_RIGHT },
-		],
-		gap: 0,
-		align: "stretch",
-	});
+	root[LAYOUT_NODE] = () => {
+		const node = originalLayoutNode.call(root) as { type?: string; entries?: StackEntry[] };
+		if (node?.type === "vstack" && Array.isArray(node.entries)) {
+			return { ...node, entries: node.entries.map((entry) => ({ ...entry, component: marginRow(entry.component) })) };
+		}
+		// Unknown root shape: inset the whole root (scrollbar lane then stays inside the content).
+		return {
+			type: "hstack",
+			entries: [gutterEntry(PAD_LEFT), { component: content, basis: 0, grow: 1, shrink: 1, minSize: 1 }, gutterEntry(PAD_RIGHT)],
+			gap: 0,
+			align: "stretch",
+		};
+	};
 	root[FULLSCREEN_LAYOUT_PATCHED] = true;
 	tui.requestRender?.(true);
 	return true;
