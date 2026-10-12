@@ -12,7 +12,7 @@ const workDir = mkdtempSync(join(repoRoot, ".pi", "builtin-tool-renderers-smoke-
 const buildDir = join(workDir, "build");
 const stubPath = join(workDir, "node-stubs.d.ts");
 const tsc = join(repoRoot, "node_modules", "typescript", "lib", "tsc.js");
-// edit reads diffMode from ~/.pi/agent/pi-droid-styling.json: keep the user's real config out of the run.
+// edit reads diffMode from ~/.pi/agent/pi-geek-tui.json: keep the user's real config out of the run.
 process.env.HOME = workDir;
 
 function assert(condition, message) {
@@ -187,7 +187,7 @@ async function runBuiltinToolRenderersSmoke() {
 	// Frozen state wins over later records.
 	elapsed.recordToolCallTimingStart("t2");
 	elapsed.recordToolCallTimingEnd("t2");
-	const frozenState = { __droidElapsedMs: 999 };
+	const frozenState = { __geekElapsedMs: 999 };
 	assert(elapsed.resolveToolCallElapsedMs({ state: frozenState, toolCallId: "t2" }, undefined) === 999, "frozen state value did not win over event records");
 
 	// result.details.__elapsedMs fallback when no record exists.

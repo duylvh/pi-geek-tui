@@ -1,6 +1,6 @@
 # Harness Components
 
-This taxonomy maps the installed Harness surface in `pi-droid-styling` to the responsibilities it serves for agents and humans.
+This taxonomy maps the installed Harness surface in `pi-geek-tui` to the responsibilities it serves for agents and humans.
 
 Status values:
 
@@ -60,4 +60,4 @@ Status values:
 - Partial: tool access, observability, failure attribution, verification, permissions, entropy auditing, intervention recording.
 - Missing: none at the installed Harness policy level.
 
-The largest current gap for this repository is verification: `pi-droid-styling` does not yet have a formal TypeScript check script or automated Pi smoke runner.
+The largest current gap for this repository is verification: `pi-geek-tui` does not yet have a formal TypeScript check script or automated Pi smoke runner.

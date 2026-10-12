@@ -7,7 +7,7 @@ import { getThemeExtra } from "../theme/theme-extras.js";
 import { safeTruncateToWidth, safeVisibleWidth } from "../render-budget.js";
 
 let activeTheme: any = null;
-const PATCHED = Symbol.for("pi-droid-styling.user-prefix.patched");
+const PATCHED = Symbol.for("pi-geek-tui.user-prefix.patched");
 
 function usesLegacyQuotePrefix(): boolean {
 	return getThemeExtra(activeTheme, "quoteStyle") === "true" && getThemeExtra(activeTheme, "userPrefix") === "│";

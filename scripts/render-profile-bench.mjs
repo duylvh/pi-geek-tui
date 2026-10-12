@@ -7,14 +7,14 @@ import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 
-process.env.PI_DROID_PROFILE = process.env.PI_DROID_PROFILE || "1";
-process.env.PI_DROID_PROFILE_INTERVAL_MS = process.env.PI_DROID_PROFILE_INTERVAL_MS || "60000";
-process.env.PI_DROID_PROFILE_OUT = process.env.PI_DROID_PROFILE_OUT || join(tmpdir(), `pi-droid-render-profile-${Date.now()}.jsonl`);
+process.env.PI_GEEK_PROFILE = process.env.PI_GEEK_PROFILE || "1";
+process.env.PI_GEEK_PROFILE_INTERVAL_MS = process.env.PI_GEEK_PROFILE_INTERVAL_MS || "60000";
+process.env.PI_GEEK_PROFILE_OUT = process.env.PI_GEEK_PROFILE_OUT || join(tmpdir(), `pi-geek-render-profile-${Date.now()}.jsonl`);
 
 const repoRoot = process.cwd();
 const buildDir = join(repoRoot, ".pi", "profile-bench-build");
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const iterations = Math.max(1, Number(process.env.PI_DROID_PROFILE_BENCH_ITERATIONS || 120));
+const iterations = Math.max(1, Number(process.env.PI_GEEK_PROFILE_BENCH_ITERATIONS || 120));
 
 function collectTsFiles(dir) {
 	const ignored = new Set([".git", ".memory", ".pi", "node_modules"]);
@@ -204,7 +204,7 @@ flushProfile("bench");
 rmSync(buildDir, { recursive: true, force: true });
 
 console.log(JSON.stringify({
-	profileOut: process.env.PI_DROID_PROFILE_OUT,
+	profileOut: process.env.PI_GEEK_PROFILE_OUT,
 	iterations,
 	throttledDispatches,
 }, null, 2));

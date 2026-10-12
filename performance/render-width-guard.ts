@@ -4,7 +4,7 @@ import { isImageRenderLine, safeTruncateToWidth, safeVisibleWidth } from "../ren
 import { getOriginalTuiMethod, rememberTuiMethodWrapper } from "./tui-proxy-original.js";
 import { profileCount, profileSample } from "./profiler.js";
 
-const PATCHED = Symbol.for("pi-droid-styling.render-width-guard.patched");
+const PATCHED = Symbol.for("pi-geek-tui.render-width-guard.patched");
 
 type RenderFunction = (width: number) => string[];
 

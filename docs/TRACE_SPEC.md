@@ -10,7 +10,7 @@ The current schema lives in `scripts/schema/001-init.sql` under the `trace` tabl
 | --- | --- | --- | --- | --- |
 | `id` | INTEGER | Automatic | SQLite autoincrement primary key. Do not set manually. | `42` |
 | `created_at` | TEXT | Automatic | SQLite `datetime('now')`. Do not set manually. | `2026-05-31 09:24:37` |
-| `task_summary` | TEXT | Yes | One sentence, at least 10 characters, naming the outcome or attempted outcome. | `Normalized Harness docs for pi-droid-styling` |
+| `task_summary` | TEXT | Yes | One sentence, at least 10 characters, naming the outcome or attempted outcome. | `Normalized Harness docs for pi-geek-tui` |
 | `intake_id` | INTEGER | Standard+ when an intake was recorded | Integer id from the related `intake` row. | `1` |
 | `story_id` | TEXT | Standard+ when work maps cleanly to one story | Story id from the `story` table. Use the main story when one trace covers several; list the rest in `notes`. | `H-001` |
 | `agent` | TEXT | Optional for minimal; Standard+ expected | Short agent/tool name. | `droid` |
@@ -145,7 +145,7 @@ scripts/bin/harness-cli trace \
 
 ```bash
 scripts/bin/harness-cli trace \
-  --summary "Normalized Harness docs for pi-droid-styling" \
+  --summary "Normalized Harness docs for pi-geek-tui" \
   --intake 1 \
   --story H-001 \
   --agent droid \

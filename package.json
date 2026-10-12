@@ -1,7 +1,7 @@
 {
-  "name": "@sting8k/pi-droid-styling",
-  "version": "2.18.0",
-  "description": "Custom UI styling for Pi: compact startup UI, boxed editor, tool badges, message prefixes, and footer stats.",
+  "name": "@sting8k/pi-geek-tui",
+  "version": "0.1.0",
+  "description": "Hancore-inspired geek terminal UI for Pi: gutter timestamps, rail, tool trees, two-line stats footer.",
   "type": "module",
   "main": "index.ts",
   "files": [
@@ -22,11 +22,11 @@
     "pi-coding-agent",
     "pi-extension",
     "pi-themes",
-    "pi-droid-styling"
+    "pi-geek-tui"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sting8k/pi-droid-styling.git"
+    "url": "git+https://github.com/sting8k/pi-geek-tui.git"
   },
   "license": "MIT",
   "publishConfig": {
@@ -60,7 +60,7 @@
     "extensions": [
       "./index.ts"
     ],
-    "image": "https://raw.githubusercontent.com/sting8k/pi-droid-styling/main/screenshots/image.png"
+    "image": "https://raw.githubusercontent.com/sting8k/pi-geek-tui/main/screenshots/image.png"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": ">=0.78.0 <2.0.0",

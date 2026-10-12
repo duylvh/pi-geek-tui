@@ -2,7 +2,7 @@ import { Buffer } from "node:buffer";
 import { appendFileSync } from "node:fs";
 import { monitorEventLoopDelay, performance } from "node:perf_hooks";
 
-const PROFILE_STATE = Symbol.for("pi-droid-styling.profiler.state");
+const PROFILE_STATE = Symbol.for("pi-geek-tui.profiler.state");
 const DEFAULT_INTERVAL_MS = 5000;
 const MIN_INTERVAL_MS = 250;
 const TRUE_VALUES = new Set(["1", "true", "yes", "on"]);
@@ -39,7 +39,7 @@ type ProfileState = {
 };
 
 type ProfileRecord = {
-	type: "pi-droid-profile";
+	type: "pi-geek-profile";
 	reason: string;
 	ts: string;
 	pid: number;
@@ -75,7 +75,7 @@ function envFlag(name: string): boolean {
 }
 
 function envIntervalMs(): number {
-	const value = Number(process.env.PI_DROID_PROFILE_INTERVAL_MS);
+	const value = Number(process.env.PI_GEEK_PROFILE_INTERVAL_MS);
 	if (!Number.isFinite(value) || value <= 0) return DEFAULT_INTERVAL_MS;
 	return Math.max(MIN_INTERVAL_MS, Math.floor(value));
 }
@@ -96,9 +96,9 @@ function nowMs(): number {
 
 function createState(): ProfileState {
 	return {
-		enabled: envFlag("PI_DROID_PROFILE"),
+		enabled: envFlag("PI_GEEK_PROFILE"),
 		intervalMs: envIntervalMs(),
-		out: String(process.env.PI_DROID_PROFILE_OUT ?? "stderr").trim() || "stderr",
+		out: String(process.env.PI_GEEK_PROFILE_OUT ?? "stderr").trim() || "stderr",
 		lastFlushAt: nowMs(),
 		counters: new Map(),
 		samples: new Map(),
@@ -254,7 +254,7 @@ export function flushProfile(reason = "manual"): void {
 	}
 	const loopDelay = state.loopDelay;
 	const record: ProfileRecord = {
-		type: "pi-droid-profile",
+		type: "pi-geek-profile",
 		reason,
 		ts: new Date().toISOString(),
 		pid: process.pid,

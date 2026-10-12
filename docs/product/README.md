@@ -1,6 +1,6 @@
 # Product Docs
 
-This directory contains the living product contract for `pi-droid-styling`.
+This directory contains the living product contract for `pi-geek-tui`.
 
 Start with:
 

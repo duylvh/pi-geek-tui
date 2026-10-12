@@ -42,13 +42,13 @@ function readThemeColorMode(theme: any): string {
 }
 
 function isFrameBackgroundDebugEnabled(): boolean {
-	return process.env.PI_DROID_DEBUG_FRAME_BG === "1" || Boolean(process.env.PI_DROID_DEBUG_FRAME_BG_LOG);
+	return process.env.PI_GEEK_DEBUG_FRAME_BG === "1" || Boolean(process.env.PI_GEEK_DEBUG_FRAME_BG_LOG);
 }
 
 function frameBackgroundDebugLogPath(): string {
-	const explicitPath = process.env.PI_DROID_DEBUG_FRAME_BG_LOG;
+	const explicitPath = process.env.PI_GEEK_DEBUG_FRAME_BG_LOG;
 	if (explicitPath) return explicitPath;
-	const debugDir = process.env.PI_DROID_RENDER_DEBUG_DIR || join(tmpdir(), "pi-droid-render-debug");
+	const debugDir = process.env.PI_GEEK_RENDER_DEBUG_DIR || join(tmpdir(), "pi-geek-render-debug");
 	return join(debugDir, `frame-bg-${process.pid}.jsonl`);
 }
 

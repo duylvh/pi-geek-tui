@@ -1,7 +1,7 @@
 import { Loader } from "@earendil-works/pi-tui";
 import { getPresentationDesign } from "../presentation/state.js";
 
-const ORIGINAL_RENDER = Symbol.for("pi-droid-styling.loader-align.original-render");
+const ORIGINAL_RENDER = Symbol.for("pi-geek-tui.loader-align.original-render");
 
 type RenderFn = (this: unknown, width: number) => string[];
 

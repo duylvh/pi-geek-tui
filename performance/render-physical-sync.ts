@@ -2,8 +2,8 @@ import { isImageRenderLine } from "../render-budget.js";
 import { profileCount } from "./profiler.js";
 import { getOriginalTuiMethod, rememberTuiMethodWrapper } from "./tui-proxy-original.js";
 
-const PATCHED = Symbol.for("pi-droid-styling.render-physical-sync.patched");
-const DEBUG_EVENTS = Symbol.for("pi-droid-styling.render-physical-sync.debug-events");
+const PATCHED = Symbol.for("pi-geek-tui.render-physical-sync.patched");
+const DEBUG_EVENTS = Symbol.for("pi-geek-tui.render-physical-sync.debug-events");
 const BEGIN_SYNC = "\x1b[?2026h";
 const END_SYNC = "\x1b[?2026l";
 const SAVE_CURSOR = "\x1b[s";
@@ -101,10 +101,10 @@ type NormalizedWrite = {
 };
 
 export function installRenderPhysicalSync(tui: AnyTui): void {
-	if (process.env.PI_DROID_RENDER_PHYSICAL_SYNC === "0") return;
-	const anchorEnabled = process.env.PI_DROID_RENDER_ABSOLUTE_ANCHOR !== "0";
-	const shapeRepaintEnabled = process.env.PI_DROID_RENDER_SHAPE_REPAINT !== "0";
-	const periodicSelfHealEnabled = process.env.PI_DROID_RENDER_FULL_REPAINT === "1";
+	if (process.env.PI_GEEK_RENDER_PHYSICAL_SYNC === "0") return;
+	const anchorEnabled = process.env.PI_GEEK_RENDER_ABSOLUTE_ANCHOR !== "0";
+	const shapeRepaintEnabled = process.env.PI_GEEK_RENDER_SHAPE_REPAINT !== "0";
+	const periodicSelfHealEnabled = process.env.PI_GEEK_RENDER_FULL_REPAINT === "1";
 	const repaintEnabled = shapeRepaintEnabled || periodicSelfHealEnabled;
 	if (!anchorEnabled && !repaintEnabled) return;
 	if (!tui || typeof tui.doRender !== "function") return;
@@ -118,7 +118,7 @@ export function installRenderPhysicalSync(tui: AnyTui): void {
 	const fullRepaintIntervalMs = readFullRepaintIntervalMs();
 	const fullSweepIntervalMs = readFullSweepIntervalMs();
 	const selfHealMode = readSelfHealMode();
-	const debugEnabled = process.env.PI_DROID_RENDER_DEBUG === "1";
+	const debugEnabled = process.env.PI_GEEK_RENDER_DEBUG === "1";
 	let lastSelfHealAt = 0;
 	let lastFullSweepAt = 0;
 	const physicallySyncedDoRender = function physicallySyncedDoRender(this: AnyTui, ...args: unknown[]): unknown {
@@ -178,19 +178,19 @@ export function installRenderPhysicalSync(tui: AnyTui): void {
 }
 
 function readFullRepaintIntervalMs(): number {
-	const parsed = Number(process.env.PI_DROID_RENDER_FULL_REPAINT_INTERVAL_MS);
+	const parsed = Number(process.env.PI_GEEK_RENDER_FULL_REPAINT_INTERVAL_MS);
 	if (!Number.isFinite(parsed)) return DEFAULT_FULL_REPAINT_INTERVAL_MS;
 	return Math.max(0, Math.floor(parsed));
 }
 
 function readFullSweepIntervalMs(): number {
-	const parsed = Number(process.env.PI_DROID_RENDER_FULL_SWEEP_INTERVAL_MS);
+	const parsed = Number(process.env.PI_GEEK_RENDER_FULL_SWEEP_INTERVAL_MS);
 	if (!Number.isFinite(parsed)) return DEFAULT_FULL_SWEEP_INTERVAL_MS;
 	return Math.max(0, Math.floor(parsed));
 }
 
 function readSelfHealMode(): SelfHealMode {
-	const value = process.env.PI_DROID_RENDER_SELF_HEAL_MODE;
+	const value = process.env.PI_GEEK_RENDER_SELF_HEAL_MODE;
 	return value === "viewport" || value === "full" ? "viewport" : "band";
 }
 

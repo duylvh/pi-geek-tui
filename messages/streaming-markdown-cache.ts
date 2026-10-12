@@ -3,7 +3,7 @@ import { Markdown } from "@earendil-works/pi-tui";
 import { profileCount, profileDuration, profileNow, profileSample } from "../performance/profiler.js";
 import { getAssistantContentRuns } from "./assistant-content-runs.js";
 
-const PATCHED = Symbol.for("pi-droid-styling.streaming-markdown-cache.patched");
+const PATCHED = Symbol.for("pi-geek-tui.streaming-markdown-cache.patched");
 const STATE_KEY = Symbol("streaming-markdown-cache-state");
 const WRAPPED_KEY = Symbol("streaming-markdown-cache-wrapped");
 

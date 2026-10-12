@@ -25,7 +25,7 @@ function stripAnsi(text) {
 }
 
 function resetCoreMessageBlockPatchFlag() {
-	delete globalThis.__droidCoreMessageBlocksPatched__;
+	delete globalThis.__geekCoreMessageBlocksPatched__;
 }
 
 function assertUsesPageBackground(lines, label) {
@@ -424,10 +424,10 @@ async function runPatchedComponentSmoke() {
 
 function isolateHomeConfig() {
 	// Config-touching modules (tool-tags/common.ts reads loadConfig) must not see
-	// the developer's real ~/.pi/agent/pi-droid-styling.json; pin a default config.
+	// the developer's real ~/.pi/agent/pi-geek-tui.json; pin a default config.
 	const homeDir = join(workDir, "home-default");
 	mkdirSync(join(homeDir, ".pi", "agent"), { recursive: true });
-	writeFileSync(join(homeDir, ".pi", "agent", "pi-droid-styling.json"), `${JSON.stringify({ transparentBackground: false }, null, 2)}\n`, "utf8");
+	writeFileSync(join(homeDir, ".pi", "agent", "pi-geek-tui.json"), `${JSON.stringify({ transparentBackground: false }, null, 2)}\n`, "utf8");
 	process.env.HOME = homeDir;
 	process.env.USERPROFILE = homeDir;
 }

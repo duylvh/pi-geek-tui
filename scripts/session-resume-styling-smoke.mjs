@@ -137,7 +137,7 @@ try {
 		refreshCount: 0,
 		updateDisplay() { this.refreshCount++; },
 	};
-	const virtualizedState = Symbol.for("pi-droid-styling.virtualized-chat.state");
+	const virtualizedState = Symbol.for("pi-geek-tui.virtualized-chat.state");
 	class FakeInteractiveMode {
 		session = { getToolDefinition: (name) => name === "read" || name === "bash" ? currentDefinition : undefined };
 		chatContainer = {

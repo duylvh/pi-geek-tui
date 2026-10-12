@@ -13,7 +13,7 @@ import {
 } from "./assistant-content-runs.js";
 
 let activeTheme: any = null;
-const PATCHED = Symbol.for("pi-droid-styling.assistant-prefix.patched");
+const PATCHED = Symbol.for("pi-geek-tui.assistant-prefix.patched");
 
 function buildPrefixSegment(): string {
 	const prefix = getPresentationDesign().assistantMarker ?? getThemeExtra(activeTheme, "assistantPrefix");
@@ -132,7 +132,7 @@ type ThinkingChildContext = {
 
 // claudecode: a hidden thinking run reads like a tool row — `● thinking` while live, `● thought`
 // once settled — with the `●` taking the assistant marker column so it lines up with tool dots.
-const CLAUDE_THOUGHT_ROWS = Symbol("pi-droid-styling.claudecode-thought-rows");
+const CLAUDE_THOUGHT_ROWS = Symbol("pi-geek-tui.claudecode-thought-rows");
 
 function usesClaudeThinkingRow(context: ThinkingChildContext | undefined): boolean {
 	return Boolean(context && context.hidden && context.label !== null && getPresentationDesign().toolCallStyle === "claudecode");

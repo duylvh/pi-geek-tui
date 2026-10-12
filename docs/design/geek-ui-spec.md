@@ -3,7 +3,7 @@
 Source of truth: `design/mockup-v2.zip` (`V2.dc.html`, inline styles + `<style>` block).
 Inspiration: https://hancore.dev/site/#stack. Mockup text is Vietnamese; **all shipped UI text is English**
 (translations listed below). Engine (render perf, physical sync, virtualization, patch install/uninstall)
-is forked from pi-droid-styling and must keep working — change visuals, not the engine.
+is forked from pi-geek-tui and must keep working — change visuals, not the engine.
 
 ## Palette (fixed; no pi-themes dependency)
 

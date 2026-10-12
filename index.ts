@@ -44,7 +44,7 @@ function loadRenderFrameDebugModule(): Promise<RenderFrameDebugModule> {
 }
 
 function isProfileEnabled(env = process.env): boolean {
-	return TRUE_ENV_VALUES.has(String(env.PI_DROID_PROFILE ?? "").trim().toLowerCase());
+	return TRUE_ENV_VALUES.has(String(env.PI_GEEK_PROFILE ?? "").trim().toLowerCase());
 }
 
 let profilerModulePromise: Promise<typeof import("./performance/profiler.js")> | undefined;
@@ -71,7 +71,7 @@ export default function (pi: ExtensionAPI) {
 	const startupConfigIssue = getConfigIssue();
 	if (startupConfigIssue) {
 		pi.on("session_start", (_event, ctx) => {
-			ctx.ui.setStatus?.("pi-droid-styling", `${startupConfigIssue}; styling is off until you fix the file and restart Pi.`);
+			ctx.ui.setStatus?.("pi-geek-tui", `${startupConfigIssue}; styling is off until you fix the file and restart Pi.`);
 		});
 		return;
 	}
@@ -104,7 +104,7 @@ export default function (pi: ExtensionAPI) {
 	const reportConfigIssue = (ui: { setStatus?: (key: string, text: string | undefined) => void }) => {
 		loadConfig();
 		const issue = getConfigIssue();
-		ui.setStatus?.("pi-droid-styling", issue && `${issue}; using the last valid settings.`);
+		ui.setStatus?.("pi-geek-tui", issue && `${issue}; using the last valid settings.`);
 	};
 
 	pi.on("before_agent_start", (_event, ctx) => {
@@ -226,7 +226,7 @@ export default function (pi: ExtensionAPI) {
 		currentVisibleChatTail = config.visibleChatTail;
 		await ensureToolCallTagsRegistered();
 		if (!isCurrentSessionRun()) return;
-		const renderFrameDebugModule = process.env.PI_DROID_RENDER_DEBUG === "1"
+		const renderFrameDebugModule = process.env.PI_GEEK_RENDER_DEBUG === "1"
 			? await loadRenderFrameDebugModule()
 			: undefined;
 		if (!isCurrentSessionRun()) return;
@@ -271,12 +271,12 @@ export default function (pi: ExtensionAPI) {
 		const interactiveModePrototype = InteractiveMode.prototype as any;
 		const originalUpdateEditorBorderColor = interactiveModePrototype.updateEditorBorderColor;
 		// Keep the legacy marker name so extension reloads do not stack wrappers.
-		if (typeof originalUpdateEditorBorderColor === "function" && !originalUpdateEditorBorderColor.__droidTerminalThemeSync) {
+		if (typeof originalUpdateEditorBorderColor === "function" && !originalUpdateEditorBorderColor.__geekTerminalThemeSync) {
 			const wrappedUpdateEditorBorderColor = function (this: any, ...args: any[]) {
 				syncThemeExtrasForCurrentSession?.(true);
 				return originalUpdateEditorBorderColor.apply(this, args);
 			};
-			(wrappedUpdateEditorBorderColor as any).__droidTerminalThemeSync = true;
+			(wrappedUpdateEditorBorderColor as any).__geekTerminalThemeSync = true;
 			interactiveModePrototype.updateEditorBorderColor = wrappedUpdateEditorBorderColor;
 		}
 

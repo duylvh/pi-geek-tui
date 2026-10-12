@@ -3,7 +3,7 @@ import { setFullTheme } from "../theme/theme-extras.js";
 import { boxBg, boxBgLines } from "../tool-tags/common.js";
 import { renderBoxedMessageBlock } from "./boxed-message-block.js";
 
-const PATCH_FLAG = "__droidCoreMessageBlocksPatched__";
+const PATCH_FLAG = "__geekCoreMessageBlocksPatched__";
 
 let cachedTheme: any = null;
 

@@ -20,7 +20,7 @@ normal
 
 ## Acceptance Criteria
 
-- New scaffolded `~/.pi/agent/pi-droid-styling.json` writes `customWorkingMessage` as an object with `working`, `thinking`, `answering`, and `running` labels.
+- New scaffolded `~/.pi/agent/pi-geek-tui.json` writes `customWorkingMessage` as an object with `working`, `thinking`, `answering`, and `running` labels.
 - Existing `customWorkingMessage: true` is transformed in-place to the default label object.
 - Existing `customWorkingMessage: false` is transformed in-place to the default label object.
 - Partial custom label objects preserve user strings and backfill missing/invalid labels with defaults.

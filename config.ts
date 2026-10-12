@@ -94,7 +94,7 @@ const DEFAULTS: DroidStylingConfig = {
 	visibleChatTail: 30,
 };
 
-const CONFIG_PATH = join(homedir(), ".pi", "agent", "pi-droid-styling.json");
+const CONFIG_PATH = join(homedir(), ".pi", "agent", "pi-geek-tui.json");
 const MAX_EXPANDED_LINES_LIMIT = 1000;
 const DEPRECATED_CONFIG_KEYS = ["fixedUserZoneMouseScroll", "fixedUserZoneSidebar", "fixedUserZone"] as const;
 
@@ -322,7 +322,7 @@ function backfillMissingDefaults(raw: unknown): void {
 }
 
 function describeInvalidJson(error: SyntaxError): string {
-	return `pi-droid-styling: ${CONFIG_PATH} is not valid JSON (${error.message})`;
+	return `pi-geek-tui: ${CONFIG_PATH} is not valid JSON (${error.message})`;
 }
 
 // Why the live file is being ignored right now (undefined while it parses). Set by loadConfig,

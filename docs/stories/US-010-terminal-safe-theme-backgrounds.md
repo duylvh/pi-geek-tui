@@ -10,7 +10,7 @@ normal
 
 ## Product Contract
 
-`pi-droid-styling` should keep ANSI-rendered frame backgrounds as the cross-platform default mechanism, while using OSC 11 on non-Windows hosts to cover terminal-owned padding/remainder areas that ANSI cell painting cannot reach. Windows, WSL, and Windows Terminal sessions should skip OSC 11 unless the user explicitly opts into `forceOSC11`.
+`pi-geek-tui` should keep ANSI-rendered frame backgrounds as the cross-platform default mechanism, while using OSC 11 on non-Windows hosts to cover terminal-owned padding/remainder areas that ANSI cell painting cannot reach. Windows, WSL, and Windows Terminal sessions should skip OSC 11 unless the user explicitly opts into `forceOSC11`.
 
 ## Relevant Product Docs
 

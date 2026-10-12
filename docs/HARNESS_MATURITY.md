@@ -1,6 +1,6 @@
 # Harness Maturity Ladder
 
-This ladder defines how the Harness installation in `pi-droid-styling` can progress from static agent instructions to measurable harness improvement.
+This ladder defines how the Harness installation in `pi-geek-tui` can progress from static agent instructions to measurable harness improvement.
 
 A level is achieved only when its criteria can be inspected in repository files, durable Harness records, or validation output.
 
@@ -102,7 +102,7 @@ Criteria:
 
 Current status:
 
-- Not achieved. `pi-droid-styling` has no formal TypeScript check script or automated Pi smoke runner yet.
+- Not achieved. `pi-geek-tui` has no formal TypeScript check script or automated Pi smoke runner yet.
 
 Activated responsibilities:
 

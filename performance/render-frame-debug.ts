@@ -3,11 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getOriginalTuiMethod, rememberTuiMethodWrapper } from "./tui-proxy-original.js";
 
-const PATCHED = Symbol.for("pi-droid-styling.render-frame-debug.patched");
-const FRAME_COUNTER = Symbol.for("pi-droid-styling.render-frame-debug.frame");
-const PHYSICAL_SYNC_DEBUG_EVENTS = Symbol.for("pi-droid-styling.render-physical-sync.debug-events");
-const DEBUG_MARKER_STATE = Symbol.for("pi-droid-styling.render-frame-debug.marker-state");
-const DEBUG_MARKER_HANDLER_INSTALLED = Symbol.for("pi-droid-styling.render-frame-debug.marker-handler-installed");
+const PATCHED = Symbol.for("pi-geek-tui.render-frame-debug.patched");
+const FRAME_COUNTER = Symbol.for("pi-geek-tui.render-frame-debug.frame");
+const PHYSICAL_SYNC_DEBUG_EVENTS = Symbol.for("pi-geek-tui.render-physical-sync.debug-events");
+const DEBUG_MARKER_STATE = Symbol.for("pi-geek-tui.render-frame-debug.marker-state");
+const DEBUG_MARKER_HANDLER_INSTALLED = Symbol.for("pi-geek-tui.render-frame-debug.marker-handler-installed");
 const DEFAULT_MAX_TEXT_BYTES = 120_000;
 const DEFAULT_CONTEXT_LINES = 8;
 
@@ -132,7 +132,7 @@ type ScreenSimulationSummary = {
 };
 
 export function installRenderFrameDebug(tui: AnyTui): void {
-	if (process.env.PI_DROID_RENDER_DEBUG !== "1") return;
+	if (process.env.PI_GEEK_RENDER_DEBUG !== "1") return;
 	if (!tui || tui[PATCHED] || typeof tui.doRender !== "function" || typeof tui.render !== "function") return;
 	const terminal = tui.terminal;
 	if (!terminal || typeof terminal.write !== "function") return;
@@ -219,7 +219,7 @@ export function installRenderFrameDebug(tui: AnyTui): void {
 }
 
 function getLogPath(): string {
-	const debugDir = process.env.PI_DROID_RENDER_DEBUG_DIR || join(tmpdir(), "pi-droid-render-debug");
+	const debugDir = process.env.PI_GEEK_RENDER_DEBUG_DIR || join(tmpdir(), "pi-geek-render-debug");
 	mkdirSync(debugDir, { recursive: true });
 	return join(debugDir, `render-frame-${process.pid}.jsonl`);
 }
@@ -1031,7 +1031,7 @@ function summarizePhysicalSyncDebug(tui: AnyTui) {
 }
 
 function summarizeWrites(writes: string[]) {
-	const maxBytes = readPositiveEnvNumber("PI_DROID_RENDER_DEBUG_MAX_TEXT_BYTES", DEFAULT_MAX_TEXT_BYTES);
+	const maxBytes = readPositiveEnvNumber("PI_GEEK_RENDER_DEBUG_MAX_TEXT_BYTES", DEFAULT_MAX_TEXT_BYTES);
 	const combined = writes.join("");
 	return {
 		count: writes.length,

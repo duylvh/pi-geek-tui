@@ -10,7 +10,7 @@ normal
 
 ## Product Contract
 
-`pi-droid-styling` should paint the active Pi theme page background across the rendered TUI frame with explicit ANSI backgrounds, while any OSC 11 terminal background sync remains platform-gated by US-010 and opt-in on Windows via `forceOSC11`.
+`pi-geek-tui` should paint the active Pi theme page background across the rendered TUI frame with explicit ANSI backgrounds, while any OSC 11 terminal background sync remains platform-gated by US-010 and opt-in on Windows via `forceOSC11`.
 
 ## Relevant Product Docs
 

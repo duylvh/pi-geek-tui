@@ -1,6 +1,6 @@
 # Product Overview
 
-`pi-droid-styling` is an opinionated Pi UI styling extension.
+`pi-geek-tui` is an opinionated Pi UI styling extension.
 
 ## User-Facing Behavior
 
@@ -18,7 +18,7 @@ The extension provides:
 
 ## Configuration
 
-Configuration is stored at `~/.pi/agent/pi-droid-styling.json`.
+Configuration is stored at `~/.pi/agent/pi-geek-tui.json`.
 
 Current options:
 

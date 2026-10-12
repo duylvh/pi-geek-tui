@@ -1,6 +1,6 @@
 # Documentation Map
 
-This directory holds the Harness operating docs and product contract for `pi-droid-styling`.
+This directory holds the Harness operating docs and product contract for `pi-geek-tui`.
 
 ## Main Files
 

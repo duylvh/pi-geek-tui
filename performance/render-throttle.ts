@@ -11,8 +11,8 @@
 import { profileCount, profileDuration, profileNow, profileSample } from "./profiler.js";
 import { getOriginalTuiMethod, rememberTuiMethodWrapper } from "./tui-proxy-original.js";
 
-const PATCHED = Symbol.for("pi-droid-styling.render-throttle.patched");
-const REQUEST_WITH_FRAME_MS = Symbol.for("pi-droid-styling.render-throttle.request-with-frame-ms");
+const PATCHED = Symbol.for("pi-geek-tui.render-throttle.patched");
+const REQUEST_WITH_FRAME_MS = Symbol.for("pi-geek-tui.render-throttle.request-with-frame-ms");
 
 /** Default frame interval in ms (29ms ~ 35fps) */
 const DEFAULT_FRAME_MS = 29;

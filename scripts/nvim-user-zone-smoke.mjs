@@ -147,7 +147,7 @@ function writeInitialConfig(homeDir, initialJson) {
 	if (initialJson === undefined) return;
 	const configDir = join(homeDir, ".pi", "agent");
 	mkdirSync(configDir, { recursive: true });
-	writeFileSync(join(configDir, "pi-droid-styling.json"), `${initialJson}\n`, "utf8");
+	writeFileSync(join(configDir, "pi-geek-tui.json"), `${initialJson}\n`, "utf8");
 }
 
 async function runConfigSmoke(name, initialJson, validate) {
@@ -158,7 +158,7 @@ async function runConfigSmoke(name, initialJson, validate) {
 	process.env.USERPROFILE = homeDir;
 	const { loadConfig } = await importBuilt("config.js");
 	const config = loadConfig();
-	const raw = JSON.parse(readFileSync(join(homeDir, ".pi", "agent", "pi-droid-styling.json"), "utf8"));
+	const raw = JSON.parse(readFileSync(join(homeDir, ".pi", "agent", "pi-geek-tui.json"), "utf8"));
 	validate({ config, raw });
 	console.log(`config smoke ok: ${name}`);
 }
@@ -221,7 +221,7 @@ async function runNvimStatuslineSmoke() {
 			makeTheme(),
 			keybindings,
 			makeTheme(),
-			"/tmp/pi-droid-nvim-smoke",
+			"/tmp/pi-geek-nvim-smoke",
 			usage,
 			options.model ?? model,
 			options.branch ?? branch,
@@ -799,7 +799,7 @@ await runConfigSmoke("nvim style preserved", '{"userZoneStyle":"nvim"}', ({ conf
 	assert(sessionOne.userZoneStyle === "nvim", "nvim userZoneStyle should resolve on first load");
 	const sessionTwo = loadConfig();
 	assert(sessionTwo.userZoneStyle === "nvim", "nvim userZoneStyle should still resolve after a second load simulating session reload");
-	const raw = JSON.parse(readFileSync(join(homeDir, ".pi", "agent", "pi-droid-styling.json"), "utf8"));
+	const raw = JSON.parse(readFileSync(join(homeDir, ".pi", "agent", "pi-geek-tui.json"), "utf8"));
 	assert(raw.userZoneStyle === "nvim", "nvim userZoneStyle should remain on disk after reload");
 	console.log("config smoke ok: nvim style survives reload");
 }

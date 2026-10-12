@@ -27,8 +27,8 @@ type CompanionThemeState = {
 };
 
 const BUNDLED_THEMES_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "node_modules", "pi-themes", "themes");
-const COMPANION_THEME_PATCHED = Symbol.for("pi-droid-styling.companion-themes.patched");
-const COMPANION_THEME_STATE = Symbol.for("pi-droid-styling.companion-themes.state");
+const COMPANION_THEME_PATCHED = Symbol.for("pi-geek-tui.companion-themes.patched");
+const COMPANION_THEME_STATE = Symbol.for("pi-geek-tui.companion-themes.state");
 
 function loadBundledThemes(): BundledTheme[] {
 	return readdirSync(BUNDLED_THEMES_DIR)

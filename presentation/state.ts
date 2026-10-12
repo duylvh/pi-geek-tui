@@ -6,7 +6,7 @@ import {
 	type PresentationStyleName,
 } from "./designs.js";
 
-const ACTIVE_PRESENTATION_STYLE = Symbol.for("pi-droid-styling.presentation.active-style");
+const ACTIVE_PRESENTATION_STYLE = Symbol.for("pi-geek-tui.presentation.active-style");
 const runtimeState = globalThis as Record<PropertyKey, unknown>;
 
 export function setPresentationStyle(style: PresentationStyleName): void {

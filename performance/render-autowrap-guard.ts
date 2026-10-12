@@ -1,6 +1,6 @@
 import { getOriginalTuiMethod, rememberTuiMethodWrapper } from "./tui-proxy-original.js";
 
-const PATCHED = Symbol.for("pi-droid-styling.render-autowrap-guard.patched");
+const PATCHED = Symbol.for("pi-geek-tui.render-autowrap-guard.patched");
 const DISABLE_AUTOWRAP = "\x1b[?7l";
 const ENABLE_AUTOWRAP = "\x1b[?7h";
 
@@ -9,7 +9,7 @@ type TerminalLike = { write?: (data: string) => void };
 
 export function installRenderAutowrapGuard(tui: any): void {
 	if (!tui || tui[PATCHED] || typeof tui.doRender !== "function") return;
-	if (process.env.PI_DROID_RENDER_AUTOWRAP_GUARD !== "1") return;
+	if (process.env.PI_GEEK_RENDER_AUTOWRAP_GUARD !== "1") return;
 
 	const originalDoRender = getOriginalTuiMethod(tui, "doRender") as DoRenderFunction;
 	const terminal = tui.terminal as TerminalLike | undefined;

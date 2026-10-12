@@ -9,7 +9,7 @@ import { getThemeExtra } from "../theme/theme-extras.js";
 const PATCH_FLAG = "__compactToolSpacingPatched__";
 const LEGACY_CHAIN_FLAG = "__compactToolSpacingLegacyChain__";
 const PATCH_VERSION_KEY = "__compactToolSpacingPatchVersion__";
-const RUNTIME_STATE_KEY = Symbol.for("pi-droid-styling.compact-tool-spacing.runtime-state");
+const RUNTIME_STATE_KEY = Symbol.for("pi-geek-tui.compact-tool-spacing.runtime-state");
 const PATCH_VERSION = 11;
 // RUNTIME_STATE_KEY delegation shipped with wrapper version 10; older stamped
 // wrappers (2-9) never read the delegate and still need to be wrapped over.

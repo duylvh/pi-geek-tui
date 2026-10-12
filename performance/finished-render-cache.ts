@@ -1,8 +1,8 @@
 import { isComponentOnActiveStream } from "../messages/assistant-streaming-state.js";
 import { profileCount, profileDuration, profileNow, profileSample } from "./profiler.js";
 
-const ASSISTANT_PATCHED = Symbol.for("pi-droid-styling.finished-render-cache.assistant.patched");
-const TOOL_PATCHED = Symbol.for("pi-droid-styling.finished-render-cache.tool.patched");
+const ASSISTANT_PATCHED = Symbol.for("pi-geek-tui.finished-render-cache.assistant.patched");
+const TOOL_PATCHED = Symbol.for("pi-geek-tui.finished-render-cache.tool.patched");
 const CACHE_KEY = Symbol("finished-render-cache");
 const SIGNATURE_KEY = Symbol("finished-render-signature");
 

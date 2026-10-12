@@ -73,7 +73,7 @@ function writeInitialConfig(homeDir, initialJson) {
 	if (initialJson === undefined) return;
 	const configDir = join(homeDir, ".pi", "agent");
 	mkdirSync(configDir, { recursive: true });
-	writeFileSync(join(configDir, "pi-droid-styling.json"), `${initialJson}\n`, "utf8");
+	writeFileSync(join(configDir, "pi-geek-tui.json"), `${initialJson}\n`, "utf8");
 }
 
 async function runConfigSmoke(name, initialJson, validate) {
@@ -84,7 +84,7 @@ async function runConfigSmoke(name, initialJson, validate) {
 	process.env.USERPROFILE = homeDir;
 	const { loadConfig } = await importBuilt("config.js");
 	const config = loadConfig();
-	const raw = JSON.parse(readFileSync(join(homeDir, ".pi", "agent", "pi-droid-styling.json"), "utf8"));
+	const raw = JSON.parse(readFileSync(join(homeDir, ".pi", "agent", "pi-geek-tui.json"), "utf8"));
 	validate({ config, raw });
 	console.log(`config smoke ok: ${name}`);
 }
@@ -193,7 +193,7 @@ await runConfigSmoke("inputBox missing style field", '{"inputBox":{}}', ({ confi
 async function runBrokenConfigSmoke() {
 	const homeDir = join(workDir, "home-broken-config");
 	const configDir = join(homeDir, ".pi", "agent");
-	const configPath = join(configDir, "pi-droid-styling.json");
+	const configPath = join(configDir, "pi-geek-tui.json");
 	const writeAt = (json, offsetMs) => {
 		writeFileSync(configPath, json, "utf8");
 		const when = new Date(Date.now() + offsetMs);
@@ -216,7 +216,7 @@ async function runBrokenConfigSmoke() {
 		assert(loadConfig().inputBox.style === "line", "broken edit should keep the last good config, not defaults");
 		assert(getConfigIssue()?.includes(configPath), "config issue should name the file");
 		assert(readFileSync(configPath, "utf8") === broken, "broken config must not be rewritten");
-		assert(readdirSync(configDir).join() === "pi-droid-styling.json", "broken config must not be renamed or shadowed");
+		assert(readdirSync(configDir).join() === "pi-geek-tui.json", "broken config must not be renamed or shadowed");
 
 		writeAt('{"inputBox":{"style":"solid"}}', 10000);
 		clock += 2000;
@@ -231,7 +231,7 @@ async function runBrokenConfigSmoke() {
 	process.env.USERPROFILE = freshHome;
 	const fresh = await importBuilt("config.js");
 	assert(fresh.loadConfig().inputBox.style === "auto" && fresh.getConfigIssue() === undefined, "missing config should serve defaults without an issue");
-	assert(existsSync(join(freshHome, ".pi", "agent", "pi-droid-styling.json")), "missing config should be scaffolded");
+	assert(existsSync(join(freshHome, ".pi", "agent", "pi-geek-tui.json")), "missing config should be scaffolded");
 	console.log("config smoke ok: broken json keeps last good config");
 }
 

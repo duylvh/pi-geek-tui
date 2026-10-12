@@ -10,7 +10,7 @@ normal
 
 ## Product Contract
 
-When `@tintinweb/pi-tasks` registers its persistent `tasks` widget, `pi-droid-styling` restyles the widget through the Pi `setWidget("tasks")` seam so task status lines match the extension's compact UI language and active-task animation does not flash rapidly.
+When `@tintinweb/pi-tasks` registers its persistent `tasks` widget, `pi-geek-tui` restyles the widget through the Pi `setWidget("tasks")` seam so task status lines match the extension's compact UI language and active-task animation does not flash rapidly.
 
 ## Relevant Product Docs
 

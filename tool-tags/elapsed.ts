@@ -92,8 +92,8 @@ export function wrapExecuteWithTiming<T extends (...args: any[]) => Promise<Agen
  * 2. tool_execution_start/end events recorded by index.ts (current session run),
  * 3. result.details.__elapsedMs (providers that annotate results themselves).
  */
-const STATE_STARTED_AT_KEY = "__droidStartedAt";
-const STATE_ELAPSED_KEY = "__droidElapsedMs";
+const STATE_STARTED_AT_KEY = "__geekStartedAt";
+const STATE_ELAPSED_KEY = "__geekElapsedMs";
 
 const toolCallStartAt = new Map<string, number>();
 const toolCallElapsedById = new Map<string, number>();

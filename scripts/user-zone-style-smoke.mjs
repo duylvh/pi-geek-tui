@@ -115,7 +115,7 @@ function writeInitialConfig(homeDir, initialJson) {
 	if (initialJson === undefined) return;
 	const configDir = join(homeDir, ".pi", "agent");
 	mkdirSync(configDir, { recursive: true });
-	writeFileSync(join(configDir, "pi-droid-styling.json"), `${initialJson}\n`, "utf8");
+	writeFileSync(join(configDir, "pi-geek-tui.json"), `${initialJson}\n`, "utf8");
 }
 
 async function runConfigSmoke(name, initialJson, validate) {
@@ -126,7 +126,7 @@ async function runConfigSmoke(name, initialJson, validate) {
 	process.env.USERPROFILE = homeDir;
 	const { loadConfig } = await importBuilt("config.js");
 	const config = loadConfig();
-	const raw = JSON.parse(readFileSync(join(homeDir, ".pi", "agent", "pi-droid-styling.json"), "utf8"));
+	const raw = JSON.parse(readFileSync(join(homeDir, ".pi", "agent", "pi-geek-tui.json"), "utf8"));
 	validate({ config, raw });
 	console.log(`config smoke ok: ${name}`);
 }
@@ -202,7 +202,7 @@ async function runBoxEditorSmoke() {
 				makeTheme(),
 				keybindings,
 				makeTheme(),
-				"/tmp/pi-droid-style-smoke",
+				"/tmp/pi-geek-style-smoke",
 				usage,
 				model,
 				branch,
@@ -251,7 +251,7 @@ async function runBoxEditorSmoke() {
 	assert(cliDock[3]?.startsWith("  Deepseek V4 Flash \u00b7 high") && cliDock[3]?.endsWith("  ") && cliDock[3]?.length === 88 && !cliDock[3]?.includes("Model:"), "cli-dock status row should align with the input text instead of the outline edges and drop the Model label");
 	assert(cliDock[3]?.includes("Deepseek V4 Flash \u00b7 high") && cliDock[3]?.includes("Ctx: 12k/48k") && cliDock[3]?.includes("🌿 main") && cliDock[3]?.includes("📁 pi-droid"), "cli-dock status row should show dynamic model with thinking level/context-window/branch/project on the left");
 	assert(cliDock[3]?.includes("MCP ✓") && !cliDock[3]?.includes("⏱") && !cliDock[3]?.includes("? for help"), "cli-dock status row should show footer status on the right without elapsed/help chrome");
-	assert((cliDock[3]?.indexOf("📁 pi-droid-style-smoke") ?? 0) < (cliDock[3]?.indexOf("MCP ✓") ?? 0), "cli-dock status row should split metadata left and MCP status right");
+	assert((cliDock[3]?.indexOf("📁 pi-geek-style-smoke") ?? 0) < (cliDock[3]?.indexOf("MCP ✓") ?? 0), "cli-dock status row should split metadata left and MCP status right");
 	assert(!cliDock.some((line) => line.includes("gpt-test (High)") || line.includes("Tokens:")), "cli-dock should not render legacy header or token label in the prompt dock");
 	assert(cliDockLineOverride[0]?.includes("┌") && cliDockLineOverride[1]?.includes("│") && cliDockLineOverride[2]?.includes("└"), "cli-dock should keep a true outline box even when inputBox.style is line");
 	assert(emptyCliDock[1]?.includes("Type a prompt or / for commands"), "cli-dock empty input should render the placeholder text");
@@ -296,7 +296,7 @@ async function runBoxEditorSmoke() {
 	assert(droidHalfblock[6]?.includes("▀") && droidHalfblock[6]?.replace(/▀/g, "").trim() === "", "explicit droid halfblock input style should render bottom half-line padding");
 	assert(gemini[3]?.includes("❯") && gemini[3]?.includes("hello"), "gemini input row missing droid prompt icon or text");
 	assert(!gemini.some((line) => /workspace|model|status/.test(line)), "gemini footer should not render column labels");
-	assert(gemini[5]?.includes("pi-droid-style-smoke") && gemini[5]?.includes("ready"), "gemini footer values missing workspace/status");
+	assert(gemini[5]?.includes("pi-geek-style-smoke") && gemini[5]?.includes("ready"), "gemini footer values missing workspace/status");
 	assert(gemini[5]?.trimEnd().endsWith("ready"), "gemini footer status value should align right");
 	assert(!gemini[5]?.includes("gpt-test"), "gemini footer should not keep model column after model moves to status row");
 	assert(rawGemini[5]?.includes("\x1b[2m"), "gemini footer values should use dim text");

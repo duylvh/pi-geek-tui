@@ -167,12 +167,12 @@ const { installRenderFrameDebug } = frameDebug;
 const { installTuiPadding } = padding;
 
 // Enable the env-gated installers so all wrappers are exercised.
-process.env.PI_DROID_RENDER_AUTOWRAP_GUARD = "1";
-process.env.PI_DROID_RENDER_DEBUG = "1";
-process.env.PI_DROID_RENDER_FRAME_BG = "1";
-process.env.PI_DROID_RENDER_FULL_REPAINT = "1";
-process.env.PI_DROID_RENDER_SHAPE_REPAINT = "1";
-process.env.PI_DROID_RENDER_DEBUG_DIR = join(buildDir, "debug");
+process.env.PI_GEEK_RENDER_AUTOWRAP_GUARD = "1";
+process.env.PI_GEEK_RENDER_DEBUG = "1";
+process.env.PI_GEEK_RENDER_FRAME_BG = "1";
+process.env.PI_GEEK_RENDER_FULL_REPAINT = "1";
+process.env.PI_GEEK_RENDER_SHAPE_REPAINT = "1";
+process.env.PI_GEEK_RENDER_DEBUG_DIR = join(buildDir, "debug");
 
 function installAllWrappers(tui) {
 	installRenderThrottle(tui, 29);

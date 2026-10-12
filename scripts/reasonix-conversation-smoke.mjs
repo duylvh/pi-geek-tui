@@ -87,7 +87,7 @@ async function importBuilt(relativePath) {
 async function loadConfigCase(name, initialConfig) {
 	const home = join(workDir, name.replaceAll(" ", "-"));
 	const configDir = join(home, ".pi", "agent");
-	const configPath = join(configDir, "pi-droid-styling.json");
+	const configPath = join(configDir, "pi-geek-tui.json");
 	mkdirSync(configDir, { recursive: true });
 	if (initialConfig !== undefined) writeFileSync(configPath, `${JSON.stringify(initialConfig)}\n`, "utf8");
 
@@ -661,7 +661,7 @@ assert(multiImageLines.includes(kittyImageLine) && multiImageLines.includes(iter
 assert(multiImageLines.indexOf(kittyImageLine) < multiImageLines.indexOf(iterm2ImageLine), "multiple image lines should keep their original order");
 // Live-upgrade path: a session that still holds the delegate-aware v10 wrapper
 // must pick up image preservation through the refreshed runtime delegate alone.
-const runtimeStateKey = Symbol.for("pi-droid-styling.compact-tool-spacing.runtime-state");
+const runtimeStateKey = Symbol.for("pi-geek-tui.compact-tool-spacing.runtime-state");
 class FakeUpgradedToolComponent {
 	render() {
 		return [activeTheme.fg("text", "✓ Read photo.png"), `  └─ ${activeTheme.fg("text", "◷")} ${activeTheme.fg("dim", "0.50s")}`, "", kittyImageLine];
@@ -816,7 +816,7 @@ assert(droidToolLines.some((line) => line.includes("┌")), "droid tool presenta
 	setPresentationStyle("droid");
 	installWorkingLoaderAlignment(Loader);
 	installWorkingLoaderAlignment(Loader); // reload path
-	assert(typeof Loader.prototype.render[Symbol.for("pi-droid-styling.loader-align.original-render")][Symbol.for("pi-droid-styling.loader-align.original-render")] === "undefined", "a reload should rewrap the original render, not stack wrappers");
+	assert(typeof Loader.prototype.render[Symbol.for("pi-geek-tui.loader-align.original-render")][Symbol.for("pi-geek-tui.loader-align.original-render")] === "undefined", "a reload should rewrap the original render, not stack wrappers");
 	const status = make(StatusLoader);
 	const dialog = make(Loader);
 	assert(status.render(40)[1]?.startsWith(" ○ Thinking"), "droid layout should keep the loader margin");

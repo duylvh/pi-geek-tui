@@ -43,9 +43,9 @@ type ParsedLine =
 	| TaskRow
 	| { kind: "unknown"; text: string };
 
-const PATCH_STATE = Symbol.for("pi-droid-styling.pi-tasks-widget.state");
-const WRAPPED_FACTORY = Symbol.for("pi-droid-styling.pi-tasks-widget.factory");
-const WRAPPED_COMPONENT = Symbol.for("pi-droid-styling.pi-tasks-widget.component");
+const PATCH_STATE = Symbol.for("pi-geek-tui.pi-tasks-widget.state");
+const WRAPPED_FACTORY = Symbol.for("pi-geek-tui.pi-tasks-widget.factory");
+const WRAPPED_COMPONENT = Symbol.for("pi-geek-tui.pi-tasks-widget.component");
 const SPINNER_PATTERN = /[✳✴✵✶✷✸✹✺✻✼✽]/g;
 const SPINNER_CHARS = "✳✴✵✶✷✸✹✺✻✼✽";
 const TASK_ROW_PATTERN = /^\s*([✳✴✵✶✷✸✹✺✻✼✽✔◼◻])\s+#(\S+)\s+(.+)$/;

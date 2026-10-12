@@ -8,9 +8,9 @@ import { Spacer, Text } from "@earendil-works/pi-tui";
 import { safeTruncateToWidth, safeVisibleWidth } from "./render-budget.js";
 import { fgHex, parseFgAnsiToRgb, rgbToHex } from "./theme/ansi.js";
 
-const PATCHED = Symbol.for("pi-droid-styling.startup-ui.patched");
-const ORIGINAL_SHOW_LOADED_RESOURCES = Symbol.for("pi-droid-styling.startup-ui.original-show-loaded-resources");
-const CONSOLE_LOG_PATCHED = Symbol.for("pi-droid-styling.startup-ui.console-log-patched");
+const PATCHED = Symbol.for("pi-geek-tui.startup-ui.patched");
+const ORIGINAL_SHOW_LOADED_RESOURCES = Symbol.for("pi-geek-tui.startup-ui.original-show-loaded-resources");
+const CONSOLE_LOG_PATCHED = Symbol.for("pi-geek-tui.startup-ui.console-log-patched");
 const SYSTEM_CONTEXT_PANEL_MIN_WIDTH = 64;
 const TOOLS_PANEL_MIN_WIDTH = 64;
 const CORE_TOOL_SOURCE_LABEL = "core";

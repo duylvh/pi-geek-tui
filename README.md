@@ -1,28 +1,28 @@
-# pi-droid-styling
+# pi-geek-tui
 
 Opinionated Pi UI styling extension: compact startup UI, boxed editor, cleaner tool tags, message prefixes, footer stats, and reload-safe render patches.
 
 ## Screenshot
 
-![pi-droid-styling screenshot](./screenshots/image.png)
+![pi-geek-tui screenshot](./screenshots/image.png)
 
 ## Install
 
 ```sh
-pi install npm:@sting8k/pi-droid-styling
+pi install npm:@sting8k/pi-geek-tui
 ```
 
 Or install directly from Git:
 
 ```sh
-pi install git:github.com/sting8k/pi-droid-styling
+pi install git:github.com/sting8k/pi-geek-tui
 ```
 
 ## Themes
 
-This extension uses [`pi-themes`](https://github.com/sting8k/pi-themes) as its color layer. Installing `pi-droid-styling` automatically installs and registers those themes—no second install command is needed.
+This extension uses [`pi-themes`](https://github.com/sting8k/pi-themes) as its color layer. Installing `pi-geek-tui` automatically installs and registers those themes—no second install command is needed.
 
-Already have `pi-themes` installed separately? Keep it. Existing themes take priority, and `pi-droid-styling` adds only the bundled themes that are missing—without duplicate-theme conflicts.
+Already have `pi-themes` installed separately? Keep it. Existing themes take priority, and `pi-geek-tui` adds only the bundled themes that are missing—without duplicate-theme conflicts.
 
 To install only the theme collection without this styling extension:
 
@@ -46,7 +46,7 @@ pi install git:github.com/sting8k/pi-themes
 
 ## Config
 
-Config is stored at `~/.pi/agent/pi-droid-styling.json`:
+Config is stored at `~/.pi/agent/pi-geek-tui.json`:
 
 ```json
 {
@@ -94,14 +94,14 @@ Config is stored at `~/.pi/agent/pi-droid-styling.json`:
 Render profiling is disabled by default. To capture render/update/git metrics plus memory, CPU delta, and event-loop utilization:
 
 ```sh
-PI_DROID_PROFILE=1 PI_DROID_PROFILE_OUT=/tmp/pi-droid-profile.jsonl pi
+PI_GEEK_PROFILE=1 PI_GEEK_PROFILE_OUT=/tmp/pi-geek-profile.jsonl pi
 ```
 
 Useful environment variables:
 
-- `PI_DROID_PROFILE=1` enables profiling.
-- `PI_DROID_PROFILE_OUT=/path/profile.jsonl` writes JSONL output. Use `stderr` or `stdout` for stream output.
-- `PI_DROID_PROFILE_INTERVAL_MS=5000` controls summary cadence.
+- `PI_GEEK_PROFILE=1` enables profiling.
+- `PI_GEEK_PROFILE_OUT=/path/profile.jsonl` writes JSONL output. Use `stderr` or `stdout` for stream output.
+- `PI_GEEK_PROFILE_INTERVAL_MS=5000` controls summary cadence.
 
 Synthetic self-check:
 

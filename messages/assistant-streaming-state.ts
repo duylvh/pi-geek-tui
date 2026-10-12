@@ -23,8 +23,8 @@
  * next message.
  */
 
-const STREAM_TAG = Symbol.for("pi-droid-styling.assistant-stream");
-const NONE = Symbol("pi-droid-styling.assistant-stream.none");
+const STREAM_TAG = Symbol.for("pi-geek-tui.assistant-stream");
+const NONE = Symbol("pi-geek-tui.assistant-stream.none");
 
 let activeToken: object | null = null;
 let activeMessage: unknown = null;

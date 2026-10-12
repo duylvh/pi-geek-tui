@@ -689,9 +689,9 @@ export function renderBoxedToolCall(
 	};
 }
 
-const COMPACT_FOOTER_KEY = "__droidCompactFooter";
-const COMPACT_FOOTER_ERROR_KEY = "__droidCompactFooterError";
-const COMPACT_FOOTER_PARTIAL_KEY = "__droidCompactFooterPartial";
+const COMPACT_FOOTER_KEY = "__geekCompactFooter";
+const COMPACT_FOOTER_ERROR_KEY = "__geekCompactFooterError";
+const COMPACT_FOOTER_PARTIAL_KEY = "__geekCompactFooterPartial";
 
 export function clearCompactBoxedFooter(state: any): void {
 	if (!state || typeof state !== "object") return;

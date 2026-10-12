@@ -15,10 +15,10 @@ import {
 } from "../split-diff.js";
 import { clearCompactBoxedFooter, formatBoxedFooterFromValues, getTextOutput, isExpanded, renderBoxedToolCall, renderBoxedToolResult, resolveRelativePath, setCompactBoxedFooter } from "./common.js";
 
-const RESULT_PATCHED = Symbol.for("pi-droid-styling.quick-edit-renderer.result.patched");
-const CALL_PATCHED = Symbol.for("pi-droid-styling.quick-edit-renderer.call.patched");
-const STARTED_AT_KEY = "__droidStartedAt";
-const ELAPSED_MS_KEY = "__droidElapsedMs";
+const RESULT_PATCHED = Symbol.for("pi-geek-tui.quick-edit-renderer.result.patched");
+const CALL_PATCHED = Symbol.for("pi-geek-tui.quick-edit-renderer.call.patched");
+const STARTED_AT_KEY = "__geekStartedAt";
+const ELAPSED_MS_KEY = "__geekElapsedMs";
 const MAX_HIGHLIGHT_DIFF_CHARS = 12000;
 const MAX_HIGHLIGHT_DIFF_ROWS = 120;
 

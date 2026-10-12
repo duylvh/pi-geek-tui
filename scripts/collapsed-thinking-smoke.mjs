@@ -21,7 +21,7 @@ const buildDir = join(workDir, "build");
 const stubPath = join(workDir, "node-stubs.d.ts");
 const tsc = join(repoRoot, "node_modules", "typescript", "lib", "tsc.js");
 const home = join(workDir, "home");
-const configPath = join(home, ".pi", "agent", "pi-droid-styling.json");
+const configPath = join(home, ".pi", "agent", "pi-geek-tui.json");
 const goldenPath = join(repoRoot, "scripts", "fixtures", "collapsed-thinking-base.json");
 const WRITE_GOLDENS = process.env.WRITE_BASE_GOLDENS === "1";
 const coreVersion = JSON.parse(readFileSync(join(repoRoot, "node_modules", "@earendil-works", "pi-coding-agent", "package.json"), "utf8")).version;
@@ -639,7 +639,7 @@ check("safeTakeTailToWidth unit behaviour", () => {
 // ---------------------------------------------------------------- config scaffold/normalise cases
 async function loadConfigCase(name, initialConfig) {
 	const caseHome = join(workDir, `config-${name}`);
-	const casePath = join(caseHome, ".pi", "agent", "pi-droid-styling.json");
+	const casePath = join(caseHome, ".pi", "agent", "pi-geek-tui.json");
 	mkdirSync(dirname(casePath), { recursive: true });
 	if (initialConfig !== undefined) writeFileSync(casePath, `${JSON.stringify(initialConfig)}\n`, "utf8");
 	process.env.HOME = caseHome;

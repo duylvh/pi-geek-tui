@@ -16,7 +16,7 @@
 
 import { profileCount, profileDuration, profileNow } from "./profiler.js";
 
-const PATCHED = Symbol.for("pi-droid-styling.debounce-tool-updates.patched");
+const PATCHED = Symbol.for("pi-geek-tui.debounce-tool-updates.patched");
 
 /** ~12.5Hz for heavy tool-output rebuilds */
 const TOOL_PARTIAL_FLUSH_MS = 80;

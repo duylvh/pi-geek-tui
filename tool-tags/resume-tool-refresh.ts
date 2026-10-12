@@ -1,7 +1,7 @@
-const PATCHED = Symbol.for("pi-droid-styling.resume-tool-refresh.patched");
-const RUNTIME_STATE = Symbol.for("pi-droid-styling.resume-tool-refresh.runtime-state");
-const PENDING_TIMER = Symbol.for("pi-droid-styling.resume-tool-refresh.pending-timer");
-const VIRTUALIZED_CHAT_STATE = Symbol.for("pi-droid-styling.virtualized-chat.state");
+const PATCHED = Symbol.for("pi-geek-tui.resume-tool-refresh.patched");
+const RUNTIME_STATE = Symbol.for("pi-geek-tui.resume-tool-refresh.runtime-state");
+const PENDING_TIMER = Symbol.for("pi-geek-tui.resume-tool-refresh.pending-timer");
+const VIRTUALIZED_CHAT_STATE = Symbol.for("pi-geek-tui.virtualized-chat.state");
 
 type ToolComponentLike = {
 	toolName?: unknown;

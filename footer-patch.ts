@@ -1,8 +1,8 @@
 import { FooterComponent } from "@earendil-works/pi-coding-agent";
 
-const PATCHED = Symbol.for("pi-droid-styling.footer-stats.patched");
-const ORIGINAL_RENDER = Symbol.for("pi-droid-styling.footer-stats.original-render");
-const FOOTER_STATE = Symbol.for("pi-droid-styling.footer-stats.state");
+const PATCHED = Symbol.for("pi-geek-tui.footer-stats.patched");
+const ORIGINAL_RENDER = Symbol.for("pi-geek-tui.footer-stats.original-render");
+const FOOTER_STATE = Symbol.for("pi-geek-tui.footer-stats.state");
 const PATCH_VERSION = 6;
 
 const ANSI_PATTERN = /\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b\[[0-9;?]*[ -/]*[@-~]/g;

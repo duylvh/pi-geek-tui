@@ -2,8 +2,8 @@ import { paintFrameBackgroundClears, paintFrameBackgroundLines, padFrameRows, re
 import { getOriginalTuiMethod, rememberTuiMethodWrapper } from "./tui-proxy-original.js";
 import { profileCount } from "./profiler.js";
 
-const PATCHED = Symbol.for("pi-droid-styling.render-frame-background.patched");
-const WRITE_PATCHED = Symbol.for("pi-droid-styling.render-frame-background.write-patched");
+const PATCHED = Symbol.for("pi-geek-tui.render-frame-background.patched");
+const WRITE_PATCHED = Symbol.for("pi-geek-tui.render-frame-background.write-patched");
 
 type ApplyLineResetsFunction = (lines: string[]) => string[];
 
@@ -65,7 +65,7 @@ function installFrameBackgroundClearWriter(tui: TuiLike, theme: any): void {
 }
 
 export function installRenderFrameBackground(tui: TuiLike, theme: any): void {
-	if (process.env.PI_DROID_RENDER_FRAME_BG === "0") return;
+	if (process.env.PI_GEEK_RENDER_FRAME_BG === "0") return;
 	if (!tui || typeof tui.applyLineResets !== "function") return;
 	installFrameBackgroundClearWriter(tui, theme);
 	const existingPatch = tui[PATCHED];

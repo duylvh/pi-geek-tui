@@ -17,9 +17,9 @@ const PADDING_PREFIX = " ".repeat(PAD_LEFT);
 const KITTY_IMAGE_PREFIX = "\x1b_G";
 const ITERM_IMAGE_PREFIX = "\x1b]1337;File=";
 
-const PATCHED = Symbol.for("pi-droid-styling.tui-padding.patched");
-const ORIGINAL_RENDER = Symbol.for("pi-droid-styling.tui-padding.original-render");
-const FULLSCREEN_LAYOUT_PATCHED = Symbol.for("pi-droid-styling.tui-padding.fullscreen-layout-patched");
+const PATCHED = Symbol.for("pi-geek-tui.tui-padding.patched");
+const ORIGINAL_RENDER = Symbol.for("pi-geek-tui.tui-padding.original-render");
+const FULLSCREEN_LAYOUT_PATCHED = Symbol.for("pi-geek-tui.tui-padding.fullscreen-layout-patched");
 const LAYOUT_NODE = Symbol.for("@earendil-works/pi-tui/layout-node");
 
 function isTerminalImageLine(line: string): boolean {

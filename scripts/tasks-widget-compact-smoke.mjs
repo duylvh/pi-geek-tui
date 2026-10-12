@@ -536,25 +536,25 @@ async function runConfigSmoke() {
 	assert(config.visibleChatTail === 30, `default visibleChatTail should be 30, got ${config.visibleChatTail}`);
 
 	// invalid value normalizes to compact
-	writeFileSync(join(homeDir, ".pi", "agent", "pi-droid-styling.json"), JSON.stringify({ tasksWidgetStyle: "bogus" }) + "\n", "utf8");
+	writeFileSync(join(homeDir, ".pi", "agent", "pi-geek-tui.json"), JSON.stringify({ tasksWidgetStyle: "bogus" }) + "\n", "utf8");
 	loadConfig = await loadFresh(homeDir);
 	config = loadConfig();
 	assert(config.tasksWidgetStyle === "compact", `invalid should normalize to compact, got ${config.tasksWidgetStyle}`);
 
 	// explicit default is preserved
-	writeFileSync(join(homeDir, ".pi", "agent", "pi-droid-styling.json"), JSON.stringify({ tasksWidgetStyle: "default" }) + "\n", "utf8");
+	writeFileSync(join(homeDir, ".pi", "agent", "pi-geek-tui.json"), JSON.stringify({ tasksWidgetStyle: "default" }) + "\n", "utf8");
 	loadConfig = await loadFresh(homeDir);
 	config = loadConfig();
 	assert(config.tasksWidgetStyle === "default", `explicit default should persist, got ${config.tasksWidgetStyle}`);
 
 	// visibleChatTail accepts 0 as render-all
-	writeFileSync(join(homeDir, ".pi", "agent", "pi-droid-styling.json"), JSON.stringify({ visibleChatTail: 0 }) + "\n", "utf8");
+	writeFileSync(join(homeDir, ".pi", "agent", "pi-geek-tui.json"), JSON.stringify({ visibleChatTail: 0 }) + "\n", "utf8");
 	loadConfig = await loadFresh(homeDir);
 	config = loadConfig();
 	assert(config.visibleChatTail === 0, `visibleChatTail=0 should be preserved, got ${config.visibleChatTail}`);
 
 	// invalid visibleChatTail falls back to default
-	writeFileSync(join(homeDir, ".pi", "agent", "pi-droid-styling.json"), JSON.stringify({ visibleChatTail: -1 }) + "\n", "utf8");
+	writeFileSync(join(homeDir, ".pi", "agent", "pi-geek-tui.json"), JSON.stringify({ visibleChatTail: -1 }) + "\n", "utf8");
 	loadConfig = await loadFresh(homeDir);
 	config = loadConfig();
 	assert(config.visibleChatTail === 30, `invalid visibleChatTail should default to 30, got ${config.visibleChatTail}`);
@@ -564,13 +564,13 @@ async function runConfigSmoke() {
 	mkdirSync(freshHome, { recursive: true });
 	loadConfig = await loadFresh(freshHome);
 	loadConfig();
-	const scaffolded = JSON.parse(readFileSync(join(freshHome, ".pi", "agent", "pi-droid-styling.json"), "utf8"));
+	const scaffolded = JSON.parse(readFileSync(join(freshHome, ".pi", "agent", "pi-geek-tui.json"), "utf8"));
 	assert(scaffolded.tasksWidgetStyle === "compact", `scaffold should include tasksWidgetStyle=compact, got ${scaffolded.tasksWidgetStyle}`);
 	assert(scaffolded.visibleChatTail === 30, `scaffold should include visibleChatTail=30, got ${scaffolded.visibleChatTail}`);
 
 	// backfill adds missing keys to an existing config
 	const backfillHome = join(workDir, "home-backfill");
-	const backfillPath = join(backfillHome, ".pi", "agent", "pi-droid-styling.json");
+	const backfillPath = join(backfillHome, ".pi", "agent", "pi-geek-tui.json");
 	mkdirSync(join(backfillHome, ".pi", "agent"), { recursive: true });
 	writeFileSync(backfillPath, JSON.stringify({ alwaysExpanded: true }) + "\n", "utf8");
 	loadConfig = await loadFresh(backfillHome);

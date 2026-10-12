@@ -7,7 +7,7 @@ import { join, resolve } from "node:path";
 const BEGIN_SYNC = "\x1b[?2026h";
 const DISABLE_AUTOWRAP = "\x1b[?7l";
 const SAVE_CURSOR = "\x1b[s";
-const DEFAULT_DIR = join(tmpdir(), "pi-droid-render-debug");
+const DEFAULT_DIR = join(tmpdir(), "pi-geek-render-debug");
 
 const args = parseArgs(process.argv.slice(2));
 if (args.help || args.h) {
@@ -27,7 +27,7 @@ printSuspiciousFrames(summary.suspiciousFrames.slice(-top));
 
 function resolveLogFile(options) {
 	if (options.file) return resolve(String(options.file));
-	const dir = resolve(String(options.dir || process.env.PI_DROID_RENDER_DEBUG_DIR || DEFAULT_DIR));
+	const dir = resolve(String(options.dir || process.env.PI_GEEK_RENDER_DEBUG_DIR || DEFAULT_DIR));
 	if (!existsSync(dir)) throw new Error(`render debug dir not found: ${dir}`);
 	const files = readdirSync(dir)
 		.filter((name) => /^(render-frame|do-render)-\d+\.jsonl$/.test(name))
@@ -287,9 +287,9 @@ function usage() {
   npm run debug:render-log -- [--dir <dir> | --file <jsonl>] [--top <n>]
 
 Examples:
-  rm -rf /tmp/pi-droid-render-debug
-  PI_DROID_RENDER_DEBUG=1 PI_DROID_RENDER_DEBUG_DIR=/tmp/pi-droid-render-debug pi
-  npm run debug:render-log -- --dir /tmp/pi-droid-render-debug
+  rm -rf /tmp/pi-geek-render-debug
+  PI_GEEK_RENDER_DEBUG=1 PI_GEEK_RENDER_DEBUG_DIR=/tmp/pi-geek-render-debug pi
+  npm run debug:render-log -- --dir /tmp/pi-geek-render-debug
 
-The summary expects frame logs from PI_DROID_RENDER_DEBUG=1 and highlights logical duplicates, render duplicates, raw/final cursor anchoring, physical self-heal reasons/ranges, changed-row write coverage misses, debug markers, and ANSI screen simulation mismatches.`);
+The summary expects frame logs from PI_GEEK_RENDER_DEBUG=1 and highlights logical duplicates, render duplicates, raw/final cursor anchoring, physical self-heal reasons/ranges, changed-row write coverage misses, debug markers, and ANSI screen simulation mismatches.`);
 }

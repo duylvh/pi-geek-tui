@@ -58,7 +58,7 @@ function main() {
 function usage() {
 	console.log(`Usage:
   npm run trace:pi -- --pid <pid>
-  npm run trace:pi -- --cwd pi-droid-styling
+  npm run trace:pi -- --cwd pi-geek-tui
   node scripts/pi-trace.mjs --top 15
 
 Options:

@@ -10,7 +10,7 @@ normal
 
 ## Product Contract
 
-`pi-droid-styling` offers a `tasksWidgetStyle` config (`"default" | "compact"`, default `"compact"`) that selects whether the extension patches the `tasks` widget. In `compact` mode the whole widget collapses to a single summary line `● Tasks › [N] <current task> · <time> (x/y done · n running)` with `idle`/`done`/blocked variants; counts are preserved under width truncation while the current-task text is cut first. `default` mode does not patch `pi-tasks`; it leaves the upstream widget untouched. The key auto-scaffolds into the config file on first load and backfills into existing configs missing it.
+`pi-geek-tui` offers a `tasksWidgetStyle` config (`"default" | "compact"`, default `"compact"`) that selects whether the extension patches the `tasks` widget. In `compact` mode the whole widget collapses to a single summary line `● Tasks › [N] <current task> · <time> (x/y done · n running)` with `idle`/`done`/blocked variants; counts are preserved under width truncation while the current-task text is cut first. `default` mode does not patch `pi-tasks`; it leaves the upstream widget untouched. The key auto-scaffolds into the config file on first load and backfills into existing configs missing it.
 
 ## Relevant Product Docs
 

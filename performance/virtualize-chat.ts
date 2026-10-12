@@ -45,10 +45,10 @@ function normalizeVisibleTail(value: number): number {
 	return Math.max(0, Math.floor(value));
 }
 
-export const VIRTUALIZED_CHAT_PATCHED = Symbol.for("pi-droid-styling.virtualized-chat.patched");
-export const VIRTUALIZED_CHAT_STATE = Symbol.for("pi-droid-styling.virtualized-chat.state");
+export const VIRTUALIZED_CHAT_PATCHED = Symbol.for("pi-geek-tui.virtualized-chat.patched");
+export const VIRTUALIZED_CHAT_STATE = Symbol.for("pi-geek-tui.virtualized-chat.state");
 /** Marks the TUI root → chat container relationship so findChatContainer resolves the same container after layout shifts. */
-export const VIRTUALIZED_CHAT_HOST = Symbol.for("pi-droid-styling.virtualized-chat.host-chat");
+export const VIRTUALIZED_CHAT_HOST = Symbol.for("pi-geek-tui.virtualized-chat.host-chat");
 
 function isContainerLike(value: unknown): value is AnyContainer {
 	if (typeof value !== "object" || value === null) return false;
@@ -253,9 +253,9 @@ export function isVirtualizedChatContainer(value: unknown): boolean {
 	return typeof tail === "number" && tail > 0;
 }
 
-const INTERACTIVE_CHAT_VIRTUALIZE_PATCHED = Symbol.for("pi-droid-styling.virtualized-chat.interactive-hooks");
+const INTERACTIVE_CHAT_VIRTUALIZE_PATCHED = Symbol.for("pi-geek-tui.virtualized-chat.interactive-hooks");
 /** Live getter refreshed on every install so extension reloads do not freeze the first closure. */
-const INTERACTIVE_CHAT_VIRTUALIZE_GET_TAIL = Symbol.for("pi-droid-styling.virtualized-chat.interactive-get-tail");
+const INTERACTIVE_CHAT_VIRTUALIZE_GET_TAIL = Symbol.for("pi-geek-tui.virtualized-chat.interactive-get-tail");
 
 type InteractiveModeLike = {
 	chatContainer?: AnyContainer;

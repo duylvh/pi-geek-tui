@@ -6,9 +6,9 @@ import { renderLsCall, renderLsResult } from "./ls.js";
 import { renderReadCall, renderReadResult } from "./read.js";
 import { renderWriteCall, renderWriteResult } from "./write.js";
 
-const CALL_PATCHED = Symbol.for("pi-droid-styling.builtin-tool-renderers.call.patched");
-const RESULT_PATCHED = Symbol.for("pi-droid-styling.builtin-tool-renderers.result.patched");
-const SHELL_PATCHED = Symbol.for("pi-droid-styling.builtin-tool-renderers.shell.patched");
+const CALL_PATCHED = Symbol.for("pi-geek-tui.builtin-tool-renderers.call.patched");
+const RESULT_PATCHED = Symbol.for("pi-geek-tui.builtin-tool-renderers.result.patched");
+const SHELL_PATCHED = Symbol.for("pi-geek-tui.builtin-tool-renderers.shell.patched");
 
 // Applied name-first: for these builtin tool names the droid renderer wins
 // regardless of which definition survived registry dedup (issue #24).

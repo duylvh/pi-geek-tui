@@ -1,6 +1,6 @@
 # Architecture
 
-`pi-droid-styling` is a TypeScript ESM extension for Pi. It customizes the Pi terminal UI by installing reload-safe patches, custom renderers, message prefixes, a boxed editor, theme helpers, and lightweight runtime status providers.
+`pi-geek-tui` is a TypeScript ESM extension for Pi. It customizes the Pi terminal UI by installing reload-safe patches, custom renderers, message prefixes, a boxed editor, theme helpers, and lightweight runtime status providers.
 
 ## Runtime Surface
 
@@ -111,19 +111,19 @@ Debug-only row coverage compares logical rows changed in `previousLines` with ph
 
 Useful debug/env flags:
 
-- `PI_DROID_RENDER_DEBUG=1` writes JSONL frame logs to `/tmp/pi-droid-render-debug` by default.
+- `PI_GEEK_RENDER_DEBUG=1` writes JSONL frame logs to `/tmp/pi-geek-render-debug` by default.
 - `kill -USR2 <pi-pid>` writes a debug marker record near the current frame so visual stale observations can be correlated with logs.
-- `PI_DROID_RENDER_PHYSICAL_SYNC=0` disables the whole physical-sync wrapper for A/B testing.
-- `PI_DROID_RENDER_ABSOLUTE_ANCHOR=0` disables only the absolute-anchor rewrite for A/B testing.
-- `PI_DROID_RENDER_AUTOWRAP_GUARD=1` enables the render-wide autowrap guard for right-edge/pending-wrap A/B testing, especially long tool-output rows; default remains off because physical-sync repaint already wraps its own writes locally.
-- `PI_DROID_RENDER_SHAPE_REPAINT=0` disables the default visual line-change/cursor-band and viewport-remap repaint for A/B testing.
-- `PI_DROID_RENDER_FULL_REPAINT=1` enables extra same-shape interval repaint and periodic full sweep; default is off.
-- `PI_DROID_RENDER_SELF_HEAL_MODE=band` uses targeted risk-band repaint; `viewport` restores full-viewport self-heal.
-- `PI_DROID_RENDER_FULL_REPAINT_INTERVAL_MS=200` controls same-shape streaming band fallback cadence; `0` restores every-frame self-heal for A/B testing.
-- `PI_DROID_RENDER_FULL_SWEEP_INTERVAL_MS=1000` controls periodic full-viewport sweep cadence in band mode; `0` disables periodic sweeps.
-- `npm run debug:render-log -- --dir /tmp/pi-droid-render-debug` summarizes frame logs, including markers, raw/final cursor anchoring, self-heal reasons/ranges, changed-row write coverage misses, and ANSI screen simulation mismatches.
+- `PI_GEEK_RENDER_PHYSICAL_SYNC=0` disables the whole physical-sync wrapper for A/B testing.
+- `PI_GEEK_RENDER_ABSOLUTE_ANCHOR=0` disables only the absolute-anchor rewrite for A/B testing.
+- `PI_GEEK_RENDER_AUTOWRAP_GUARD=1` enables the render-wide autowrap guard for right-edge/pending-wrap A/B testing, especially long tool-output rows; default remains off because physical-sync repaint already wraps its own writes locally.
+- `PI_GEEK_RENDER_SHAPE_REPAINT=0` disables the default visual line-change/cursor-band and viewport-remap repaint for A/B testing.
+- `PI_GEEK_RENDER_FULL_REPAINT=1` enables extra same-shape interval repaint and periodic full sweep; default is off.
+- `PI_GEEK_RENDER_SELF_HEAL_MODE=band` uses targeted risk-band repaint; `viewport` restores full-viewport self-heal.
+- `PI_GEEK_RENDER_FULL_REPAINT_INTERVAL_MS=200` controls same-shape streaming band fallback cadence; `0` restores every-frame self-heal for A/B testing.
+- `PI_GEEK_RENDER_FULL_SWEEP_INTERVAL_MS=1000` controls periodic full-viewport sweep cadence in band mode; `0` disables periodic sweeps.
+- `npm run debug:render-log -- --dir /tmp/pi-geek-render-debug` summarizes frame logs, including markers, raw/final cursor anchoring, self-heal reasons/ranges, changed-row write coverage misses, and ANSI screen simulation mismatches.
 
-Tradeoff: the default shape repaint adds bounded output when visible line content changes, including same-line assistant streaming ticks. The cursor-band repaint fixes active-row stale leaks without enabling periodic full sweeps. The opt-in interval/sweep mitigation increases terminal output on self-heal frames; targeted band reduces bytes versus full viewport repaint, but it is heuristic and can miss stale rows outside the risk band. `PI_DROID_RENDER_SELF_HEAL_MODE=viewport` is the safer fallback if visual leaks return.
+Tradeoff: the default shape repaint adds bounded output when visible line content changes, including same-line assistant streaming ticks. The cursor-band repaint fixes active-row stale leaks without enabling periodic full sweeps. The opt-in interval/sweep mitigation increases terminal output on self-heal frames; targeted band reduces bytes versus full viewport repaint, but it is heuristic and can miss stale rows outside the risk band. `PI_GEEK_RENDER_SELF_HEAL_MODE=viewport` is the safer fallback if visual leaks return.
 
 ## Validation Ladder
 

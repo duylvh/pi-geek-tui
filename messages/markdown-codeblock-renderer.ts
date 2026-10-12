@@ -1,6 +1,6 @@
 import { Markdown, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
-const PATCHED = Symbol.for("pi-droid-styling.markdown-codeblock-renderer.patched");
+const PATCHED = Symbol.for("pi-geek-tui.markdown-codeblock-renderer.patched");
 const DEFAULT_CODE_BLOCK_RAIL = "┃ ";
 
 interface MarkdownLike {

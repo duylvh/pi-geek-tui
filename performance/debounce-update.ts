@@ -28,7 +28,7 @@
 import { attachComponentToStream } from "../messages/assistant-streaming-state.js";
 import { profileCount, profileDuration, profileNow, profileSample } from "./profiler.js";
 
-const PATCHED = Symbol.for("pi-droid-styling.debounce-update-content.patched");
+const PATCHED = Symbol.for("pi-geek-tui.debounce-update-content.patched");
 
 /** Presentation tick, matching the Crush-style 33ms cadence. */
 const STREAM_FLUSH_MS = 33;

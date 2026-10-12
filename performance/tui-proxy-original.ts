@@ -26,7 +26,7 @@
 
 export type OriginalTuiMethod = (...args: unknown[]) => unknown;
 
-const METHOD_CHAIN = Symbol.for("pi-droid-styling.tui-proxy-original.method-chain");
+const METHOD_CHAIN = Symbol.for("pi-geek-tui.tui-proxy-original.method-chain");
 
 type MethodChain = Record<string, unknown>;
 

@@ -29,7 +29,7 @@ The supported preset set is intentionally small:
 
 ## Acceptance Criteria
 
-- `userZoneStyle` defaults to `"gemini"` when missing and is scaffolded in `~/.pi/agent/pi-droid-styling.json`; invalid/non-string values fall back to `"droid"` as the safe legacy layout.
+- `userZoneStyle` defaults to `"gemini"` when missing and is scaffolded in `~/.pi/agent/pi-geek-tui.json`; invalid/non-string values fall back to `"droid"` as the safe legacy layout.
 - Supported styles are the code-defined preset set `droid`, `gemini`, and `cli-dock`; invalid or non-string values normalize to `droid`.
 - The `droid` style preserves the existing BoxEditor/user zone layout when selected explicitly or used as the invalid-value fallback.
 - The `cli-dock` style renders a Droid CLI-like normal-mode prompt dock with a true outlined prompt box, `›` prompt glyph, placeholder text for empty input, and a split status row, inset to the input-text column, with dynamic model/context/branch/project metadata on the left and MCP/footer status on the right while leaving the default `gemini` and legacy `droid` layouts untouched.
