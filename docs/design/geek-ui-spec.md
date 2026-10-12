@@ -35,11 +35,13 @@ del marker (`#dd5670`) if any call failed. ` ` (blank) on the input row.
 Blank separator rows — including the one closing a tool block — keep the rail `│` so the rail is continuous through a turn.
 
 ### 1. Startup header (replaces pixel logo)
+One title-bar line on the rule (rail color `─`), text segments with one space each side, 2 rule cells before the first and after the last:
 ```
-π pi                                                   session refresh-ttl
-        pi — ~/code/kpi-api · refresh-ttl                      turn 2 · last
+── π pi ─────────────────── ~/code/kpi-api ─── refresh-ttl · turn 2 ──
 ```
-`π` accent, `pi` ink; right: `session` dim + name ink. Line 2 indented 8ch, dim; right faint.
+Left `π` accent + ` pi` ink; middle cwd (home → `~`) dim, kept next to the right segment (3 rule cells between);
+right session name ink + dim ` · ` + dim `turn N`. No session name: just `turn N`; no turns yet: just the name.
+Narrow widths drop, in order: cwd (left-truncated with `…` first), `turn N`, session name; `π pi` always stays. Never wraps.
 
 ### 2. Message head row
 `14:52 • bean@kpi-api ~/code/kpi-api (fix/refresh-ttl)` — name ink, `@host` dim, path punct, branch kw.

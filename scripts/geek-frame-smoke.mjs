@@ -58,6 +58,22 @@ const editor = new GeekEditor(tui, editorTheme, keybindings, providers);
 editor.setText("run tests again then commit");
 const info = { cwd: providers.cwd, getSessionName: () => "refresh-ttl", getTurnCount: () => 2 };
 
+// Startup header (spec §1): one title-bar line, exact width, segments in order, narrow widths drop in order.
+{
+	const plain = (i, width) => { const rows = renderStartupHeader(i, width); return { rows, text: strip(rows[0]) }; };
+	const full = plain(info, 120);
+	expect("header is a single line", full.rows.length === 1);
+	expect("header segments in order: π pi, cwd, session · turn", /^── π pi ─+ ~\/code\/kpi-api ─── refresh-ttl · turn 2 ──$/.test(full.text));
+	for (const w of [120, 92, 60, 40, 30, 24, 16, 12]) expect(`header exactly ${w} cells`, visibleWidth(plain(info, w).rows[0]) === w && plain(info, w).rows.length === 1);
+	const has = (w, part) => plain(info, w).text.includes(part);
+	const needed = "── π pi ─ ~/code/kpi-api ─── refresh-ttl · turn 2 ──".length;
+	expect("cwd is left-truncated with … before anything else drops", has(needed - 3, "…") && has(needed - 3, "refresh-ttl · turn 2"));
+	expect("narrow: cwd gone, then turn, then session", !has(36, "kpi") && has(36, "turn 2") && !has(30, "turn") && has(30, "refresh-ttl") && !has(20, "refresh") && has(20, "π pi"));
+	const unnamed = plain({ ...info, getSessionName: () => undefined }, 120).text;
+	expect("no session name: right segment is just `turn N`", /─── turn 2 ──$/.test(unnamed) && !unnamed.includes("·"));
+	expect("no turns yet: right segment is just the session", /─── refresh-ttl ──$/.test(plain({ ...info, getTurnCount: () => 0 }, 120).text));
+}
+
 for (const width of [60, 92, 120]) {
 	setLiveState(undefined);
 	for (const row of [...renderStartupHeader(info, width), ...editor.render(width)]) {
@@ -93,7 +109,7 @@ console.log("--- highlighted code row ---");
 console.log(code);
 setLiveState("thinking");
 console.log("--- live ---");
-console.log(editor.render(width)[1]);
+console.log(editor.render(width)[0]);
 setLiveState(undefined);
 
 rmSync(workDir, { recursive: true, force: true });

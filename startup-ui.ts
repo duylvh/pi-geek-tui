@@ -3,7 +3,7 @@ import { homedir } from "os";
 import { join } from "path";
 
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
-import { GEEK_PREFIX_WIDTH, geekSplitRow } from "./presentation/geek-rows.js";
+import { safeTruncateToWidth, safeVisibleWidth } from "./render-budget.js";
 import { geekFg } from "./theme/geek-palette.js";
 
 const PATCHED = Symbol.for("pi-geek-tui.startup-ui.patched");
@@ -39,23 +39,67 @@ function displayCwd(cwd: string): string {
 	return normalized === home || normalized.startsWith(`${home}/`) ? `~${normalized.slice(home.length)}` : normalized;
 }
 
-/** Spec §1: two rows, `π pi … session <name>` and an indented dim line with `turn N` (no "last": the header cannot tell where the viewport is). */
+const RULE = "─";
+const MIN_CWD_WIDTH = 6;
+
+function rule(count: number): string {
+	return geekFg("rail", RULE.repeat(Math.max(0, count)));
+}
+
+/** Keeps the tail of the path: `…ode/kpi-api`. */
+function truncateCwdLeft(cwd: string, max: number): string {
+	const chars = [...cwd];
+	return chars.length <= max ? cwd : `…${chars.slice(chars.length - (max - 1)).join("")}`;
+}
+
+/**
+ * Spec §1: one title-bar line on the rule: `── π pi ───── ~/code/kpi-api ─── refresh-ttl · turn 2 ──`.
+ * Narrow widths drop, in order: cwd (left-truncated first), `turn N`, session name. `π pi` always stays.
+ */
 export function renderStartupHeader(info: StartupHeaderInfo, width: number): string[] {
 	const name = info.getSessionName();
 	const turns = info.getTurnCount();
-	const indent = " ".repeat(GEEK_PREFIX_WIDTH);
-	const bodyWidth = Math.max(1, width - GEEK_PREFIX_WIDTH);
+	const total = Math.max(1, Math.floor(width));
+	const cwd = displayCwd(info.cwd);
 
 	const title = `${geekFg("accent", "π")} ${geekFg("ink", "pi")}`;
-	const session = name ? `${geekFg("dim", "session ")}${geekFg("ink", name)}` : "";
-	const where = geekFg("dim", `pi — ${displayCwd(info.cwd)}${name ? ` · ${name}` : ""}`);
-	const turn = turns > 0 ? geekFg("faint", `turn ${turns}`) : "";
+	const titleWidth = 4;
+	const right = (withName: boolean, withTurn: boolean): { text: string; width: number } => {
+		const parts: string[] = [];
+		const plain: string[] = [];
+		if (withName && name) {
+			parts.push(geekFg("ink", name));
+			plain.push(name);
+		}
+		if (withTurn && turns > 0) {
+			const turn = `turn ${turns}`;
+			parts.push(geekFg("dim", turn));
+			plain.push(turn);
+		}
+		return { text: parts.join(geekFg("dim", " · ")), width: safeVisibleWidth(plain.join(" · ")) };
+	};
 
-	return [
-		geekSplitRow(title, session, Math.max(1, width)),
-		indent + geekSplitRow(where, turn, bodyWidth),
-		"",
+	// Richest layout first; the first one that leaves at least one flexible rule cell wins.
+	const attempts: Array<{ cwdMax: number; withName: boolean; withTurn: boolean }> = [
+		{ cwdMax: Number.POSITIVE_INFINITY, withName: true, withTurn: true },
+		...Array.from({ length: Math.max(0, [...cwd].length - MIN_CWD_WIDTH) }, (_, k) => ({ cwdMax: [...cwd].length - 1 - k, withName: true, withTurn: true })),
+		{ cwdMax: 0, withName: true, withTurn: true },
+		{ cwdMax: 0, withName: true, withTurn: false },
+		{ cwdMax: 0, withName: false, withTurn: false },
 	];
+	for (const attempt of attempts) {
+		const tail = right(attempt.withName, attempt.withTurn);
+		const place = attempt.cwdMax > 0 ? truncateCwdLeft(cwd, attempt.cwdMax) : "";
+		// 2 rule + sp + title + sp | flex>=1 | [sp + cwd + sp + 3 rule] + [sp + tail + sp] + 2 rule
+		const fixed = 2 + 1 + titleWidth + 1 + (place ? 1 + safeVisibleWidth(place) + 1 + 3 : 0) + (tail.width ? 1 + tail.width + 1 : 0) + 2;
+		const flex = total - fixed;
+		if (flex < 1 && attempt.withName) continue;
+		if (flex < 0) break;
+		const middle = place ? ` ${geekFg("dim", place)} ${rule(3)}` : "";
+		const end = tail.width ? ` ${tail.text} ` : "";
+		return [`${rule(2)} ${title} ${rule(flex)}${middle}${end}${rule(2)}`];
+	}
+	return [safeTruncateToWidth(`${rule(2)} ${title} ${rule(total)}`, total, "")];
 }
 
 export function setStartupHeader(ui: ExtensionUIContext, info: StartupHeaderInfo): void {
