@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const STUBS = `${["fs", "path", "os", "url", "buffer", "perf_hooks"]
+const STUBS = `${["fs", "path", "os", "url", "buffer", "perf_hooks", "child_process"]
 	.flatMap((name) => [name, `node:${name}`])
 	.map((name) => `declare module "${name}";`)
 	.join("\n")}

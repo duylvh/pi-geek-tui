@@ -88,6 +88,9 @@ The word is "light" text (no spark glyphs): every char `dim`; a ~3-char band of 
 (cosine falloff, RGB blend dim↔ink, 1.2s sweep + 0.4s pause, repaint tick 70ms, only while live).
 When the word changes it decodes in ~300ms: unsettled chars show random glyphs (`▚▞░▒#%/\`) in dim and
 settle left→right; the shimmer resumes after. Width of the word never changes between frames.
+After `(branch)` the head row shows the working-tree diff: `+12` mono, `-3` del marker, `~4` dim (files incl.
+untracked); zero parts are omitted, clean tree / not a repo → nothing. Width priority: live state (right) and
+diff stat stay whole, the cwd path gives way first (keeps its tail, `…` prefix; dropped below 6 cells).
 Input row: blank rail, `› ` then editor text; cursor = ink block.
 
 ### 9. Footer (2 rows, under a rule)

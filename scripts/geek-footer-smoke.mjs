@@ -15,13 +15,13 @@ const failures = [];
 const expect = (name, condition, detail = "") => { if (!condition) failures.push(`${name}${detail ? `: ${detail}` : ""}`); };
 
 const editorTheme = { borderColor: (s) => s, selectList: { selectedPrefix: (s) => s, selectedText: (s) => s, description: (s) => s, scrollInfo: (s) => s, noMatch: (s) => s } };
-const editorFor = (status) => new GeekEditor({ requestRender() {}, terminal: { rows: 40, columns: 120 } }, editorTheme, { matches: () => false, getKeys: () => [] }, {
+const editorFor = (status, usage = true) => new GeekEditor({ requestRender() {}, terminal: { rows: 40, columns: 120 } }, editorTheme, { matches: () => false, getKeys: () => [] }, {
 	cwd: join(built.workDir, "proj"),
 	getContextUsage: () => ({ tokens: 62800, percent: 31.4, contextWindow: 200000 }),
 	getModelInfo: () => ({ provider: "anthropic", id: "claude-opus-5-5", reasoning: true, thinkingLevel: "high" }),
 	getBranch: () => null,
 	getFooterStatus: () => status,
-	getTokenUsage: () => ({ input: 41000, output: 6900, cacheRead: 212000, cacheWrite: 18000, cacheHitPercent: 82.4, cost: 0.412 }),
+	getTokenUsage: () => !usage ? null : ({ input: 41000, output: 6900, cacheRead: 212000, cacheWrite: 18000, cacheHitPercent: 82.4, cost: 0.412 }),
 });
 const STATUS = "🐴 ponytail: ⚡ FULL · quotas 5h 62% 7d 31%";
 const footerOf = (editor, width) => {
@@ -47,6 +47,10 @@ for (const width of [120, 80, 50]) {
 
 const none = footerOf(editorFor(null), 120);
 expect("no statuses: 2 rows, tok row has no right side", none.footer.length === 2 && none.footer[1].trimEnd().endsWith("CH 82.4%") && !none.footer.some((row) => row.includes("$")), JSON.stringify(none.footer));
+
+const fresh = footerOf(editorFor(STATUS, false), 120);
+expect("no usage yet: `tok —` plus statuses, still 2 rows", fresh.footer.length === 2 && /^\s+tok\s+—\s+🐴/.test(fresh.footer[1]), JSON.stringify(fresh.footer));
+expect("no usage, no statuses: `tok —`", /^\s+tok\s+—\s*$/.test(footerOf(editorFor(null, false), 120).footer[1]));
 
 console.log(footerOf(editorFor(STATUS), 120).footer.join("\n"));
 console.log(footerOf(editorFor(STATUS), 80).footer.join("\n"));

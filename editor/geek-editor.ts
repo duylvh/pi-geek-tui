@@ -5,8 +5,9 @@ import { basename } from "node:path";
 
 import { loadConfig } from "../config.js";
 import type { FooterTokenUsage } from "../footer-patch.js";
-import { GEEK_GUTTER_WIDTH, GEEK_PREFIX_WIDTH, geekHeadBody, geekRow, geekSplitRow } from "../presentation/geek-rows.js";
-import { safeTruncateToWidth, safeVisibleWidth, safeWrapTextWithAnsi } from "../render-budget.js";
+import { GEEK_GUTTER_WIDTH, GEEK_PREFIX_WIDTH, geekRow, geekSplitRow } from "../presentation/geek-rows.js";
+import { safeTakeTailToWidth, safeTruncateToWidth, safeVisibleWidth, safeWrapTextWithAnsi } from "../render-budget.js";
+import { getGitDiffStat } from "../presentation/git-diff-stat.js";
 import { stripAnsi } from "../theme/ansi.js";
 import { geekBg, geekFg } from "../theme/geek-palette.js";
 import { getLiveState } from "./live-state.js";
@@ -29,6 +30,7 @@ type SlashItem = { value?: string; label?: string; description?: string };
 const BAR_CELLS = 16;
 const TICK_MS = 70; // smooth shimmer sweep; the ticker only runs while the agent is live
 const PROMPT = "› ";
+const MIN_CWD_CELLS = 6;
 const STATUS_GAP = 2;
 const MIN_STATUS_CELLS = 8; // below this only an ellipsis fits meaningfully
 
@@ -129,11 +131,37 @@ export class GeekEditor extends CustomEditor {
 		return `${shimmerWord(word, now, this.wordChangedAt)}${geekFg("dim", " · ")}${geekFg("num", secs)}${geekFg("dim", "s")}`;
 	}
 
+	/** `+12 -3 ~4` (added mono, removed del, files dim; zero parts omitted), same colors as tool edit rows. */
+	private diffStatText(): string {
+		const stat = getGitDiffStat(this.providers.cwd);
+		if (!stat) return "";
+		const parts = [
+			stat.added > 0 ? geekFg("mono", `+${stat.added}`) : "",
+			stat.removed > 0 ? geekFg("delMark", `-${stat.removed}`) : "",
+			stat.files > 0 ? geekFg("dim", `~${stat.files}`) : "",
+		].filter(Boolean);
+		return parts.join(" ");
+	}
+
+	// Priority: live state (right) and diff stat stay whole; the cwd path gives way first (keeps its tail).
 	private headRow(width: number): string {
+		const bodyWidth = Math.max(1, width - GEEK_PREFIX_WIDTH);
+		const live = this.liveStateText();
+		const stat = this.diffStatText();
+		const host = basename(this.providers.cwd) || "host";
 		const branch = this.providers.getBranch()?.branch;
-		const left = geekHeadBody({ name: this.user, host: basename(this.providers.cwd) || "host", cwd: displayCwd(this.providers.cwd), branch });
-		const body = geekSplitRow(left, this.liveStateText(), Math.max(1, width - GEEK_PREFIX_WIDTH));
-		return geekRow("head-user", body, width);
+		const cwd = displayCwd(this.providers.cwd);
+		const fixed = [`${this.user}@${host}`, branch ? `(${branch})` : "", stat ? stripAnsi(stat) : ""].filter(Boolean);
+		// cells left for the path: body − live state − fixed parts − the spaces between all parts (path included)
+		const room = bodyWidth - (live ? safeVisibleWidth(live) + 1 : 0) - fixed.reduce((sum, part) => sum + safeVisibleWidth(part), 0) - fixed.length;
+		const shownCwd = safeVisibleWidth(cwd) <= room ? cwd : room >= MIN_CWD_CELLS ? safeTakeTailToWidth(cwd, room) : "";
+		const left = [
+			`${geekFg("ink", this.user)}${geekFg("dim", `@${host}`)}`,
+			shownCwd ? geekFg("punct", shownCwd) : "",
+			branch ? geekFg("kw", `(${branch})`) : "",
+			stat,
+		].filter(Boolean).join(" ");
+		return geekRow("head-user", geekSplitRow(left, live, bodyWidth), width);
 	}
 
 	private renderInputLines(text: string, width: number): string[] {
@@ -226,7 +254,7 @@ export class GeekEditor extends CustomEditor {
 
 	private tokenRow(width: number): string {
 		const usage = this.providers.getTokenUsage();
-		let left = "";
+		let left = geekFg("dim", "—"); // before the first usage there is nothing to show, but never a bare label
 		if (usage) {
 			const unit = (mark: string, value: string) => `${geekFg("dim", mark)}${geekFg("num", value)}`;
 			left = [
