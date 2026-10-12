@@ -112,6 +112,26 @@ if (!HostSelectList?.prototype?.handleMouse) {
 	editor.autocompleteList = undefined;
 }
 
+// Click inside the input text puts Pi's cursor under the clicked cell (x shifted past rail + prompt).
+if (typeof Object.getPrototypeOf(GeekEditor.prototype).handleMouse !== "function") {
+	console.log("SKIP input-click checks: the editor base class has no handleMouse (Pi < 1.0 devDeps)");
+} else {
+	const clickAt = (text, row, col) => {
+		editor.setText(text);
+		const all = editor.render(100).map(strip);
+		const head = headIndex(all);
+		editor.handleMouse({ type: "click", button: "left", x: P + 2 + col, y: head + row, width: 100, height: all.length });
+		return editor.getCursor();
+	};
+	const one = clickAt("hello world again", 1, 6);
+	expect("click on col 6 of the input puts the cursor at col 6", one.line === 0 && one.col === 6, JSON.stringify(one));
+	const two = clickAt("first line\nsecond", 2, 3);
+	expect("click on row 2 col 3 of a multi-line input puts the cursor at line 1 col 3", two.line === 1 && two.col === 3, JSON.stringify(two));
+	const rail = clickAt("hello", 1, -4);
+	expect("click on the rail/prompt cells clamps to col 0", rail.line === 0 && rail.col === 0, JSON.stringify(rail));
+	editor.setText("");
+}
+
 console.log(rows.join("\n"));
 rmSync(built.workDir, { recursive: true, force: true });
 if (failures.length) {

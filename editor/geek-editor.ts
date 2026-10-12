@@ -263,7 +263,7 @@ export class GeekEditor extends CustomEditor {
 	 * Pi (>= 1.1) hit-tests mouse events against ITS layout: top border, input rows, bottom border, list rows below.
 	 * Ours differs (slash menu above the head row, no borders), so translate before delegating: a slash-menu item
 	 * row goes to the list as its local row (Pi's own select/click/wheel semantics, same window as we draw), input
-	 * and file-autocomplete rows go to Pi's coordinates, footer rows are not the editor's.
+	 * rows (x shifted past rail + prompt) and file-autocomplete rows go to Pi's coordinates, footer rows are ignored.
 	 */
 	handleMouse(event: { y: number; type?: string; [key: string]: unknown }): unknown {
 		const rows = this.mouseRows;
@@ -282,7 +282,12 @@ export class GeekEditor extends CustomEditor {
 		if (y > rows.input) return parent.call(this, { ...event, y: listStart + (y - rows.input - 1) });
 		// Slash menu open: Pi's own list rows are not drawn, so an input-row event must never land in its list zone.
 		if (rows.menu > 0 && y >= listStart) return { handled: true, focus: true };
-		return parent.call(this, { ...event, y });
+		if (y === 0) return parent.call(this, { ...event, y });
+		// Input rows: our text starts after the rail + prompt cells; Pi's starts after its paddingX.
+		const width = Number(event.width) || 0;
+		const padding = Math.min(Number((this as any).paddingX) || 0, Math.max(0, Math.floor((width - 1) / 2)));
+		const x = Math.max(0, Number(event.x) - GEEK_PREFIX_WIDTH - PROMPT.length) + padding;
+		return parent.call(this, { ...event, x, y });
 	}
 }
 
