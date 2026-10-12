@@ -2,6 +2,7 @@ import { Markdown } from "@earendil-works/pi-tui";
 
 import { geekNumber } from "../presentation/geek-rows.js";
 import { geekFg } from "../theme/geek-palette.js";
+import { markRailed } from "./chat-frame.js";
 import { getMessageTimestamp } from "./message-meta.js";
 import { renderRailMessageBlock } from "./rail-message-block.js";
 
@@ -26,6 +27,11 @@ export function installCoreMessageBlockStyling(ctors: {
 	const globalState = globalThis as Record<string, unknown>;
 	if (globalState[PATCH_FLAG]) return;
 	globalState[PATCH_FLAG] = true;
+
+	markRailed(ctors.CompactionSummaryMessageComponent);
+	markRailed(ctors.SkillInvocationMessageComponent, true); // a skill invocation is a user message
+	markRailed(ctors.BranchSummaryMessageComponent);
+	markRailed(ctors.CustomMessageComponent);
 
 	patchBoxBlock(ctors.CompactionSummaryMessageComponent, (c) =>
 		c.message?.tokensBefore == null
@@ -95,6 +101,8 @@ function patchCustomMessage(ctor?: ComponentCtor): void {
 			this.customComponent = undefined;
 		}
 		this.removeChild(this.box);
+		// Pi's constructor puts a Spacer(1) in front; it would be an un-railed blank inside the turn.
+		this.children = this.children.filter((child: any) => child?.constructor?.name !== "Spacer");
 
 		const kind = this.message?.customType || "custom";
 		const timestamp = getMessageTimestamp(this) ?? this.message?.timestamp;

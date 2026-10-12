@@ -10,6 +10,7 @@ import { dropLeadingColumns, stripAnsi } from "../theme/ansi.js";
 import { geekFg } from "../theme/geek-palette.js";
 import { attachComponentToStream } from "./assistant-streaming-state.js";
 import { type AssistantContentRun, getAssistantContentRuns } from "./assistant-content-runs.js";
+import { markRailed } from "./chat-frame.js";
 import { claimTurnHead, keepPromptZone, turnHeadRows } from "./message-meta.js";
 
 const PATCHED = Symbol.for("pi-geek-tui.assistant-prefix.patched");
@@ -132,6 +133,7 @@ export function installAssistantMessagePrefix(_theme?: unknown, componentClass: 
 		return;
 	}
 	proto[PATCHED] = true;
+	markRailed(componentClass);
 
 	const baseUpdateContent = proto.updateContent;
 	if (typeof baseUpdateContent === "function") {

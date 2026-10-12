@@ -24,6 +24,11 @@ function state(): TurnState {
 	return (shared[STATE] ??= { turn: 0, headedTurn: -1 });
 }
 
+/** True once any user message reached the chat: later rows belong to a turn and sit on the rail. */
+export function hasTurnStarted(): boolean {
+	return state().turn > 0;
+}
+
 export function getMessageTimestamp(component: object): Timestamp {
 	return (component as Stamped)[TIMESTAMP];
 }

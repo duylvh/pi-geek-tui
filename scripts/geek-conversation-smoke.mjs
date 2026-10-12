@@ -14,6 +14,7 @@ const built = buildSmoke("geek-conversation-smoke", [
 	"messages/assistant-prefix.ts",
 	"messages/core-message-blocks.ts",
 	"messages/message-meta.ts",
+	"messages/chat-frame.ts",
 	"messages/markdown-codeblock-renderer.ts",
 	"tool-tags/tool-groups.ts",
 ]);
@@ -35,6 +36,7 @@ const { installAssistantMessagePrefix } = await built.importBuilt("messages/assi
 const { installCoreMessageBlockStyling, setCoreMessageBlockTheme } = await built.importBuilt("messages/core-message-blocks.js");
 const { installMessageMeta } = await built.importBuilt("messages/message-meta.js");
 const { installMarkdownCodeBlockRenderer } = await built.importBuilt("messages/markdown-codeblock-renderer.js");
+const { frameChatChild } = await built.importBuilt("messages/chat-frame.js");
 const { renderChatChildren } = await built.importBuilt("tool-tags/tool-groups.js");
 
 installMarkdownCodeBlockRenderer(Markdown);
@@ -78,6 +80,15 @@ const markdownAnswer = [
 	"```",
 ].join("\n");
 
+// Chat rows that are not our own components (Pi's showStatus / showWarning / showError / extension notify)
+// must follow the row grammar too. Built by Pi's real methods on a stand-in `this`.
+const frameAll = (children, width) => children.flatMap((child, index) => frameChatChild(child, width, children[index + 1]));
+const piNotices = () => ({ chatContainer: new Container(), ui: { requestRender() {} } });
+const beforeTurn = piNotices();
+core.InteractiveMode.prototype.showStatus.call(beforeTurn, "Memory injected: 1 files (message-append)");
+const beforeRows = frameAll(beforeTurn.chatContainer.children, 80).map(plain);
+expect("status before any turn: blank rail, body at col 8", beforeRows.length === 2 && beforeRows[1][6] === " " && beforeRows[1].slice(8).startsWith("Memory injected"), JSON.stringify(beforeRows));
+
 const mode = new FakeInteractiveMode();
 mode.addMessageToChat({ role: "user", content: "refresh token expires after 5 minutes,\nfix it", timestamp: T_USER });
 mode.addMessageToChat({ role: "assistant", timestamp: T_AGENT, stopReason: "toolUse", content: [{ type: "toolCall", id: "1", name: "read", arguments: {} }] });
@@ -100,6 +111,24 @@ expect("folded tool-only opener still prints the agent head once, above the grou
 // Pi's widget spacer between chat and input zone is railed, so the rail has no un-railed gap before the input head.
 const spacerRows = mode.widgetContainerAbove.render(80).map(plain);
 expect("widget spacer row is railed", spacerRows.length === 1 && spacerRows[0][6] === "│", JSON.stringify(spacerRows));
+
+// Inside a turn: status/warning/error sit on the rail (Pi's spacers too), and Pi's in-place status replacement still works.
+const inTurn = piNotices();
+core.InteractiveMode.prototype.showStatus.call(inTurn, "Tool output: collapsed");
+core.InteractiveMode.prototype.showStatus.call(inTurn, "Tool output: expanded");
+expect("back-to-back statuses still update in place", inTurn.chatContainer.children.length === 2 && plain(inTurn.chatContainer.children[1].render(40).join("")).includes("expanded"));
+core.InteractiveMode.prototype.showWarning.call(inTurn, "careful");
+core.InteractiveMode.prototype.showError.call(inTurn, "boom");
+for (const width of [24, 40, 80]) {
+	for (const row of frameAll(inTurn.chatContainer.children, width)) {
+		expect(`notice row fits @${width}`, visibleWidth(row) <= width, JSON.stringify(plain(row)));
+		expect(`notice row on rail @${width}`, plain(row)[6] === "│", JSON.stringify(plain(row)));
+	}
+}
+const noticeRows = frameAll(inTurn.chatContainer.children, 80).map(plain);
+expect("notice bodies start at col 8", ["Tool output: expanded", "Warning: careful", "Error: boom"].every((text) => noticeRows.some((row) => row.slice(8).startsWith(text))), JSON.stringify(noticeRows));
+const turnGap = frameAll([new Spacer(1), userA], 80).map(plain);
+expect("the spacer before a user message stays un-railed (turn boundary)", turnGap[0][6] === " ");
 
 const blocks = [
 	new core.CompactionSummaryMessageComponent({ role: "compactionSummary", summary: "## Goal\nfix refresh ttl", tokensBefore: 12345, timestamp: T_USER }),

@@ -6,6 +6,7 @@ import { GEEK_PREFIX_WIDTH, geekRow } from "../presentation/geek-rows.js";
 import { safeVisibleWidth } from "../render-budget.js";
 import { dropLeadingColumns, stripAnsi } from "../theme/ansi.js";
 import { geekFg } from "../theme/geek-palette.js";
+import { markRailed } from "./chat-frame.js";
 import { getMessageTimestamp, keepPromptZone } from "./message-meta.js";
 
 const PATCHED = Symbol.for("pi-geek-tui.user-prefix.patched");
@@ -28,6 +29,7 @@ export function installUserMessagePrefix(_theme?: unknown): void {
 		return;
 	}
 	proto[PATCHED] = true;
+	markRailed(UserMessageComponent, true);
 
 	const baseRender = proto.render;
 
