@@ -166,6 +166,19 @@ export class GeekEditor extends CustomEditor {
 		return geekRow("head-user", geekSplitRow(left, live, bodyWidth), width);
 	}
 
+	/**
+	 * Head row + rule + footer rows: the editor-slot frame keeps them under an open selector (the input row stays
+	 * hidden). The footer lives inside the editor, so it would vanish with it otherwise.
+	 */
+	renderChrome(width: number): string[] {
+		this.syncTicker();
+		return [this.headRow(width), ...this.footerRows(width)];
+	}
+
+	private footerRows(width: number): string[] {
+		return ["", geekFg("rule", "─".repeat(Math.max(1, width))), this.contextRow(width), this.tokenRow(width)];
+	}
+
 	private renderInputLines(text: string, width: number): string[] {
 		const logical = text.length > 0 ? text.split("\n") : [""];
 		const cursor = this.getCursor();
@@ -281,10 +294,7 @@ export class GeekEditor extends CustomEditor {
 			this.headRow(width),
 			...this.renderInputLines(this.getText(), width),
 			...autocomplete,
-			"",
-			geekFg("rule", "─".repeat(Math.max(1, width))),
-			this.contextRow(width),
-			this.tokenRow(width),
+			...this.footerRows(width),
 		];
 		this.syncTicker();
 		return lines;
