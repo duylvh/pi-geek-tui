@@ -15,6 +15,7 @@ export type SlashMenuModel = {
 	withSlash: boolean;
 };
 
+const INSET = 1; // every panel row (header, hint, items) starts one cell in, like the editor-slot panel
 const MARKER_WIDTH = 2;
 const MIN_COMMAND_COLUMN = 10;
 const MAX_COMMAND_COLUMN = 20;
@@ -71,11 +72,11 @@ export function renderSlashMenu(model: SlashMenuModel, width: number, hints: Rec
 			const name = safeTruncateToWidth(names[i]!, column - 1, "…");
 			const hint = hints[names[i]!];
 			const description = [oneLine(item.description), hint].filter(Boolean).join(" · ");
-			const room = Math.max(0, panelWidth - MARKER_WIDTH - column);
+			const room = Math.max(0, panelWidth - INSET - MARKER_WIDTH - column);
 			const marker = isSelected ? geekFg("accent", "› ") : "  ";
 			const command = geekFg(isSelected ? "accent" : "ink", name) + " ".repeat(Math.max(0, column - safeVisibleWidth(name)));
 			const text = room > 0 ? geekFg("dim", safeTruncateToWidth(description, room, "…")) : "";
-			rows.push(row(isSelected ? "panelSel" : "panel", marker + command + text));
+			rows.push(row(isSelected ? "panelSel" : "panel", " ".repeat(INSET) + marker + command + text));
 		});
 	}
 

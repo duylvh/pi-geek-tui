@@ -52,6 +52,14 @@ for (const width of [120, 80, 50]) {
 	expect(`hint row last @${width}`, strip(rows.at(-1)).trimStart().startsWith(width >= 55 ? "↑↓ select · tab fill · ↩ run · esc close" : "↑↓"));
 }
 
+// Inset parity with the editor-slot panel: header, hint and item rows all start one cell in (marker at col 1).
+{
+	const rows = renderSlashMenu(model(2), 100).map(strip);
+	expect("header and hint are inset 1", rows[0].slice(8, 10) === " c" && rows.at(-1).slice(8, 10) === " ↑");
+	expect("selected marker at panel col 1, other items blank there", rows[3].slice(8, 11) === " › " && rows.filter((r, i) => i > 0 && i < rows.length - 1 && i !== 3).every((r) => r.slice(8, 11) === "   "), JSON.stringify(rows.map((r) => r.slice(8, 12))));
+	expect("commands start at panel col 3", rows[3].slice(11, 16) === "/tree" && rows[1].slice(11, 17) === "/model");
+}
+
 // Truncation: long description and long command both end in … and never exceed the width.
 const wide = renderSlashMenu(model(7), 80).map(strip);
 expect("long description truncated with …", wide.some((r) => r.includes("xxxx") && r.endsWith("…")));

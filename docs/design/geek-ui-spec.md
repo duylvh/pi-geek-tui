@@ -109,17 +109,21 @@ Anything else Pi puts in the editor slot (settings/model/session/tree selectors,
 login dialogs) uses the same grammar as the slash menu: 8 blank prefix cells, a panel background body, the
 stock border strokes replaced by blank panel rows, `→` selection marker shown as `›`, never wider than the row.
 
-### 9. Footer (2 rows, under a rule)
+### 9. Footer (rule + one statusline row)
 ```
 ──────────────────────────────────────────────────────────────── (rule color, full width)
-  ctx █████░░░░░░░░░░░  31.4%/200k               (anthropic) claude-opus-5-5 · high
-  tok ↑41k ↓6.9k  R212k W18k  CH 82.4%        🐴 ponytail: ⚡ FULL · 5h 62% 7d 31%
+  HIGH  zai · glm-5.3                         41k/1.0M 4% · CH 82%  ○ 🐴 ponytail: ⚡ FULL
 ```
-Label column = 5ch right-aligned dim (`ctx`, `tok`). Bar 16 cells: fill kw, empty faint. Numbers num, units dim.
-Right of `ctx`: faint `(provider) `, ink model, dim ` · `, kw thinking level.
-Right of `tok`: extension statuses (dim, joined with ` · `), right-aligned under the model info. The tok
-figures always keep their full width; statuses get the rest (min gap 2), cut from the right with `…`
-(fewer than 8 cells left → just `…`). Never a third row, never wrapped. No cost is shown.
+nvim-style statusline on the chat grid (`editor/statusline.ts`). The thinking badge lives in the 8-cell prefix: a
+reverse-video accent block ` HIGH ` ending on the rail column (col 6), one gap cell, then the model at body col 8
+like every chat row. Labels OFF MIN LOW MED HIGH XHIGH; `!` bash mode shows ` BASH ` in the `num` colour; a model
+without thinking has a blank prefix.
+Left: provider faint + ` · ` + model id dim (capped at 40 cells, `…`). Right (dim, right-aligned to the chat edge):
+`<tokens>/<window> <ctx%>` + ` · CH <n>%`, two spaces, then extension statuses (joined with ` · `). Before the first
+usage the metrics read `—`.
+Degrade ladder as width shrinks: provider first, then CH%, then tokens, then ctx%; at each width the rung that
+leaves room for the most status text wins. Statuses are cut with `…` (fewer than 6 cells → hidden). Never wraps, never
+a second row; no ctx bar, no ↑↓ R W row, no cost.
 
 ## English strings (mockup → shipped)
 | mockup | shipped |

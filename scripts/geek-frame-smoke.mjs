@@ -91,7 +91,7 @@ const idle = editor.render(width).map(strip);
 expect("idle head row has no state word", !/thinking|working|answering|running/.test(idle[0]));
 expect("head row carries user@project, path and branch (no time)", /^ {6}• \S+@kpi-api ~\/code\/kpi-api \(fix\/refresh-ttl\)/.test(idle[0]));
 expect("input row is `› text` on a blank rail", /^ {8}› run tests again then commit/.test(idle[1]));
-expect("footer has ctx and tok rows", idle.some((r) => /^\s+ctx\s+█+░+  31\.4%\/200k/.test(r)) && idle.some((r) => /^\s+tok\s+↑41k ↓6\.9k  R212k W18k  CH 82\.4%\s*$/.test(r)));
+expect("footer is one statusline row: HIGH badge in the prefix, provider · model, metrics", idle.some((r) => /^  HIGH  anthropic · claude-opus-5-5 +63k\/200k 31% · CH 82%\s*$/.test(r)) && !idle.some((r) => /^\s+(ctx|tok)\s/.test(r)));
 setLiveState("thinking");
 editor.render(width); // starts the decode-in of the word; once it settled the plain word shows
 const realNow = Date.now;

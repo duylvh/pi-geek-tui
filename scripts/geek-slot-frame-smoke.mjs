@@ -21,7 +21,7 @@ const failures = [];
 const expect = (name, condition, detail = "") => { if (!condition) failures.push(`${name}${detail ? `: ${detail}` : ""}`); };
 
 const HEAD = (width) => "      • bean@proj".padEnd(width);
-const FOOT = (width) => ["", "─".repeat(width), "  ctx".padEnd(width), "  tok".padEnd(width)];
+const FOOT = (width) => ["", "─".repeat(width), "  statusline".padEnd(width)];
 class OwnEditor { render(width) { return [HEAD(width), "        › input".padEnd(width), ...FOOT(width)]; } renderChrome(width) { return [HEAD(width), ...FOOT(width)]; } setText() {} getText() { return ""; } }
 OwnEditor.prototype[OWN_EDITOR_ROWS] = true;
 installEditorSlotFrame(core.InteractiveMode);
@@ -34,7 +34,7 @@ const mode = {
 };
 core.InteractiveMode.prototype.setCustomEditorComponent.call(mode, () => mode.editor);
 const container = mode.editorContainer;
-expect("own editor passes through untouched", container.render(80).length === 6 && container.render(80)[1].includes("› input"));
+expect("own editor passes through untouched", container.render(80).length === 5 && container.render(80)[1].includes("› input"));
 
 const swapIn = (component) => { container.clear(); container.addChild(component); };
 const render = (width, rows = 24) => { mode.ui.terminal.rows = rows; return container.render(width); };
@@ -54,12 +54,12 @@ for (const width of [112, 62, 30]) {
 	for (const [name, make] of Object.entries(selectors)) {
 		swapIn(make());
 		const all = render(width);
-		const rows = all.slice(0, -5); // the panel; the last 5 rows are our head + footer chrome
+		const rows = all.slice(0, -4); // the panel; the last 4 rows are our head + footer chrome
 		expect(`${name}@${width}: every panel row exactly ${width} cells`, rows.every((row) => visibleWidth(row) === width), JSON.stringify(rows.map(visibleWidth)));
 		expect(`${name}@${width}: 8 blank prefix cells`, rows.every((row) => strip(row).slice(0, 8).trim() === ""));
 		expect(`${name}@${width}: first and last panel cell of every row is a bg-only space`, rows.every((row) => row.slice(8).startsWith("\x1b[48;2;") && strip(row)[8] === " " && strip(row).at(-1) === " "), JSON.stringify(rows.map((row) => [strip(row)[8], strip(row).at(-1)])));
 		expect(`${name}@${width}: no stock border strokes`, !rows.some((row) => /─{3,}/.test(strip(row))));
-		expect(`${name}@${width}: head + footer stay under the panel`, strip(all[all.length - 5]).startsWith("      • bean@proj") && strip(all[all.length - 1]).includes("tok"), JSON.stringify(all.slice(-5).map(strip)));
+		expect(`${name}@${width}: head + footer stay under the panel`, strip(all[all.length - 4]).startsWith("      • bean@proj") && strip(all[all.length - 1]).includes("statusline"), JSON.stringify(all.slice(-4).map(strip)));
 		expect(`${name}@${width}: panel within the cap (24 rows → ≤ 40%)`, rows.length <= 1 + 8 + 1 + 1 + 1, String(rows.length));
 	}
 }
@@ -83,7 +83,7 @@ expect("selected row sits on the panelSel surface", render(80).some((row) => row
 swapIn(selectors.thinking());
 const thinkingRows = render(80).map(strip);
 expect("header shows the component's name", /^ {8} thinking/.test(thinkingRows[0]), thinkingRows[0]);
-const thinkingPanel = thinkingRows.slice(0, -5);
+const thinkingPanel = thinkingRows.slice(0, -4);
 expect("a hint row closes the panel", /esc|enter|select/i.test(thinkingPanel[thinkingPanel.length - 1]), thinkingPanel[thinkingPanel.length - 1]);
 
 // --- breadcrumb: a submenu title pushes a level (left-truncated when long), the root title pops back
@@ -120,7 +120,7 @@ expect("search input row kept, detail/blank rows dropped", render(80).map(strip)
 
 // --- Esc path: back to our editor, rows unframed again
 swapIn(new OwnEditor());
-expect("Esc path: back to the editor", render(80).length === 6 && render(80)[1].includes("› input"));
+expect("Esc path: back to the editor", render(80).length === 5 && render(80)[1].includes("› input"));
 
 swapIn(selectors.theme());
 console.log(render(70).map(strip).join("\n"));

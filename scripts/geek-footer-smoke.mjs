@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * Footer (spec §9): exactly two rows under the rule; extension statuses live right-aligned on the `tok`
- * row (no third row), tok figures keep their width, statuses take the rest and are cut with `…`; no cost.
+ * Footer (spec §9): under the rule exactly ONE statusline row on the chat grid (thinking badge in the prefix,
+ * provider · model, ctx metrics + extension statuses right-aligned); no ctx/tok labels, no bar, no cost.
+ * The statusline's own ladder/badge details are covered by statusline-smoke; this checks the editor wiring.
  */
 import { rmSync } from "node:fs";
 import { join } from "node:path";
@@ -15,45 +16,46 @@ const failures = [];
 const expect = (name, condition, detail = "") => { if (!condition) failures.push(`${name}${detail ? `: ${detail}` : ""}`); };
 
 const editorTheme = { borderColor: (s) => s, selectList: { selectedPrefix: (s) => s, selectedText: (s) => s, description: (s) => s, scrollInfo: (s) => s, noMatch: (s) => s } };
-const editorFor = (status, usage = true) => new GeekEditor({ requestRender() {}, terminal: { rows: 40, columns: 120 } }, editorTheme, { matches: () => false, getKeys: () => [] }, {
-	cwd: join(built.workDir, "proj"),
-	getContextUsage: () => ({ tokens: 62800, percent: 31.4, contextWindow: 200000 }),
-	getModelInfo: () => ({ provider: "anthropic", id: "claude-opus-5-5", reasoning: true, thinkingLevel: "high" }),
-	getBranch: () => null,
-	getFooterStatus: () => status,
-	getTokenUsage: () => !usage ? null : ({ input: 41000, output: 6900, cacheRead: 212000, cacheWrite: 18000, cacheHitPercent: 82.4, cost: 0.412 }),
-});
+const editorFor = ({ status = null, usage = true, context = true, reasoning = true, text = "" } = {}) => {
+	const editor = new GeekEditor({ requestRender() {}, terminal: { rows: 40, columns: 120 } }, editorTheme, { matches: () => false, getKeys: () => [] }, {
+		cwd: join(built.workDir, "proj"),
+		getContextUsage: () => context ? { tokens: 62800, percent: 31.4, contextWindow: 200000 } : { tokens: null, percent: null, contextWindow: 200000 },
+		getModelInfo: () => ({ provider: "anthropic", id: "claude-opus-5-5", reasoning, thinkingLevel: "high" }),
+		getBranch: () => null,
+		getFooterStatus: () => status,
+		getTokenUsage: () => !usage ? null : ({ input: 41000, output: 6900, cacheRead: 212000, cacheWrite: 18000, cacheHitPercent: 82.4 }),
+	});
+	editor.setText(text);
+	return editor;
+};
 const STATUS = "🐴 ponytail: ⚡ FULL · quotas 5h 62% 7d 31%";
 const footerOf = (editor, width) => {
-	const rows = editor.render(width).map(strip);
+	const all = editor.render(width);
+	const rows = all.map(strip);
 	const rule = rows.findIndex((row) => /^─+$/.test(row));
-	return { rows, footer: rows.slice(rule + 1), all: editor.render(width) };
+	return { all, footer: rows.slice(rule + 1), rows };
 };
-const TOK = "↑41k ↓6.9k  R212k W18k  CH 82.4%";
 
 for (const width of [120, 80, 50]) {
-	const { footer, all } = footerOf(editorFor(STATUS), width);
-	expect(`@${width}: exactly 2 footer rows (ctx, tok)`, footer.length === 2 && /^\s+ctx /.test(footer[0]) && /^\s+tok /.test(footer[1]), JSON.stringify(footer));
+	const { all, footer } = footerOf(editorFor({ status: STATUS }), width);
+	expect(`@${width}: exactly one footer row`, footer.length === 1, JSON.stringify(footer));
 	expect(`@${width}: every row exactly ${width} cells`, all.every((row) => visibleWidth(row) === width || row === ""), all.map(visibleWidth).join(","));
-	expect(`@${width}: tok figures keep full width`, footer[1].includes(TOK), JSON.stringify(footer[1]));
-	expect(`@${width}: no cost anywhere`, !footer.some((row) => row.includes("$")), JSON.stringify(footer));
-	const tok = footer[1];
-	const gap = tok.indexOf(TOK) + TOK.length;
-	expect(`@${width}: gap between figures and status is ≥ 2`, tok.slice(gap).startsWith("  "), JSON.stringify(tok.slice(gap)));
-	if (width === 120) expect("@120: full status shown, ends at the right edge", tok.trimEnd().endsWith("62% 7d 31%") && visibleWidth(tok) === 120, JSON.stringify(tok));
-	if (width === 80) expect("@80: status truncated from the right with …", tok.includes("…") && !tok.trimEnd().endsWith("31%") && tok.includes("🐴 ponytail"), JSON.stringify(tok));
-	if (width === 50) expect("@50: almost no room → only …", tok.trimEnd().endsWith("…") && !tok.includes("ponytail"), JSON.stringify(tok));
+	expect(`@${width}: no ctx/tok labels, bar, token arrows or cost`, !/\b(ctx|tok)\b|[█░↑↓$]/.test(footer.join("\n")), JSON.stringify(footer));
+	expect(`@${width}: HIGH badge in the prefix, model at body col 8`, footer[0].startsWith("  HIGH  ") && /^\S/.test(footer[0].slice(8)), JSON.stringify(footer[0]));
+	if (width === 120) {
+		expect("@120: provider · model, metrics and the whole status, ending at the right edge", footer[0].includes("anthropic · claude-opus-5-5") && footer[0].includes("63k/200k 31% · CH 82%") && footer[0].trimEnd().endsWith("62% 7d 31%") && visibleWidth(footer[0]) === 120, JSON.stringify(footer[0]));
+	} else {
+		expect(`@${width}: model stays, status is cut with … (or fits)`, footer[0].includes("claude-opus-5-5") && (footer[0].includes("…") || footer[0].trimEnd().endsWith("31%")), JSON.stringify(footer[0]));
+	}
 }
 
-const none = footerOf(editorFor(null), 120);
-expect("no statuses: 2 rows, tok row has no right side", none.footer.length === 2 && none.footer[1].trimEnd().endsWith("CH 82.4%") && !none.footer.some((row) => row.includes("$")), JSON.stringify(none.footer));
+expect("bash mode (`!` prefix) swaps the badge", footerOf(editorFor({ text: "!ls" }), 120).footer[0].startsWith("  BASH  "));
+expect("model without thinking: blank prefix", footerOf(editorFor({ reasoning: false }), 120).footer[0].startsWith(" ".repeat(8) + "anthropic"));
+expect("no statuses: nothing after the metrics", /CH 82%\s*$/.test(footerOf(editorFor(), 120).footer[0]));
+expect("no usage yet: metrics read — and CH is absent", /—\s*$/.test(footerOf(editorFor({ context: false, usage: false }), 120).footer[0]) && !footerOf(editorFor({ context: false, usage: false }), 120).footer[0].includes("CH"));
 
-const fresh = footerOf(editorFor(STATUS, false), 120);
-expect("no usage yet: `tok —` plus statuses, still 2 rows", fresh.footer.length === 2 && /^\s+tok\s+—\s+🐴/.test(fresh.footer[1]), JSON.stringify(fresh.footer));
-expect("no usage, no statuses: `tok —`", /^\s+tok\s+—\s*$/.test(footerOf(editorFor(null, false), 120).footer[1]));
-
-console.log(footerOf(editorFor(STATUS), 120).footer.join("\n"));
-console.log(footerOf(editorFor(STATUS), 80).footer.join("\n"));
+console.log(footerOf(editorFor({ status: STATUS }), 120).all.slice(-2).join("\n"));
+console.log(footerOf(editorFor({ status: STATUS }), 70).all.slice(-1).join("\n"));
 rmSync(built.workDir, { recursive: true, force: true });
 if (failures.length) {
 	console.error(`geek footer smoke FAILED (${failures.length}):\n- ${failures.join("\n- ")}`);

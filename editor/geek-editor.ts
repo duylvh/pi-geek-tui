@@ -5,13 +5,14 @@ import { basename } from "node:path";
 
 import { loadConfig } from "../config.js";
 import type { FooterTokenUsage } from "../footer-patch.js";
-import { GEEK_GUTTER_WIDTH, GEEK_PREFIX_WIDTH, geekRow, geekSplitRow } from "../presentation/geek-rows.js";
+import { GEEK_PREFIX_WIDTH, geekRow, geekSplitRow } from "../presentation/geek-rows.js";
 import { safeTakeTailToWidth, safeTruncateToWidth, safeVisibleWidth, safeWrapTextWithAnsi } from "../render-budget.js";
 import { getGitDiffStat } from "../presentation/git-diff-stat.js";
 import { stripAnsi } from "../theme/ansi.js";
 import { geekBg, geekFg } from "../theme/geek-palette.js";
 import { getLiveState } from "./live-state.js";
 import { renderSlashMenu } from "./slash-menu.js";
+import { renderStatusline } from "./statusline.js";
 import { OWN_EDITOR_ROWS } from "./slot-frame.js";
 import { shimmerWord } from "./shimmer.js";
 
@@ -29,12 +30,9 @@ export interface GeekEditorProviders {
 
 type SlashItem = { value?: string; label?: string; description?: string };
 
-const BAR_CELLS = 16;
 const TICK_MS = 70; // smooth shimmer sweep; the ticker only runs while the agent is live
 const PROMPT = "› ";
 const MIN_CWD_CELLS = 6;
-const STATUS_GAP = 2;
-const MIN_STATUS_CELLS = 8; // below this only an ellipsis fits meaningfully
 
 function clamp(value: number, min: number, max: number): number {
 	return Math.max(min, Math.min(max, value));
@@ -59,14 +57,6 @@ function findLastBorderIndex(lines: string[]): number {
 	return -1;
 }
 
-function compact(count: number): string {
-	if (count < 1000) return String(Math.round(count));
-	if (count < 10000) return `${(count / 1000).toFixed(1)}k`;
-	if (count < 1000000) return `${Math.round(count / 1000)}k`;
-	if (count < 10000000) return `${(count / 1000000).toFixed(1)}M`;
-	return `${Math.round(count / 1000000)}M`;
-}
-
 function username(): string {
 	try {
 		return userInfo().username || process.env.USER || "user";
@@ -79,17 +69,6 @@ function displayCwd(cwd: string): string {
 	const home = homedir().replace(/\\/g, "/");
 	const normalized = (cwd || process.cwd()).replace(/\\/g, "/");
 	return normalized === home || normalized.startsWith(`${home}/`) ? `~${normalized.slice(home.length)}` : normalized;
-}
-
-function bar(percent: number | null): string {
-	const filled = percent === null ? 0 : clamp(Math.round((percent / 100) * BAR_CELLS), 0, BAR_CELLS);
-	return geekFg("kw", "█".repeat(filled)) + geekFg("faint", "░".repeat(BAR_CELLS - filled));
-}
-
-/** Label in the 5-col gutter column, then 3 blank rail cells, then the body (spec §9). */
-function labelRow(label: string, body: string, width: number): string {
-	const cell = " ".repeat(Math.max(0, GEEK_GUTTER_WIDTH - label.length)) + geekFg("dim", label);
-	return safeTruncateToWidth(`${cell}   ${body}`, width, "", true);
 }
 
 export class GeekEditor extends CustomEditor {
@@ -176,7 +155,7 @@ export class GeekEditor extends CustomEditor {
 	}
 
 	private footerRows(width: number): string[] {
-		return ["", geekFg("rule", "─".repeat(Math.max(1, width))), this.contextRow(width), this.tokenRow(width)];
+		return ["", geekFg("rule", "─".repeat(Math.max(1, width))), this.statuslineRow(width)];
 	}
 
 	private renderInputLines(text: string, width: number): string[] {
@@ -237,43 +216,25 @@ export class GeekEditor extends CustomEditor {
 		return typeof usage.tokens === "number" ? (usage.tokens / usage.contextWindow) * 100 : null;
 	}
 
-	private contextRow(width: number): string {
+	/** Footer: the one-row nvim-style statusline (spec §9). */
+	private statuslineRow(width: number): string {
 		const usage = this.providers.getContextUsage();
-		const percent = this.contextPercent();
-		const figures = percent === null
-			? geekFg("dim", "–")
-			: `${geekFg("num", percent.toFixed(1))}${geekFg("dim", `%/${compact(usage!.contextWindow)}`)}`;
 		const info = this.providers.getModelInfo();
-		let model = "";
-		if (info?.id) {
-			model = (info.provider ? geekFg("faint", `(${info.provider}) `) : "") + geekFg("ink", info.id);
-			if (info.reasoning && info.thinkingLevel) model += geekFg("dim", " · ") + geekFg("kw", info.thinkingLevel);
-		}
-		return labelRow("ctx", geekSplitRow(`${bar(percent)}  ${figures}`, model, Math.max(1, width - GEEK_PREFIX_WIDTH)), width);
-	}
-
-	/** Extension statuses, right-aligned in the space the tok figures leave (min gap 2); cut from the right with `…`. */
-	private statusText(room: number): string {
-		const status = oneLine(stripAnsi(this.providers.getFooterStatus() ?? ""));
-		if (!status || room < 1) return "";
-		if (room < MIN_STATUS_CELLS) return geekFg("dim", "…");
-		return geekFg("dim", safeTruncateToWidth(status, room, "…"));
-	}
-
-	private tokenRow(width: number): string {
-		const usage = this.providers.getTokenUsage();
-		let left = geekFg("dim", "—"); // before the first usage there is nothing to show, but never a bare label
-		if (usage) {
-			const unit = (mark: string, value: string) => `${geekFg("dim", mark)}${geekFg("num", value)}`;
-			left = [
-				`${unit("↑", compact(usage.input))} ${unit("↓", compact(usage.output))}`,
-				`${unit("R", compact(usage.cacheRead))} ${unit("W", compact(usage.cacheWrite))}`,
-				`${geekFg("dim", "CH ")}${geekFg("num", usage.cacheHitPercent.toFixed(1))}${geekFg("dim", "%")}`,
-			].join("  ");
-		}
-		const bodyWidth = Math.max(1, width - GEEK_PREFIX_WIDTH);
-		const room = bodyWidth - safeVisibleWidth(left) - STATUS_GAP;
-		return labelRow("tok", geekSplitRow(left, this.statusText(room), bodyWidth), width);
+		return renderStatusline(
+			{
+				provider: info?.provider,
+				modelId: info?.id,
+				reasoning: info?.reasoning,
+				thinkingLevel: info?.thinkingLevel,
+				bashMode: this.getText().trimStart().startsWith("!"),
+				contextWindow: usage?.contextWindow,
+				tokens: usage?.tokens,
+				percent: this.contextPercent(),
+				cacheHitPercent: this.providers.getTokenUsage()?.cacheHitPercent,
+				status: oneLine(stripAnsi(this.providers.getFooterStatus() ?? "")),
+			},
+			width,
+		);
 	}
 
 	render(width: number): string[] {
