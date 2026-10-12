@@ -9,19 +9,6 @@ export type TasksWidgetStyle = "default" | "compact";
 
 export type CollapsedThinkingStyle = "tail" | "label";
 
-export type DiffMode = "split" | "unified" | "auto";
-
-const DIFF_MODE_SET: Record<DiffMode, true> = { split: true, unified: true, auto: true };
-
-function isDiffMode(value: unknown): value is DiffMode {
-	return typeof value === "string" && Object.prototype.hasOwnProperty.call(DIFF_MODE_SET, value);
-}
-
-function normalizeDiffMode(value: unknown): DiffMode {
-	if (value === undefined) return DEFAULTS.diffMode;
-	return isDiffMode(value) ? value : DEFAULTS.diffMode;
-}
-
 const COLLAPSED_THINKING_STYLE_SET: Record<CollapsedThinkingStyle, true> = { tail: true, label: true };
 
 function isCollapsedThinkingStyle(value: unknown): value is CollapsedThinkingStyle {
@@ -53,7 +40,6 @@ export interface GeekTuiConfig {
 	accent: string;
 	tasksWidgetStyle: TasksWidgetStyle;
 	collapsedThinking: CollapsedThinkingStyle;
-	diffMode: DiffMode;
 	forceOSC11: boolean;
 	transparentBackground: boolean;
 	visibleChatTail: number;
@@ -74,7 +60,6 @@ const DEFAULTS: GeekTuiConfig = {
 	accent: DEFAULT_GEEK_ACCENT,
 	tasksWidgetStyle: "compact",
 	collapsedThinking: "tail",
-	diffMode: "auto",
 	forceOSC11: false,
 	transparentBackground: false,
 	visibleChatTail: 30,
@@ -82,7 +67,7 @@ const DEFAULTS: GeekTuiConfig = {
 
 const CONFIG_PATH = join(homedir(), ".pi", "agent", "pi-geek-tui.json");
 const MAX_EXPANDED_LINES_LIMIT = 1000;
-const DEPRECATED_CONFIG_KEYS = ["fixedUserZoneMouseScroll", "fixedUserZoneSidebar", "fixedUserZone", "presentationStyle", "userZoneStyle", "inputBox"] as const;
+const DEPRECATED_CONFIG_KEYS = ["fixedUserZoneMouseScroll", "fixedUserZoneSidebar", "fixedUserZone", "presentationStyle", "userZoneStyle", "inputBox", "diffMode"] as const;
 
 let cached: GeekTuiConfig = defaultConfig();
 let cachedMtimeMs = -1;
@@ -188,17 +173,6 @@ function backfillCollapsedThinking(config: Record<string, unknown>): boolean {
 	return true;
 }
 
-function backfillDiffMode(config: Record<string, unknown>): boolean {
-	const value = config.diffMode;
-	if (value === undefined) {
-		config.diffMode = DEFAULTS.diffMode;
-		return true;
-	}
-	if (isDiffMode(value)) return false;
-	config.diffMode = DEFAULTS.diffMode;
-	return true;
-}
-
 function normalizeConfig(raw: unknown): GeekTuiConfig {
 	if (!isRecord(raw)) return defaultConfig();
 	const config = raw as Record<string, unknown>;
@@ -210,7 +184,6 @@ function normalizeConfig(raw: unknown): GeekTuiConfig {
 		accent: normalizeAccent(config.accent),
 		tasksWidgetStyle: normalizeTasksWidgetStyle(config.tasksWidgetStyle),
 		collapsedThinking: normalizeCollapsedThinkingStyle(config.collapsedThinking),
-		diffMode: normalizeDiffMode(config.diffMode),
 		forceOSC11: booleanOrDefault(config.forceOSC11, DEFAULTS.forceOSC11),
 		transparentBackground: booleanOrDefault(config.transparentBackground, DEFAULTS.transparentBackground),
 		visibleChatTail: visibleChatTailOrDefault(config.visibleChatTail),
@@ -262,7 +235,6 @@ function backfillMissingDefaults(raw: unknown): void {
 	if (backfillAccent(config)) changed = true;
 	if (backfillTasksWidgetStyle(config)) changed = true;
 	if (backfillCollapsedThinking(config)) changed = true;
-	if (backfillDiffMode(config)) changed = true;
 	if (!changed) return;
 	try {
 		writeConfigAtomic(config);
