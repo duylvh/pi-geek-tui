@@ -89,6 +89,7 @@ core.InteractiveMode.prototype.showStatus.call(beforeTurn, "Memory injected: 1 f
 const beforeRows = frameAll(beforeTurn.chatContainer.children, 80).map(plain);
 expect("status before any turn: blank rail, body at col 8", beforeRows.length === 2 && beforeRows[1][6] === " " && beforeRows[1].slice(8).startsWith("Memory injected"), JSON.stringify(beforeRows));
 
+// ...and it stays that way once a turn starts later (the rail decision is made at first render).
 const mode = new FakeInteractiveMode();
 mode.addMessageToChat({ role: "user", content: "refresh token expires after 5 minutes,\nfix it", timestamp: T_USER });
 mode.addMessageToChat({ role: "assistant", timestamp: T_AGENT, stopReason: "toolUse", content: [{ type: "toolCall", id: "1", name: "read", arguments: {} }] });
@@ -111,6 +112,8 @@ expect("folded tool-only opener still prints the agent head once, above the grou
 // Pi's widget spacer between chat and input zone is railed, so the rail has no un-railed gap before the input head.
 const spacerRows = mode.widgetContainerAbove.render(80).map(plain);
 expect("widget spacer row is railed", spacerRows.length === 1 && spacerRows[0][6] === "│", JSON.stringify(spacerRows));
+
+expect("a startup notice stays off the rail after a turn began", frameAll(beforeTurn.chatContainer.children, 80).map(plain)[1][6] === " ");
 
 // Inside a turn: status/warning/error sit on the rail (Pi's spacers too), and Pi's in-place status replacement still works.
 const inTurn = piNotices();

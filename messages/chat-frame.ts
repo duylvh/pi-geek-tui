@@ -11,6 +11,7 @@ import { hasTurnStarted } from "./message-meta.js";
 
 const RAILED = Symbol.for("pi-geek-tui.chat-frame.railed");
 const TURN_START = Symbol.for("pi-geek-tui.chat-frame.turn-start");
+const IN_TURN = Symbol.for("pi-geek-tui.chat-frame.in-turn");
 
 /** Mark a component class as already rendering grammar rows; `turnStart` for ones that open a turn (user messages). */
 export function markRailed(componentClass: any, turnStart = false): void {
@@ -30,7 +31,10 @@ const isSpacer = (child: any): boolean => child?.constructor?.name === "Spacer";
  */
 export function frameChatChild(child: any, width: number, next?: any): string[] {
 	if (width <= 0 || isRailed(child)) return child.render(width);
-	const rail = hasTurnStarted() && !(isSpacer(child) && isTurnStart(next)) ? "line" : "blank";
+	// Decided at the child's first render (right after Pi adds it), so a startup notice stays outside the
+	// rail when a turn begins later.
+	child[IN_TURN] ??= hasTurnStarted();
+	const rail = child[IN_TURN] && !(isSpacer(child) && isTurnStart(next)) ? "line" : "blank";
 	if (isSpacer(child)) return child.render(width).map(() => geekRow(rail, "", width));
 	const bodyWidth = Math.max(1, width - GEEK_PREFIX_WIDTH - 1);
 	return child.render(bodyWidth).map((row: string) => geekRow(rail, stripAnsi(row).startsWith(" ") ? dropLeadingColumns(row, 1) : row, width));
