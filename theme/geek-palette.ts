@@ -16,6 +16,9 @@ export const GEEK_PALETTE = {
 	delBg: "#251518",
 	addMark: "#88c6a3",
 	addBg: "#1b221e",
+	// Slash-command popup surface and its selected row (mockup A3).
+	panel: "#141414",
+	panelSel: "#201f1b",
 	badgeBg: "#a8a385",
 	badgeFg: "#0c0c0c",
 } as const;

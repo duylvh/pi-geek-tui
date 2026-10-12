@@ -34,7 +34,7 @@
     "dev:link": "npm install",
     "dev:clean": "rm -rf node_modules",
     "typecheck": "tsc --noEmit --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck --noImplicitAny false index.ts",
-    "test": "npm run test:working-message && npm run test:geek-frame && npm run test:tasks-widget-compact && npm run test:collapsed-thinking && npm run test:presentation-buffer && npm run test:session-resume-styling && npm run test:tui-proxy && npm run test:builtin-tool-renderers && npm run test:geek-rows && npm run test:geek-conversation && npm run test:content-runs && npm run test:git-diff-stat",
+    "test": "npm run test:working-message && npm run test:geek-frame && npm run test:tasks-widget-compact && npm run test:collapsed-thinking && npm run test:presentation-buffer && npm run test:session-resume-styling && npm run test:tui-proxy && npm run test:builtin-tool-renderers && npm run test:geek-rows && npm run test:geek-conversation && npm run test:content-runs && npm run test:git-diff-stat && npm run test:slash-menu && npm run test:geek-shimmer",
     "check": "npm run typecheck && npm test && npm pack --dry-run",
     "profile:render": "node scripts/render-profile-bench.mjs",
     "trace:pi": "node scripts/pi-trace.mjs",
@@ -50,7 +50,9 @@
     "test:geek-frame": "node scripts/geek-frame-smoke.mjs",
     "test:geek-conversation": "node scripts/geek-conversation-smoke.mjs",
     "test:content-runs": "node scripts/content-runs-smoke.mjs",
-    "test:git-diff-stat": "node scripts/git-diff-stat-smoke.mjs"
+    "test:git-diff-stat": "node scripts/git-diff-stat-smoke.mjs",
+    "test:slash-menu": "node scripts/slash-menu-smoke.mjs",
+    "test:geek-shimmer": "node scripts/geek-shimmer-smoke.mjs"
   },
   "pi": {
     "extensions": [
