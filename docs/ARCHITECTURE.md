@@ -46,7 +46,22 @@ presentation/
   grouping) and geek-head.ts (head-row data: login/cwd/branch/clock). One look; no presets.
 
 tool-tags/
-  Tool call renderers, badges, elapsed metrics, and tool-output formatting
+  Tool rows in the rail grammar (docs/design/geek-ui-spec.md §4/§6/§7)
+  - tool-groups.ts is a render-time projection over the chat children (called by
+    performance/virtualize-chat.ts): a run of non-edit calls plus the tool-only assistant turns that
+    issued them is one summary row; running or Ctrl+O groups add the tree from tool-tree.ts.
+    edit/write-class calls break a run and render standalone
+  - tool-summary.ts (call summaries, running state, elapsed), tool-row.ts (standalone `› verb path
+    // meta` row, capped output bodies honoring maxExpandedLines); result renderers publish the row's
+    right-hand meta through renderer state
+  - edit.ts / write.ts / quick-edit.ts feed split-diff.ts (DiffRowsComponent: del/add row backgrounds,
+    numbered rows, folded `··· N unchanged lines ···`)
+  - compact-tool-spacing.ts wraps ToolExecutionComponent.render once; reloads only swap its runtime
+    hook. Bodies render at width minus the 8-cell prefix, then get gutter + rail (`┃` while running);
+    terminal image lines pass through untouched. builtin-tool-renderers.ts picks the renderers by tool
+    name with shell "self"
+  - elapsed.ts timing, default-badge.ts result timing/context patches, resume-tool-refresh.ts,
+    loader-*.ts working-loader helpers
 
 theme/
   ANSI helpers, theme discovery/extras, shared frame background row painting, and platform-gated OSC 11 terminal background sync
