@@ -11,6 +11,7 @@ import { getGitDiffStat } from "../presentation/git-diff-stat.js";
 import { stripAnsi } from "../theme/ansi.js";
 import { geekBg, geekFg } from "../theme/geek-palette.js";
 import { getLiveState } from "./live-state.js";
+import { renderSlashMenu } from "./slash-menu.js";
 import { shimmerWord } from "./shimmer.js";
 
 type ContextUsage = { tokens: number | null; percent: number | null; contextWindow: number };
@@ -205,33 +206,26 @@ export class GeekEditor extends CustomEditor {
 		};
 	}
 
-	private slashRows(width: number): string[] | null {
-		const model = this.slashItems();
-		if (!model) return null;
-		const start = Math.max(0, Math.min(model.selected - Math.floor(model.maxVisible / 2), Math.max(0, model.items.length - model.maxVisible)));
-		const visible = model.items.slice(start, start + model.maxVisible);
-		const rows = visible.map((item, i) => {
-			const selected = start + i === model.selected;
-			const raw = oneLine(item.label || item.value || "");
-			const command = model.withSlash && raw && !raw.startsWith("/") ? `/${raw}` : raw;
-			const padded = command + " ".repeat(Math.max(1, 24 - safeVisibleWidth(command)));
-			const description = oneLine(item.description ?? "");
-			const marker = selected ? geekFg("accent", "▸ ") : "  ";
-			return geekRow("blank", `${marker}${geekFg(selected ? "ink" : "dim", padded)}${geekFg(selected ? "dim" : "faint", description)}`, width);
-		});
-		if (rows.length === 0) rows.push(geekRow("blank", geekFg("faint", "  no matching commands"), width));
-		const shown = visible.length > 0 ? `${start + 1}-${start + visible.length}/${model.items.length}` : "0/0";
-		rows.push(geekRow("blank", geekFg("faint", `  ↑↓ navigate · tab/enter select · esc cancel · ${shown}`), width));
-		return rows;
+	/** Live info appended to a command's description in the popup. */
+	private slashHints(): Record<string, string> {
+		const hints: Record<string, string> = {};
+		const model = this.providers.getModelInfo()?.id;
+		if (model) hints["/model"] = `now ${model}`;
+		const percent = this.contextPercent();
+		if (percent !== null) hints["/compact"] = `ctx ${percent.toFixed(0)}%`;
+		return hints;
+	}
+
+	private contextPercent(): number | null {
+		const usage = this.providers.getContextUsage();
+		if (!usage || !usage.contextWindow) return null;
+		if (typeof usage.percent === "number" && Number.isFinite(usage.percent)) return usage.percent;
+		return typeof usage.tokens === "number" ? (usage.tokens / usage.contextWindow) * 100 : null;
 	}
 
 	private contextRow(width: number): string {
 		const usage = this.providers.getContextUsage();
-		const percent = usage && usage.contextWindow
-			? (typeof usage.percent === "number" && Number.isFinite(usage.percent)
-				? usage.percent
-				: typeof usage.tokens === "number" ? (usage.tokens / usage.contextWindow) * 100 : null)
-			: null;
+		const percent = this.contextPercent();
 		const figures = percent === null
 			? geekFg("dim", "–")
 			: `${geekFg("num", percent.toFixed(1))}${geekFg("dim", `%/${compact(usage!.contextWindow)}`)}`;
@@ -275,10 +269,14 @@ export class GeekEditor extends CustomEditor {
 		const border = findLastBorderIndex(parentLines);
 		const parentAutocomplete = border >= 0 ? parentLines.slice(border + 1) : [];
 
-		const autocomplete = this.slashRows(width)
-			?? parentAutocomplete.map((line) => geekRow("blank", line, width));
+		// Slash commands: popup panel ABOVE the input head (transcript → menu → head → input); other
+		// autocompletes (file paths…) keep Pi's rows below the input.
+		const slash = this.slashItems();
+		const menu = slash ? renderSlashMenu(slash, width, this.slashHints()) : [];
+		const autocomplete = slash ? [] : parentAutocomplete.map((line) => geekRow("blank", line, width));
 
 		const lines = [
+			...menu,
 			this.headRow(width),
 			...this.renderInputLines(this.getText(), width),
 			...autocomplete,
