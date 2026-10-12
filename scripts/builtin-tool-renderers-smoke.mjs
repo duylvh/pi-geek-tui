@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { visibleWidth } from "@earendil-works/pi-tui";
 
 const repoRoot = process.cwd();
 // Unique per run: concurrent smoke runs (or parallel agent sessions) must not
@@ -30,6 +31,7 @@ function prepareWorkDir() {
 	export const getLanguageFromPath: any;
 	export const highlightCode: any;
 	export const createEditToolDefinition: any;
+	export const ToolExecutionComponent: any;
 	export const getAgentDir: any;
 }
 declare module "@earendil-works/pi-tui" {
@@ -56,19 +58,7 @@ declare const process: any;
 	writeFileSync(join(stubAgentPkgDir, "index.js"), `export const getLanguageFromPath = () => undefined;
 export const highlightCode = () => [];
 export const getAgentDir = () => "/nonexistent-agent-dir";
-`, "utf8");
-
-	const stubTuiPkgDir = join(buildDir, "node_modules", "@earendil-works", "pi-tui");
-	mkdirSync(stubTuiPkgDir, { recursive: true });
-	writeFileSync(join(stubTuiPkgDir, "package.json"), "{\"name\":\"@earendil-works/pi-tui\",\"version\":\"0.0.0-stub\",\"type\":\"module\",\"main\":\"index.js\"}\n", "utf8");
-	writeFileSync(join(stubTuiPkgDir, "index.js"), `export class Text {
-	constructor(text) { this.text = String(text ?? ""); }
-	invalidate() {}
-	render() { return this.text ? this.text.split("\\n") : []; }
-}
-export const truncateToWidth = (text) => text;
-export const visibleWidth = (text) => String(text ?? "").length;
-export const wrapTextWithAnsi = (text) => [String(text ?? "")];
+export class ToolExecutionComponent {}
 `, "utf8");
 }
 
@@ -88,6 +78,8 @@ function compileBuiltinToolRenderers() {
 		"tool-tags/elapsed.ts",
 		"tool-tags/common.ts",
 		"tool-tags/register-tool-call-tags.ts",
+		"tool-tags/tool-groups.ts",
+		"tool-tags/compact-tool-spacing.ts",
 	], { cwd: repoRoot, encoding: "utf8" });
 	if (result.status !== 0) {
 		process.stderr.write(result.stdout || "");
@@ -122,7 +114,6 @@ async function runBuiltinToolRenderersSmoke() {
 	const buildToolTags = (name) => pathToFileURL(join(buildDir, "tool-tags", name)).href;
 	const renderers = await import(buildToolTags("builtin-tool-renderers.js"));
 	const elapsed = await import(buildToolTags("elapsed.js"));
-	const common = await import(buildToolTags("common.js"));
 
 	const theme = { fg: (_color, text) => text };
 
@@ -158,7 +149,7 @@ async function runBuiltinToolRenderersSmoke() {
 		assert(callRenderer === toolModules[toolName][callName], `${toolName}: call renderer is not the droid ${callName}`);
 		assert(typeof resultRenderer === "function", `${toolName}: patched getResultRenderer did not return a function`);
 		assert(resultRenderer === toolModules[toolName][resultName], `${toolName}: result renderer is not the droid ${resultName}`);
-		assert(instance.getRenderShell() === "default", `${toolName}: getRenderShell did not return "default"`);
+		assert(instance.getRenderShell() === "self", `${toolName}: getRenderShell did not return "self"`);
 	}
 
 	// Unknown names fall through to the base methods.
@@ -193,11 +184,6 @@ async function runBuiltinToolRenderersSmoke() {
 	// result.details.__elapsedMs fallback when no record exists.
 	assert(elapsed.resolveToolCallElapsedMs({ toolCallId: "t3" }, { details: { __elapsedMs: 1234 } }) === 1234, "details.__elapsedMs fallback did not resolve");
 
-	// No source at all → footer wall time shows "--".
-	const footer = common.formatBoxedFooterFromValues(theme, undefined, "output");
-	assert(footer.includes("--"), "footer did not render \"--\" when no elapsed source exists");
-	const footerWithValue = common.formatBoxedFooterFromValues(theme, 1500, "output");
-	assert(!footerWithValue.includes("--") && footerWithValue.includes("1.50s"), "footer did not render the resolved elapsed value");
 
 	// --- 3. registerToolCallTags registers edit only when pi-ctx-kit is present (issue #26) ---
 	const { registerToolCallTags } = await import(buildToolTags("register-tool-call-tags.js"));
@@ -221,69 +207,87 @@ async function runBuiltinToolRenderersSmoke() {
 	const withKit = await registerWith();
 	assert(withKit.length === 1 && withKit[0].name === "edit" && withKit[0].description === "kit edit", `with pi-ctx-kit only the enhanced edit should register, got ${JSON.stringify(withKit.map((d) => d?.name))}`);
 
-	// --- 4. Script-mode edit results render line by line and per file ---
-	const diffTheme = { ...theme, getBgAnsi: () => "", getFgAnsi: () => "" };
-	const scriptContext = (isError = false) => ({ args: { paths: ["src/a.ts", "b.md"], code: "x" }, isError, cwd: "/repo" });
-	const renderEdit = (result, isError) =>
-		toolModules.edit.renderEditResult(result, { expanded: false, isPartial: false }, diffTheme, scriptContext(isError)).render(90);
+	// --- 4. Edit results: meta on the call row, diff rows below, per file ---
+	const strip = (text) => String(text).replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
+	const WIDTH = 90;
+	const editBlock = (args, result, isError = false) => {
+		const context = { args, isError, cwd: "/repo", state: {}, toolCallId: "edit-1", isPartial: false };
+		const body = toolModules.edit.renderEditResult(result, { expanded: false, isPartial: false }, theme, context).render(WIDTH);
+		const call = toolModules.edit.renderEditCall(args, theme, context).render(WIDTH);
+		return { body: body.map(strip), call: call.map(strip) };
+	};
+	const scriptArgs = { paths: ["src/a.ts", "b.md"], code: "x" };
 
-	const errorLines = renderEdit({
+	const failed = editBlock(scriptArgs, {
 		isError: true,
 		content: [{ type: "text", text: "script edit failed (exit 1) — rolled back to snapshot.\nstderr:\nreplaceOnce: expected 1 match(es) of \"missing\" in n.txt, found 0" }],
 		details: { diff: "", patch: "" },
 	}, true);
-	assert(errorLines.every((line) => !line.includes("\n")), "edit error output embedded a newline inside a box row");
-	assert(errorLines.some((line) => line.includes("found 0")), "edit error output hid the stderr cause");
+	assert(failed.body.every((line) => !line.includes("\n")), "edit error output embedded a newline inside a row");
+	assert(failed.body.some((line) => line.includes("found 0")), "edit error output hid the stderr cause");
+	assert(failed.call[0].includes("failed"), "failed edit did not say so on its call row");
 
-	const noopLines = renderEdit({ content: [{ type: "text", text: "WARNING: no declared file changed.\nstdout:\n0 matches for foo" }], details: { diff: "", patch: "" } });
-	assert(noopLines.some((line) => line.includes("0 matches for foo")), "edit no-change output hid the script stdout");
+	const noop = editBlock(scriptArgs, { content: [{ type: "text", text: "WARNING: no declared file changed.\nstdout:\n0 matches for foo" }], details: { diff: "", patch: "" } });
+	assert(noop.body.some((line) => line.includes("0 matches for foo")), "edit no-change output hid the script stdout");
 
-	const multiLines = renderEdit({
+	const multi = editBlock(scriptArgs, {
 		content: [{ type: "text", text: "x" }],
 		details: { patch: "--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1,1 +1,1 @@\n-one\n+ONE\n--- a/b.md\n+++ b/b.md\n@@ -0,0 +1,1 @@\n+---" },
 	});
-	assert(multiLines.some((line) => line.includes("▸ src/a.ts")) && multiLines.some((line) => line.includes("▸ b.md")), "multi-file edit diff lost its file titles");
-	assert(multiLines.some((line) => line.includes("+2") && line.includes("-1")), "script-mode diff stats skipped a '+---' content line");
+	assert(multi.body.some((line) => line.includes("▸ src/a.ts")) && multi.body.some((line) => line.includes("▸ b.md")), "multi-file edit diff lost its file titles");
+	assert(multi.call[0].includes("+2") && multi.call[0].includes("-1"), `script-mode diff stats skipped a '+---' content line: ${multi.call[0]}`);
 
-	// --- 5. diffMode "auto" (default): unified below 140 columns, split from 140 ---
-	const twoHunks = { content: [{ type: "text", text: "x" }], details: { patch: "--- a/src/a.ts\n+++ b/src/a.ts\n@@ -2,1 +2,1 @@\n-two\n+TWO\n@@ -10,1 +10,1 @@\n-ten\n+TEN" } };
-	const editAt = (result, width) => toolModules.edit.renderEditResult(result, { expanded: false, isPartial: false }, diffTheme, { args: { paths: ["src/a.ts"], code: "x" }, cwd: "/repo" }).render(width);
-	const narrow = editAt(twoHunks, 90);
-	const wide = editAt(twoHunks, 160);
-	assert(narrow.some((line) => line.includes("unified")) && !narrow.some((line) => line.includes("split")), "auto diffMode did not pick unified below 140 columns");
-	assert(wide.some((line) => line.includes("split")), "auto diffMode did not pick split at 140+ columns");
-	for (const lines of [narrow, wide]) {
-		assert(lines.some((line) => line.includes("··· 7 unmodified lines ···")), "hunk gap between @@ -3 and @@ -10 was not marked");
-	}
+	// Two hunks: the unchanged run between them folds into one gap row; context around hunks is dropped.
+	const twoHunks = editBlock({ path: "src/a.ts" }, { content: [{ type: "text", text: "x" }], details: { diff: ["  1 one", "- 2 two", "+ 2 TWO", "  3 three", "    ...", " 10 ten", "-11 eleven", "+11 ELEVEN", " 12 twelve"].join("\n") } });
+	assert(twoHunks.body.filter((line) => line.includes("··· 8 unchanged lines ···")).length === 1, `expected exactly one gap row, got ${JSON.stringify(twoHunks.body)}`);
+	assert(!twoHunks.body.some((line) => /\bone\b|twelve/.test(line)), "context before the first / after the last change should be dropped");
+	assert(twoHunks.body.every((line) => visibleWidth(line) <= WIDTH), "diff row overflowed the body width");
+	const delIndex = twoHunks.body.findIndex((line) => line.includes("- two"));
+	assert(delIndex >= 0 && twoHunks.body[delIndex + 1].includes("+ TWO"), "removed line must be followed by its added line");
 
 	// Pi's builtin gutter diff folds context with an unnumbered "..." line: one gap, counted from the next line.
 	const splitDiff = await import(pathToFileURL(join(buildDir, "split-diff.js")).href);
-	const piRows = splitDiff.buildSplitRows(["  7 line 7", "    ...", " 27 line 27", "-28 old", "+28 new", " 29 line 29", "    ..."].join("\n"));
+	const piRows = splitDiff.buildDiffRows(["  7 line 7", "    ...", " 27 line 27", "-28 old", "+28 new", " 29 line 29", "    ..."].join("\n"));
 	const piGaps = piRows.filter((row) => row.kind === "gap");
 	assert(piGaps.length === 2 && piGaps[0].count === 19 && piGaps[1].count === undefined, `Pi "..." markers should become gap rows (19, unknown), got ${JSON.stringify(piGaps)}`);
 	assert(!piRows.some((row) => row.left?.line.trim() === "..."), "Pi \"...\" marker still rendered as a code line");
 	const afterGap = piRows.find((row) => row.left?.line === "line 27");
 	assert(afterGap?.right?.lineNumber.trim() === "27", `new-side numbering did not skip the folded lines, got ${afterGap?.right?.lineNumber}`);
 
-	// Same guarantees under the reasonix (compact) presentation.
-	const presentation = await import(pathToFileURL(join(buildDir, "presentation", "state.js")).href);
-	const previousStyle = presentation.getPresentationStyle();
-	presentation.setPresentationStyle("reasonix");
-	try {
-		const reasonixError = renderEdit({
-			isError: true,
-			content: [{ type: "text", text: "script edit failed (exit 1).\nstderr:\nreplace_once: expected 1 match(es), found 0" }],
-			details: { diff: "", patch: "" },
-		}, true);
-		assert(reasonixError[0]?.includes("└─"), "reasonix presentation was not active for the edit result");
-		assert(reasonixError.every((line) => !line.includes("\n")) && reasonixError.some((line) => line.includes("found 0")), "reasonix edit error hid or broke the stderr cause");
-		const reasonixMulti = renderEdit({ content: [{ type: "text", text: "x" }], details: { patch: "--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1,1 +1,1 @@\n-one\n+ONE\n--- a/b.md\n+++ b/b.md\n@@ -0,0 +1,1 @@\n+new" } });
-		assert(reasonixMulti.some((line) => line.includes("▸ b.md")), "reasonix multi-file edit diff lost its file titles");
-	} finally {
-		presentation.setPresentationStyle(previousStyle);
+	// --- 5. Collapsed tool group: one row per run, edit-class calls break the run ---
+	const groups = await import(buildToolTags("tool-groups.js"));
+	const tool = (toolName, args, extra = {}) => ({
+		toolCallId: `${toolName}-${Math.random()}`, toolName, args, expanded: false, isPartial: false,
+		rendererState: {}, result: { content: [], details: { __elapsedMs: 500 } }, render: (w) => [`RAW ${toolName}`.padEnd(w)], ...extra,
+	});
+	const assistant = (thinking) => ({
+		lastMessage: { role: "assistant", content: [...(thinking ? [{ type: "thinking", thinking }] : []), { type: "toolCall" }] },
+		render: (w) => [`ASSISTANT`.padEnd(w)],
+	});
+	const finished = [assistant("check ttl"), tool("read", { path: "src/auth/session.ts" }), tool("read", { path: "src/auth/token.ts" }), tool("grep", { pattern: "REFRESH_TTL" })];
+	for (const width of [120, 40]) {
+		const rows = groups.renderChatChildren(finished, width).map(strip);
+		assert(rows.length === 2 && rows.every((row) => visibleWidth(row) === width), `group rows must be exactly ${width} cells, got ${JSON.stringify(rows)}`);
+		if (width === 120) {
+			assert(rows[0].includes("› read session.ts token.ts · grep REFRESH_TTL"), `group lost its merged call summary: ${rows[0]}`);
+			assert(rows[0].includes("^o  // 3 call · 1 thought · 1.5s"), `group lost its meta: ${rows[0]}`);
+		}
 	}
+	const runningGroup = [tool("bash", { command: "pnpm test auth\nignored" }, { result: undefined, isPartial: true, rendererState: { __geekStartedAt: performance.now() - 4100 } })];
+	const runningRows = groups.renderChatChildren(runningGroup, 100).map(strip);
+	assert(runningRows[0].includes("┃") && runningRows[0].includes("› pnpm test auth") && runningRows[0].includes("running"), `running group should show the active rail and state: ${runningRows[0]}`);
+	assert(!runningRows[0].includes("ignored"), "bash summary must stay on the first command line");
 
-	console.log("builtin tool renderers smoke ok (7-name resolution, timing precedence, edit-only registration, script-mode edit rendering, diffMode auto + gaps)");
+	const editTool = tool("edit", { path: "src/a.ts" });
+	const mixed = groups.renderChatChildren([tool("read", { path: "a.ts" }), editTool, tool("bash", { command: "ls" })], 100).map(strip);
+	assert(mixed.filter((row) => row.includes("RAW edit")).length === 1 && mixed.filter((row) => row.includes("call")).length === 2, `edit must break the run and render itself: ${JSON.stringify(mixed)}`);
+	const ctrlO = groups.renderChatChildren([tool("read", { path: "a.ts" }, { expanded: true })], 100).map(strip);
+	assert(ctrlO.some((row) => row.includes("RAW read")), "an expanded member should render itself, not the summary");
+
+	console.log(groups.renderChatChildren(finished, 100).join("\n"));
+	console.log(groups.renderChatChildren(runningGroup, 100).join("\n"));
+	console.log(twoHunks.call.concat(twoHunks.body).join("\n"));
+	console.log("builtin tool renderers smoke ok (7-name resolution, timing precedence, edit-only registration, edit diff rows + meta, group summary)");
 }
 
 prepareWorkDir();

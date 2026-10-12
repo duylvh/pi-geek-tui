@@ -3,11 +3,6 @@ import { truncateToWidth as tuiTruncateToWidth, visibleWidth as tuiVisibleWidth,
 import { profileCount } from "./performance/profiler.js";
 
 export const MAX_RENDER_LINE_CHARS = 2000;
-export const DEFAULT_COLLAPSED_RENDER_LINES = 10;
-export const MAX_BOXED_RESULT_RENDERED_HEAD_LINES = 40;
-export const MAX_BOXED_RESULT_RENDERED_TAIL_LINES = 8;
-export const MAX_BOXED_RESULT_RENDERED_LINES = 160;
-export const MAX_FIXED_ROOT_LINES = 2000;
 
 const RENDER_TRUNCATION_SUFFIX = "… (truncated)";
 const TRUNCATE_ELLIPSIS = "…";
@@ -49,18 +44,6 @@ type FastTruncateResult = {
 	text: string;
 	visibleWidth: number;
 	kind: FastTextKind;
-};
-
-export type FastBoxLineContent = {
-	text: string;
-	visibleWidth: number;
-	kind: FastTextKind;
-};
-
-export type BoxedResultRenderBudget = {
-	headLines: number;
-	tailLines: number;
-	maxRenderedLines: number;
 };
 
 export function clampRenderLine(line: string, maxChars = MAX_RENDER_LINE_CHARS): string {
@@ -303,16 +286,6 @@ export function safeVisibleWidth(text: string): number {
 	return tuiVisibleWidth(text);
 }
 
-const TRAILING_RENDER_PADDING_PATTERN = /[ \t]+((?:\x1b\[[0-9;?]*[ -/]*[@-~])*)$/;
-
-export function trimTrailingRenderPadding(text: string): string {
-	return text.replace(TRAILING_RENDER_PADDING_PATTERN, "$1");
-}
-
-export function toSingleRenderLine(text: string): string {
-	return text.replace(/[\t\n\v\f\r]+/g, " ");
-}
-
 export function safeTruncateToWidth(text: string, maxWidth: number, ellipsis = "...", pad = false): string {
 	const width = Math.floor(maxWidth);
 	if (!Number.isFinite(width) || width <= 0) return "";
@@ -353,13 +326,6 @@ export function safeTakeTailToWidth(text: string, maxWidth: number, ellipsis = T
 	return `${ellipsis}${taken}`;
 }
 
-export function fastBoxLineContent(content: string, width: number): FastBoxLineContent | null {
-	const contentWidth = Math.floor(width);
-	if (!Number.isFinite(contentWidth) || contentWidth <= 0) return null;
-
-	return fastTruncateText(content, contentWidth);
-}
-
 export function safeWrapTextWithAnsi(text: string, width: number, maxChars = MAX_RENDER_LINE_CHARS): string[] {
 	const clamped = clampRenderLine(text, maxChars);
 	const wrapWidth = Math.floor(width);
@@ -379,21 +345,4 @@ export function safeWrapTextWithAnsi(text: string, width: number, maxChars = MAX
 	}
 	profileCount("safeWrap.fallback");
 	return wrapTextWithAnsi(clamped, width);
-}
-
-export function boxedResultRenderBudget(rawLineBudget: number = DEFAULT_COLLAPSED_RENDER_LINES): BoxedResultRenderBudget {
-	const rawLines = Math.max(0, Math.floor(Number.isFinite(rawLineBudget) ? rawLineBudget : DEFAULT_COLLAPSED_RENDER_LINES));
-	const maxRenderedLines = Math.max(1, Math.min(rawLines * 3, MAX_BOXED_RESULT_RENDERED_LINES));
-	const tailLines = Math.min(
-		Math.ceil(rawLines * 0.15),
-		MAX_BOXED_RESULT_RENDERED_TAIL_LINES,
-		Math.max(0, maxRenderedLines - 1),
-	);
-	const headLines = Math.min(
-		rawLines,
-		MAX_BOXED_RESULT_RENDERED_HEAD_LINES,
-		Math.max(1, maxRenderedLines - tailLines - 1),
-	);
-
-	return { headLines, tailLines, maxRenderedLines };
 }

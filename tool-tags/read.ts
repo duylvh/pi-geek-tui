@@ -2,9 +2,11 @@ import { getLanguageFromPath, highlightCode } from "@earendil-works/pi-coding-ag
 
 import { safeTruncateToWidth } from "../render-budget.js";
 import { stripAnsi } from "../theme/ansi.js";
-import { loadConfig } from "../config.js";
-import { clearCompactBoxedFooter, countLines, extractTrailingNotice, formatBoxedFooter, getTextOutput, isExpanded, renderBoxedToolResult, renderCompactBoxedFooter, renderCompactBoxedToolCall, shortenPath, stripTrailingNotice } from "./common.js";
+import { geekFg } from "../theme/geek-palette.js";
+import { extractTrailingNotice, getTextOutput, stripTrailingNotice } from "./common.js";
 import { markToolCallExecutionStarted } from "./elapsed.js";
+import { describeCall } from "./tool-summary.js";
+import { EMPTY_BODY, renderBody, renderCallRow, renderOutputBody } from "./tool-row.js";
 
 const MAX_HIGHLIGHT_OUTPUT_CHARS = 12000;
 const MAX_HIGHLIGHT_OUTPUT_LINES = 300;
@@ -40,143 +42,45 @@ function parseReadOutput(text: string): ParsedReadOutput {
 	return { fileHash: fileHashMatch?.[1], body };
 }
 
-export function renderReadCall(args: any, theme: any, context: any) {
+export function renderReadCall(args: any, _theme: any, context: any) {
 	markToolCallExecutionStarted(context);
-	const rawPath = String(args?.path ?? args?.file_path ?? "");
-	const path = shortenPath(rawPath);
-	const offset = args?.offset;
-	const limit = args?.limit;
-
-	let range = "";
-	if (offset !== undefined || limit !== undefined) {
-		const start = offset ?? 1;
-		const end = limit !== undefined ? start + limit - 1 : "";
-		range = `:${start}${end ? `-${end}` : ""}`;
-	}
-
-	const detail = path ? `${path}${range}` : "(unknown)";
-	return renderCompactBoxedToolCall(theme, "Read", `${theme.fg("dim", "Path: ")}${detail}`, {
-		state: context?.state,
-		isError: Boolean(context?.isError),
-		isPartial: Boolean(context?.isPartial),
-		isPending: Boolean(context?.isPartial && !context?.hasResult),
-	});
+	const { verb, text } = describeCall("read", args);
+	return renderCallRow(`${verb} ${text || "(unknown)"}`, context);
 }
 
-export function renderReadResult(result: any, options, theme: any, context: any) {
-	clearCompactBoxedFooter(context?.state);
+/** Expanded body: numbered, syntax-highlighted file content capped at maxExpandedLines. */
+export function renderReadResult(result: any, options: any, _theme: any, context: any) {
+	if (!options?.expanded) return EMPTY_BODY;
+	if (result.isError) return renderOutputBody(result, options);
 	const output = stripAnsi(getTextOutput(result)).trimEnd();
+	if (Array.isArray(result.content) && result.content.some((block: any) => block?.type === "image")) return EMPTY_BODY;
 
-	if (result.isError) {
-		return renderBoxedToolResult(theme, () => [theme.fg("error", output || "Error")], {
-			footerLines: [formatBoxedFooter(theme, result, [], context)],
-			isError: true,
-		});
-	}
-
-	const imageCount = Array.isArray(result.content)
-		? result.content.filter((contentBlock: any) => contentBlock?.type === "image").length
-		: 0;
-	if (imageCount > 0) {
-		if (!isExpanded(options)) return renderCompactBoxedFooter(theme, result, { state: context?.state, isError: Boolean(context?.isError), isPartial: Boolean(options?.isPartial), toolCallId: context?.toolCallId });
-		const summary = `↳ Read ${imageCount} ${imageCount === 1 ? "image" : "images"}.`;
-		return renderBoxedToolResult(theme, () => [theme.fg("dim", summary)], {
-			footerLines: [formatBoxedFooter(theme, result, [], context)],
-		});
-	}
-
-	const stripped = stripTrailingNotice(output);
-	const parsed = parseReadOutput(stripped);
+	const parsed = parseReadOutput(stripTrailingNotice(output));
 	const truncationNotice = extractTrailingNotice(output);
-	const linesRead =
-		typeof result.details?.truncation?.outputLines === "number"
-			? result.details.truncation.outputLines
-			: parsed.numberedLines?.length ?? countLines(parsed.body);
+	const lang = getLanguageFromPath(String(context?.args?.path ?? context?.args?.file_path ?? ""));
+	const lineCount = parsed.numberedLines?.length ?? parsed.body.split("\n").length;
+	const shouldHighlight = Boolean(lang) && parsed.body.length <= MAX_HIGHLIGHT_OUTPUT_CHARS && lineCount <= MAX_HIGHLIGHT_OUTPUT_LINES;
 
-	const summary = theme.fg("dim", `↳ Read ${linesRead} ${linesRead === 1 ? "line" : "lines"}.`);
-
-	if (!isExpanded(options)) return renderCompactBoxedFooter(theme, result, { state: context?.state, isError: Boolean(context?.isError), isPartial: Boolean(options?.isPartial), toolCallId: context?.toolCallId });
-
-	// Expanded: show syntax-highlighted content
-	const filePath = String(context?.args?.path ?? context?.args?.file_path ?? "");
-	const lang = getLanguageFromPath(filePath);
-	let cacheKey = "";
-	let cacheLines: string[] | null = null;
-	const body = {
-		invalidate() {
-			cacheKey = "";
-			cacheLines = null;
-		},
-		render(width: number): string[] {
-			const renderWidth = Math.max(1, width);
-			const cfg = loadConfig();
-			const maxLines = cfg.maxExpandedLines;
-			const expanded = isExpanded(options);
-			const cacheId = `${renderWidth}|${expanded ? 1 : 0}|${maxLines}|${cfg.dimToolOutput ? 1 : 0}`;
-			if (cacheLines && cacheKey === cacheId) return cacheLines;
-
-			const footer: string[] = [];
-			if (truncationNotice) footer.push(theme.fg("warning", truncationNotice));
-			footer.push("", summary);
-			const budget = maxLines > 0 ? maxLines - footer.length : 0;
-			const renderPlain = (text: string): string[] => {
-				const out: string[] = [];
-				for (const line of text.split("\n")) {
-					out.push(safeTruncateToWidth(theme.fg("toolOutput", line), renderWidth, "…"));
-				}
-				return out;
-			};
-			const lineCount = parsed.numberedLines?.length ?? countLines(parsed.body);
-			const shouldHighlight =
-				expanded &&
-				Boolean(lang) &&
-				parsed.body.length <= MAX_HIGHLIGHT_OUTPUT_CHARS &&
-				lineCount <= MAX_HIGHLIGHT_OUTPUT_LINES;
-
-			const renderBody = (): string[] => {
-				if (!parsed.numberedLines) return renderPlain(parsed.fileHash ? `fileHash: ${parsed.fileHash}\n\n${parsed.body}` : parsed.body);
-
-				let bodyLines = parsed.body.split("\n").map((line) => theme.fg("toolOutput", line));
-				if (shouldHighlight && lang) {
-					try {
-						bodyLines = highlightCode(parsed.body, lang);
-					} catch {
-						bodyLines = parsed.body.split("\n").map((line) => theme.fg("toolOutput", line));
-					}
-				}
-
-				const out: string[] = [];
-				if (parsed.fileHash) out.push(theme.fg("muted", `fileHash: ${parsed.fileHash}`), "");
-
-				const numberWidth = Math.max(...parsed.numberedLines.map((line) => line.lineNumber.length));
-				const gutterWidth = numberWidth + 3;
-				const contentWidth = Math.max(1, renderWidth - gutterWidth);
-				for (let i = 0; i < parsed.numberedLines.length; i++) {
-					const numberedLine = parsed.numberedLines[i]!;
-					const bodyLine = safeTruncateToWidth(bodyLines[i] ?? "", contentWidth, "…");
-					const gutter = theme.fg("dim", `${numberedLine.lineNumber.padStart(numberWidth)} │ `);
-					out.push(`${gutter}${bodyLine}`);
-				}
-				return out;
-			};
-
-			const highlighted = renderBody();
-			if (maxLines > 0 && highlighted.length > budget) {
-				const truncated = highlighted.slice(0, budget);
-				const remaining = highlighted.length - budget;
-				truncated.push(theme.fg("dim", `… ${remaining} more lines`));
-				truncated.push(...footer);
-				cacheKey = cacheId;
-				cacheLines = truncated;
-				return cacheLines;
+	return renderBody(true, (width, maxLines) => {
+		const sourceLines = parsed.body.split("\n");
+		const shown = maxLines > 0 ? sourceLines.slice(0, maxLines) : sourceLines;
+		let colored = shown.map((line) => geekFg("ink", line));
+		if (shouldHighlight && lang) {
+			try {
+				colored = highlightCode(shown.join("\n"), lang);
+			} catch {
+				// keep plain ink
 			}
-			highlighted.push(...footer);
-			cacheKey = cacheId;
-			cacheLines = highlighted;
-			return cacheLines;
-		},
-	};
-	return renderBoxedToolResult(theme, body, {
-		footerLines: [formatBoxedFooter(theme, result, [], context)],
+		}
+		const numbers = parsed.numberedLines;
+		const numberWidth = numbers ? Math.max(...numbers.slice(0, shown.length).map((line) => line.lineNumber.length)) : 0;
+		const gutter = numbers ? numberWidth + 3 : 0;
+		const rows = shown.map((_, i) => {
+			const code = safeTruncateToWidth(colored[i] ?? "", Math.max(1, width - gutter), "…");
+			return numbers ? `${geekFg("faint", `${(numbers[i]?.lineNumber ?? "").padStart(numberWidth)} │ `)}${code}` : code;
+		});
+		if (shown.length < sourceLines.length) rows.push(geekFg("faint", `… ${sourceLines.length - shown.length} more lines`));
+		if (truncationNotice) rows.push(geekFg("dim", safeTruncateToWidth(truncationNotice, width, "…")));
+		return rows;
 	});
 }

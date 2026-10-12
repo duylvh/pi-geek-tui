@@ -10,7 +10,7 @@ const CALL_PATCHED = Symbol.for("pi-geek-tui.builtin-tool-renderers.call.patched
 const RESULT_PATCHED = Symbol.for("pi-geek-tui.builtin-tool-renderers.result.patched");
 const SHELL_PATCHED = Symbol.for("pi-geek-tui.builtin-tool-renderers.shell.patched");
 
-// Applied name-first: for these builtin tool names the droid renderer wins
+// Applied name-first: for these builtin tool names the geek renderer wins
 // regardless of which definition survived registry dedup (issue #24).
 const BUILTIN_TOOL_RENDERERS: Record<string, { call: Function; result: Function }> = Object.assign(Object.create(null), {
 	read: { call: renderReadCall, result: renderReadResult },
@@ -50,7 +50,8 @@ export function installBuiltinToolRenderers(ToolExecutionComponentClass: any): v
 		proto[SHELL_PATCHED] = true;
 		const baseGetRenderShell = proto.getRenderShell;
 		proto.getRenderShell = function patchedBuiltinToolRenderShell(this: any, ...args: any[]) {
-			if (BUILTIN_TOOL_RENDERERS[this.toolName]) return "default";
+			// "self": no Box padding/background; the render patch adds the gutter + rail.
+			if (BUILTIN_TOOL_RENDERERS[this.toolName]) return "self";
 			return baseGetRenderShell.apply(this, args);
 		};
 	}

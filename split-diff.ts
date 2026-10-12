@@ -1,13 +1,12 @@
-// Split-diff renderer — side-by-side diff view with syntax highlighting and inline emphasis.
-// Adapted from nielpattin/dotfiles diff-renderer.ts for pi-geek-tui.
+// Inline diff rows (docs/design/geek-ui-spec.md §6): changed lines on del/add row backgrounds,
+// folded unchanged runs as `··· N unchanged lines ···`. Parsing adapted from nielpattin/dotfiles
+// diff-renderer.ts for pi-geek-tui.
 
-import type { Theme } from "@earendil-works/pi-coding-agent";
-import { getLanguageFromPath, highlightCode } from "@earendil-works/pi-coding-agent";
+import { highlightCode } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
-import { Text } from "@earendil-works/pi-tui";
 
-import { stripAnsi } from "./theme/ansi.js";
-import { safeTruncateToWidth, safeVisibleWidth } from "./render-budget.js";
+import { safeTruncateToWidth } from "./render-budget.js";
+import { geekBg, geekColor, geekFg } from "./theme/geek-palette.js";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -17,7 +16,7 @@ type DiffLine = {
 	lineNumber: string;
 };
 
-type SplitDiffRow = {
+type DiffRow = {
 	kind: "context" | "changed" | "added" | "removed" | "gap";
 	left?: DiffLine;
 	right?: DiffLine;
@@ -25,124 +24,21 @@ type SplitDiffRow = {
 	count?: number;
 };
 
-type CellLineKind = "add" | "remove" | "context";
-
 type DiffSpan = { start: number; end: number };
 
-type RgbColor = { r: number; g: number; b: number };
-
-type DiffPalette = {
-	addRowBgAnsi: string;
-	removeRowBgAnsi: string;
-	addEmphasisBgAnsi: string;
-	removeEmphasisBgAnsi: string;
-};
-
-// ── Constants ──────────────────────────────────────────────────────
-
-const BG_ANSI_PATTERN = /\x1b\[(?:4\d|10\d|48;5;\d{1,3}|48;2;\d{1,3};\d{1,3};\d{1,3}|49)m/g;
-
-const ADD_ROW_BACKGROUND_MIX_RATIO = 0.24;
-const REMOVE_ROW_BACKGROUND_MIX_RATIO = 0.12;
-const ADD_INLINE_EMPHASIS_MIX_RATIO = 0.44;
-const REMOVE_INLINE_EMPHASIS_MIX_RATIO = 0.26;
-
 /** Minimum shared-character ratio before a removed/added line pair gets word-level emphasis. */
-export const WORD_DIFF_MIN_SIMILARITY = 0.35;
+const WORD_DIFF_MIN_SIMILARITY = 0.35;
+/** Mockup block width; clamped to the body width. */
+const DIFF_BLOCK_WIDTH = 72;
+const DIFF_INDENT = 2;
+const MIN_NUMBER_WIDTH = 4;
+const EMPHASIS_MIX_RATIO = 0.3;
 
-// ── ANSI color utilities (diff-specific) ───────────────────────────
-
-function ansi256ToRgb(code: number): RgbColor {
-	if (code <= 15) {
-		const base16: RgbColor[] = [
-			{ r: 0, g: 0, b: 0 },
-			{ r: 128, g: 0, b: 0 },
-			{ r: 0, g: 128, b: 0 },
-			{ r: 128, g: 128, b: 0 },
-			{ r: 0, g: 0, b: 128 },
-			{ r: 128, g: 0, b: 128 },
-			{ r: 0, g: 128, b: 128 },
-			{ r: 192, g: 192, b: 192 },
-			{ r: 128, g: 128, b: 128 },
-			{ r: 255, g: 0, b: 0 },
-			{ r: 0, g: 255, b: 0 },
-			{ r: 255, g: 255, b: 0 },
-			{ r: 0, g: 0, b: 255 },
-			{ r: 255, g: 0, b: 255 },
-			{ r: 0, g: 255, b: 255 },
-			{ r: 255, g: 255, b: 255 },
-		];
-		return base16[code] ?? { r: 255, g: 255, b: 255 };
-	}
-	if (code >= 232) {
-		const value = Math.max(0, Math.min(255, 8 + (code - 232) * 10));
-		return { r: value, g: value, b: value };
-	}
-	const cube = code - 16;
-	const levels = [0, 95, 135, 175, 215, 255];
-	const blue = cube % 6;
-	const green = Math.floor(cube / 6) % 6;
-	const red = Math.floor(cube / 36) % 6;
-	return {
-		r: levels[red] ?? 0,
-		g: levels[green] ?? 0,
-		b: levels[blue] ?? 0,
-	};
-}
-
-function parseAnsiColorCode(ansi: string | undefined): RgbColor | null {
-	if (!ansi) return null;
-	const rgbMatch = /\x1b\[(?:3|4)8;2;(\d{1,3});(\d{1,3});(\d{1,3})m/.exec(ansi);
-	if (rgbMatch) {
-		const r = Number.parseInt(rgbMatch[1] ?? "0", 10);
-		const g = Number.parseInt(rgbMatch[2] ?? "0", 10);
-		const b = Number.parseInt(rgbMatch[3] ?? "0", 10);
-		return { r, g, b };
-	}
-	const bitMatch = /\x1b\[(?:3|4)8;5;(\d{1,3})m/.exec(ansi);
-	if (bitMatch) {
-		const code = Number.parseInt(bitMatch[1] ?? "0", 10);
-		return ansi256ToRgb(code);
-	}
-	return null;
-}
-
-function rgbToBgAnsi(color: RgbColor): string {
-	const r = Math.max(0, Math.min(255, Math.round(color.r)));
-	const g = Math.max(0, Math.min(255, Math.round(color.g)));
-	const b = Math.max(0, Math.min(255, Math.round(color.b)));
-	return `\x1b[48;2;${r};${g};${b}m`;
-}
-
-function mixRgb(base: RgbColor, tint: RgbColor, ratio: number): RgbColor {
-	const clamped = Math.max(0, Math.min(1, ratio));
-	return {
-		r: base.r * (1 - clamped) + tint.r * clamped,
-		g: base.g * (1 - clamped) + tint.g * clamped,
-		b: base.b * (1 - clamped) + tint.b * clamped,
-	};
-}
-
-function resolveDiffPalette(theme: Theme): DiffPalette {
-	const baseBg =
-		parseAnsiColorCode(theme.getBgAnsi("toolSuccessBg")) ?? parseAnsiColorCode(theme.getBgAnsi("toolPendingBg")) ?? { r: 32, g: 35, b: 42 };
-	const addFg = parseAnsiColorCode(theme.getFgAnsi("toolDiffAdded")) ?? { r: 88, g: 173, b: 88 };
-	const removeFg = parseAnsiColorCode(theme.getFgAnsi("toolDiffRemoved")) ?? { r: 196, g: 98, b: 98 };
-
-	const addRowBg = mixRgb(baseBg, addFg, ADD_ROW_BACKGROUND_MIX_RATIO);
-	const removeRowBg = mixRgb(baseBg, removeFg, REMOVE_ROW_BACKGROUND_MIX_RATIO);
-	const addEmphasisBg = mixRgb(baseBg, addFg, ADD_INLINE_EMPHASIS_MIX_RATIO);
-	const removeEmphasisBg = mixRgb(baseBg, removeFg, REMOVE_INLINE_EMPHASIS_MIX_RATIO);
-
-	return {
-		addRowBgAnsi: rgbToBgAnsi(addRowBg),
-		removeRowBgAnsi: rgbToBgAnsi(removeRowBg),
-		addEmphasisBgAnsi: rgbToBgAnsi(addEmphasisBg),
-		removeEmphasisBgAnsi: rgbToBgAnsi(removeEmphasisBg),
-	};
-}
+export type { DiffRow };
 
 // ── ANSI background helpers ────────────────────────────────────────
+
+const BG_ANSI_PATTERN = /\x1b\[(?:4\d|10\d|48;5;\d{1,3}|48;2;\d{1,3};\d{1,3};\d{1,3}|49)m/g;
 
 function keepBackgroundAcrossResets(text: string, rowBgAnsi: string): string {
 	if (!text) return text;
@@ -212,23 +108,6 @@ function sanitizeSingleLineText(value: string): string {
 
 function stripInlineBreaksPreserveAnsi(value: string): string {
 	return value.replace(/\r/g, "").replace(/\n/g, "");
-}
-
-function padRight(value: string, width: number): string {
-	const visual = safeVisibleWidth(stripAnsi(value));
-	if (visual >= width) return value;
-	return value + " ".repeat(width - visual);
-}
-
-function fitToWidth(value: string, width: number): string {
-	return padRight(safeTruncateToWidth(value, width), width);
-}
-
-function padRenderedLineWidth(line: string, width: number): string {
-	const safeWidth = Math.max(1, width);
-	const current = safeVisibleWidth(stripAnsi(line));
-	if (current >= safeWidth) return line;
-	return line + " ".repeat(safeWidth - current);
 }
 
 function wrapPlainText(text: string, width: number): string[] {
@@ -325,12 +204,8 @@ function computeInlineDiffSpans(leftLine: string, rightLine: string): { left: Di
 
 // ── Exported helpers ───────────────────────────────────────────────
 
-function formatGapLabel(count: number | undefined): string {
-	return count === undefined ? " ··· unmodified lines ···" : ` ··· ${count} unmodified lines ···`;
-}
-
-export function buildSplitRows(diff: string): SplitDiffRow[] {
-	const rows: SplitDiffRow[] = [];
+export function buildDiffRows(diff: string): DiffRow[] {
+	const rows: DiffRow[] = [];
 	let pendingLeft: DiffLine[] = [];
 	let pendingRight: DiffLine[] = [];
 	let oldCursor: number | undefined;
@@ -349,7 +224,7 @@ export function buildSplitRows(diff: string): SplitDiffRow[] {
 	// Unified-patch mode: @@ hunk headers seed the line-number cursors.
 	let unifiedHunks = false;
 	// Gap row from Pi's "..." skip marker; its count comes from the next numbered context line.
-	let openGap: SplitDiffRow | undefined;
+	let openGap: DiffRow | undefined;
 
 	for (const rawLine of diff.split("\n")) {
 		const hunk = rawLine.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
@@ -431,17 +306,6 @@ export function countDiffStats(diff: string): { additions: number; removals: num
 	return { additions, removals };
 }
 
-export function renderDiffMeter(theme: Theme, additions: number, removals: number, width = 20): string {
-	const total = additions + removals;
-	if (total <= 0) return "";
-
-	const addBlocks = Math.round((additions / total) * width);
-	const removeBlocks = Math.max(0, width - addBlocks);
-	const addBar = addBlocks > 0 ? theme.fg("toolDiffAdded", "━".repeat(addBlocks)) : "";
-	const removeBar = removeBlocks > 0 ? theme.fg("toolDiffRemoved", "━".repeat(removeBlocks)) : "";
-	return `${theme.fg("dim", "[")}${addBar}${removeBar}${theme.fg("dim", "]")}`;
-}
-
 export function extractEditedPath(message: string): string | undefined {
 	const m = message.match(/Successfully replaced (?:text|\d+ block\(s\)|lines L\d+-\d+) in (.+)\.$/);
 	return m?.[1];
@@ -456,400 +320,147 @@ export function firstText(content: Array<{ type: string; text?: string }>): stri
 	return "";
 }
 
-// ── Shared base ────────────────────────────────────────────────────
-// State, constructor and syntax highlighting common to the split and unified views.
 
-abstract class DiffComponentBase {
-	protected cacheWidth?: number;
-	protected cacheLines?: string[];
-	protected readonly lineNumberWidth: number;
-	protected readonly highlightCache = new Map<string, string>();
-	protected readonly inlineHighlights = new WeakMap<DiffLine, DiffSpan[]>();
-	protected readonly palette: DiffPalette;
-	protected readonly containerBgAnsi: string;
+/** All-added rows for a file written from scratch. */
+export function buildAddedRows(content: string): DiffRow[] {
+	const lines = content.replace(/\r/g, "").replace(/\n$/, "").split("\n");
+	return lines.map((line, index) => ({ kind: "added", right: makeDiffLine("+", index + 1, sanitizeSingleLineText(line).replace(/\t/g, "    ")) }));
+}
+
+// ── DiffRowsComponent ──────────────────────────────────────────────
+
+type Side = "add" | "del";
+type Shown = { side: Side; line: DiffLine } | { gap: number | undefined };
+
+/**
+ * Hunks as the spec shows them: removed lines then added lines, unchanged runs folded into a gap
+ * row between hunks. Context before the first / after the last change is dropped.
+ */
+function foldRows(rows: DiffRow[]): Shown[] {
+	const shown: Shown[] = [];
+	let unchanged = 0;
+	let unknownGap = false;
+	let changed = false;
+	for (let i = 0; i < rows.length; i++) {
+		const row = rows[i]!;
+		if (row.kind === "context") {
+			unchanged++;
+			continue;
+		}
+		if (row.kind === "gap") {
+			if (row.count === undefined) unknownGap = true;
+			else unchanged += row.count;
+			continue;
+		}
+		if (changed && (unchanged > 0 || unknownGap)) shown.push({ gap: unknownGap && unchanged === 0 ? undefined : unchanged });
+		unchanged = 0;
+		unknownGap = false;
+		changed = true;
+		const run: DiffRow[] = [row];
+		while (i + 1 < rows.length && rows[i + 1]!.kind !== "context" && rows[i + 1]!.kind !== "gap") run.push(rows[++i]!);
+		for (const r of run) if (r.left) shown.push({ side: "del", line: r.left });
+		for (const r of run) if (r.right) shown.push({ side: "add", line: r.right });
+	}
+	return shown;
+}
+
+function rowBgStart(role: "delBg" | "addBg"): string {
+	return geekBg(role, "").slice(0, -"\x1b[49m".length);
+}
+
+function emphasisBgStart(role: "delBg" | "addBg", marker: "delMark" | "addMark"): string {
+	const mix = (offset: number) => {
+		const base = parseInt(geekColor(role).slice(offset, offset + 2), 16);
+		const tint = parseInt(geekColor(marker).slice(offset, offset + 2), 16);
+		return Math.round(base + (tint - base) * EMPHASIS_MIX_RATIO);
+	};
+	return `\x1b[48;2;${mix(1)};${mix(3)};${mix(5)}m`;
+}
+
+export class DiffRowsComponent implements Component {
+	private cacheWidth?: number;
+	private cacheLines?: string[];
+	private readonly shown: Shown[];
+	private readonly numberWidth: number;
+	private readonly inlineSpans = new WeakMap<DiffLine, DiffSpan[]>();
+	private readonly highlightCache = new Map<string, string>();
 
 	constructor(
-		protected readonly theme: Theme,
-		protected readonly rows: SplitDiffRow[],
-		protected readonly maxRows: number,
-		protected readonly language?: string,
+		rows: DiffRow[],
+		private readonly maxRows: number,
+		private readonly language?: string,
 	) {
-		let maxDigits = 3;
+		this.shown = foldRows(rows);
+		let digits = MIN_NUMBER_WIDTH;
 		for (const row of rows) {
-			const leftDigits = row.left?.lineNumber.trim().length ?? 0;
-			const rightDigits = row.right?.lineNumber.trim().length ?? 0;
-			maxDigits = Math.max(maxDigits, leftDigits, rightDigits);
-
+			digits = Math.max(digits, row.left?.lineNumber.trim().length ?? 0, row.right?.lineNumber.trim().length ?? 0);
 			if (row.kind === "changed" && row.left && row.right) {
 				const spans = computeInlineDiffSpans(row.left.line, row.right.line);
-				if (spans.left.length > 0) this.inlineHighlights.set(row.left, spans.left);
-				if (spans.right.length > 0) this.inlineHighlights.set(row.right, spans.right);
+				if (spans.left.length > 0) this.inlineSpans.set(row.left, spans.left);
+				if (spans.right.length > 0) this.inlineSpans.set(row.right, spans.right);
 			}
 		}
-		this.lineNumberWidth = maxDigits;
-		this.palette = resolveDiffPalette(theme);
-		this.containerBgAnsi = theme.getBgAnsi("toolSuccessBg");
+		this.numberWidth = digits;
 	}
 
-	protected syntaxHighlight(line: string): string {
-		if (!this.language) return stripInlineBreaksPreserveAnsi(line);
-		const safeLine = sanitizeSingleLineText(line);
-		const key = `${this.language}\n${safeLine}`;
+	private highlight(line: string): string {
+		if (!this.language) return line;
+		const key = `${this.language}\n${line}`;
 		const cached = this.highlightCache.get(key);
 		if (cached) return cached;
-
-		let highlighted = safeLine;
+		let highlighted = line;
 		try {
-			highlighted = highlightCode(safeLine, this.language)[0] ?? safeLine;
-			highlighted = stripInlineBreaksPreserveAnsi(highlighted).replace(BG_ANSI_PATTERN, "");
+			highlighted = stripInlineBreaksPreserveAnsi(highlightCode(line, this.language)[0] ?? line).replace(BG_ANSI_PATTERN, "");
 		} catch {
-			highlighted = safeLine;
+			// plain text
 		}
 		this.highlightCache.set(key, highlighted);
 		return highlighted;
 	}
-}
 
-// ── SplitDiffComponent ─────────────────────────────────────────────
-
-export class SplitDiffComponent extends DiffComponentBase implements Component {
-	private getCellLineKind(kind: SplitDiffRow["kind"], side: "left" | "right"): CellLineKind {
-		if (kind === "changed") return side === "left" ? "remove" : "add";
-		if (kind === "removed" && side === "left") return "remove";
-		if (kind === "added" && side === "right") return "add";
-		return "context";
-	}
-
-	private getVisualLineKind(kind: SplitDiffRow["kind"], side: "left" | "right", line?: DiffLine): CellLineKind {
-		const base = this.getCellLineKind(kind, side);
-		if ((kind === "added" || kind === "removed") && (line?.line ?? "") === "") {
-			return "context";
-		}
-		return base;
-	}
-
-	private getNumberColor(lineKind: CellLineKind): "toolDiffRemoved" | "toolDiffAdded" | "dim" {
-		if (lineKind === "remove") return "toolDiffRemoved";
-		if (lineKind === "add") return "toolDiffAdded";
-		return "dim";
-	}
-
-	private getRowBackground(lineKind: CellLineKind): string | undefined {
-		if (lineKind === "add") return this.palette.addRowBgAnsi;
-		if (lineKind === "remove") return this.palette.removeRowBgAnsi;
-		return undefined;
-	}
-
-	private getEmphasisBackground(lineKind: CellLineKind): string | undefined {
-		if (lineKind === "add") return this.palette.addEmphasisBgAnsi;
-		if (lineKind === "remove") return this.palette.removeEmphasisBgAnsi;
-		return undefined;
-	}
-
-	private getCellFillBackground(kind: SplitDiffRow["kind"], side: "left" | "right"): string | undefined {
-		switch (kind) {
-			case "changed":
-				return side === "left" ? this.palette.removeRowBgAnsi : this.palette.addRowBgAnsi;
-			case "removed":
-				return side === "left" ? this.palette.removeRowBgAnsi : undefined;
-			case "added":
-				return side === "right" ? this.palette.addRowBgAnsi : undefined;
-			default:
-				return undefined;
-		}
-	}
-
-	private blankCell(kind: SplitDiffRow["kind"], side: "left" | "right", columnWidth: number): string {
-		const lineKind = this.getCellLineKind(kind, side);
-		const markerChar = lineKind === "add" || lineKind === "remove" ? "▌" : " ";
-		const markerColor = lineKind === "add" ? "toolDiffAdded" : lineKind === "remove" ? "toolDiffRemoved" : "borderMuted";
-		const marker = this.theme.fg(markerColor, markerChar);
-		const lineNumber = this.theme.fg("dim", " ".repeat(this.lineNumberWidth));
-		const divider = this.theme.fg("borderMuted", " │ ");
-		const prefix = `${marker} ${lineNumber}${divider}`;
-		const prefixPlain = `${markerChar} ${" ".repeat(this.lineNumberWidth)} │ `;
-		const tailWidth = Math.max(0, columnWidth - safeVisibleWidth(prefixPlain));
-		let rendered = prefix + " ".repeat(tailWidth);
-
-		const bg = this.getCellFillBackground(kind, side);
-		if (!bg) return padRenderedLineWidth(rendered, columnWidth);
-		rendered = `${bg}${keepBackgroundAcrossResets(rendered, bg)}${this.containerBgAnsi}`;
-		return padRenderedLineWidth(rendered, columnWidth);
-	}
-
-	private formatCellLines(
-		kind: SplitDiffRow["kind"],
-		side: "left" | "right",
-		line: DiffLine | undefined,
-		columnWidth: number,
-	): string[] {
-		if (!line) return [this.blankCell(kind, side, columnWidth)];
-
-		const lineKind = this.getVisualLineKind(kind, side, line);
-		const markerChar = lineKind === "add" || lineKind === "remove" ? "▌" : " ";
-		const markerColor = lineKind === "add" ? "toolDiffAdded" : lineKind === "remove" ? "toolDiffRemoved" : "borderMuted";
-		const lineNumber = line.lineNumber.trim().padStart(this.lineNumberWidth, " ");
-
-		const firstPrefixAnsi =
-			this.theme.fg(markerColor, markerChar) +
-			" " +
-			this.theme.fg(this.getNumberColor(lineKind), lineNumber) +
-			this.theme.fg("borderMuted", " │ ");
-		const firstPrefixPlain = `${markerChar} ${lineNumber} │ `;
-
-		const contPrefixAnsi =
-			this.theme.fg(markerColor, markerChar) +
-			" " +
-			this.theme.fg("dim", " ".repeat(this.lineNumberWidth)) +
-			this.theme.fg("borderMuted", " │ ");
-		const contPrefixPlain = `${markerChar} ${" ".repeat(this.lineNumberWidth)} │ `;
-
-		const codeWidth = Math.max(1, columnWidth - safeVisibleWidth(firstPrefixPlain));
-		const rowBg = this.getRowBackground(lineKind);
-		const emphasisBg = this.getEmphasisBackground(lineKind);
-
-		const plainSegments = wrapPlainText(line.line, codeWidth);
-		const lines: string[] = [];
-		const spans = this.inlineHighlights.get(line) ?? [];
-
+	private formatLine(side: Side, line: DiffLine, blockWidth: number): string[] {
+		const bgRole = side === "add" ? "addBg" : "delBg";
+		const markRole = side === "add" ? "addMark" : "delMark";
+		const rowBg = rowBgStart(bgRole);
+		const spanBg = emphasisBgStart(bgRole, markRole);
+		const prefixWidth = this.numberWidth + 1 + 2;
+		const codeWidth = Math.max(1, blockWidth - prefixWidth);
+		const segments = wrapPlainText(line.line, codeWidth);
+		const spans = this.inlineSpans.get(line) ?? [];
+		const rows: string[] = [];
 		let consumed = 0;
-		for (let i = 0; i < plainSegments.length; i++) {
-			const prefixAnsi = i === 0 ? firstPrefixAnsi : contPrefixAnsi;
-			const prefixPlain = i === 0 ? firstPrefixPlain : contPrefixPlain;
-			const plainSegment = plainSegments[i] ?? "";
-			let segment = this.syntaxHighlight(plainSegment);
-
-			if (spans.length > 0 && emphasisBg) {
-				const segmentStart = consumed;
-				for (let si = spans.length - 1; si >= 0; si--) {
-					const span = spans[si];
-					if (!span) continue;
-					const localStart = Math.max(0, span.start - segmentStart);
-					const localEnd = Math.min(plainSegment.length, span.end - segmentStart);
-					if (localEnd > localStart) {
-						segment = applyBackgroundToVisibleRange(
-							segment,
-							localStart,
-							localEnd,
-							emphasisBg,
-							rowBg ?? this.containerBgAnsi,
-						);
-					}
-				}
+		segments.forEach((plain, index) => {
+			let code = this.highlight(plain);
+			for (let s = spans.length - 1; s >= 0; s--) {
+				const start = Math.max(0, spans[s]!.start - consumed);
+				const end = Math.min(plain.length, spans[s]!.end - consumed);
+				if (end > start) code = applyBackgroundToVisibleRange(code, start, end, spanBg, rowBg);
 			}
-
-			segment = fitToWidth(segment, codeWidth);
-			let rendered = prefixAnsi + segment;
-
-			// Defensive pad if prefix widths diverge because of unicode widths
-			const expectedWidth = safeVisibleWidth(prefixPlain) + codeWidth;
-			const currentWidth = safeVisibleWidth(stripAnsi(rendered));
-			if (currentWidth < expectedWidth) {
-				rendered += " ".repeat(expectedWidth - currentWidth);
-			}
-
-			if (rowBg) {
-				rendered = `${rowBg}${keepBackgroundAcrossResets(rendered, rowBg)}${this.containerBgAnsi}`;
-			}
-			lines.push(padRenderedLineWidth(rendered, columnWidth));
-			consumed += plainSegment.length;
-		}
-
-		return lines;
+			consumed += plain.length;
+			const number = index === 0 ? line.lineNumber.trim().padStart(this.numberWidth) : " ".repeat(this.numberWidth);
+			const marker = index === 0 ? (side === "add" ? "+ " : "- ") : "  ";
+			const inner = `${geekFg("faint", `${number} `)}${geekFg(markRole, marker)}${safeTruncateToWidth(code, codeWidth, "…", true)}`;
+			rows.push(`${" ".repeat(DIFF_INDENT)}${rowBg}${keepBackgroundAcrossResets(inner, rowBg)}\x1b[49m`);
+		});
+		return rows;
 	}
 
 	render(width: number): string[] {
 		if (this.cacheWidth === width && this.cacheLines) return this.cacheLines;
-
-		const safeWidth = Math.max(20, width);
-		const columnSeparator = this.theme.fg("borderMuted", " │ ");
-		const separatorWidth = safeVisibleWidth(stripAnsi(columnSeparator));
-		const leftWidth = Math.max(20, Math.floor((safeWidth - separatorWidth) / 2));
-		const rightWidth = Math.max(20, safeWidth - separatorWidth - leftWidth);
-
-		const formatBorderCell = (columnWidth: number, junction: string): string => {
-			const safeColumnWidth = Math.max(1, columnWidth);
-			const chars = "─".repeat(safeColumnWidth).split("");
-			const dividerIndex = this.lineNumberWidth + 3;
-			if (dividerIndex >= 0 && dividerIndex < chars.length) {
-				chars[dividerIndex] = junction;
-			}
-			return this.theme.fg("borderMuted", chars.join(""));
-		};
-
-		const formatHeaderCell = (label: string, columnWidth: number): string => {
-			// Keep marker+space columns, then place label inside the line-number column.
-			const markerPad = "  ";
-			const lineNumberLabel = fitToWidth(label, this.lineNumberWidth);
-			const prefixAnsi =
-				this.theme.fg("borderMuted", markerPad) +
-				this.theme.fg("dim", lineNumberLabel) +
-				this.theme.fg("borderMuted", " │ ");
-			const prefixPlain = `${markerPad}${stripAnsi(lineNumberLabel)} │ `;
-			const codeWidth = Math.max(0, columnWidth - safeVisibleWidth(prefixPlain));
-			return padRenderedLineWidth(prefixAnsi + " ".repeat(codeWidth), columnWidth);
-		};
-
+		const blockWidth = Math.max(this.numberWidth + 8, Math.min(DIFF_BLOCK_WIDTH, width - DIFF_INDENT));
+		const gapIndent = " ".repeat(DIFF_INDENT + this.numberWidth + 1 + 2);
 		const lines: string[] = [];
-		lines.push(padRenderedLineWidth(formatBorderCell(leftWidth, "┬") + this.theme.fg("borderMuted", "─┬─") + formatBorderCell(rightWidth, "┬"), safeWidth));
-		lines.push(padRenderedLineWidth(formatHeaderCell("old", leftWidth) + columnSeparator + formatHeaderCell("new", rightWidth), safeWidth));
-
-		for (const row of this.rows.slice(0, this.maxRows)) {
-			if (row.kind === "gap") {
-				const label = formatGapLabel(row.count);
-				lines.push(padRenderedLineWidth(this.theme.fg("muted", label), safeWidth));
-				continue;
-			}
-			const leftCellLines = this.formatCellLines(row.kind, "left", row.left, leftWidth);
-			const rightCellLines = this.formatCellLines(row.kind, "right", row.right, rightWidth);
-			const rowHeight = Math.max(leftCellLines.length, rightCellLines.length);
-
-			for (let i = 0; i < rowHeight; i++) {
-				const leftFallbackKind: SplitDiffRow["kind"] = row.kind === "changed" ? "context" : row.kind;
-				const rightFallbackKind: SplitDiffRow["kind"] = row.kind === "changed" ? "context" : row.kind;
-				const leftCell = leftCellLines[i] ?? this.blankCell(leftFallbackKind, "left", leftWidth);
-				const rightCell = rightCellLines[i] ?? this.blankCell(rightFallbackKind, "right", rightWidth);
-				const joined = padRenderedLineWidth(leftCell + columnSeparator + rightCell, safeWidth);
-				lines.push(joined);
+		let used = 0;
+		for (; used < this.shown.length && lines.length < this.maxRows; used++) {
+			const item = this.shown[used]!;
+			if ("gap" in item) {
+				const label = item.gap === undefined ? "··· unchanged lines ···" : `··· ${item.gap} unchanged lines ···`;
+				lines.push(geekFg("faint", `${gapIndent}${label}`));
+			} else {
+				lines.push(...this.formatLine(item.side, item.line, blockWidth));
 			}
 		}
-
-		if (this.rows.length > this.maxRows) {
-			lines.push(this.theme.fg("muted", `... ${this.rows.length - this.maxRows} more rows`));
-		}
-
-		lines.push(padRenderedLineWidth(formatBorderCell(leftWidth, "┴") + this.theme.fg("borderMuted", "─┴─") + formatBorderCell(rightWidth, "┴"), safeWidth));
-		this.cacheWidth = width;
-		this.cacheLines = lines;
-		return lines;
-	}
-
-	invalidate(): void {
-		this.cacheWidth = undefined;
-		this.cacheLines = undefined;
-		this.highlightCache.clear();
-	}
-}
-
-// ── Diff render mode (split / unified / auto) ──────────────────────
-
-/** Minimum terminal width for the side-by-side split view in "auto" mode. */
-export const SPLIT_MODE_MIN_WIDTH = 140;
-
-export type DiffRenderMode = "split" | "unified";
-
-/** Resolve the configured diff mode ("split" | "unified" | "auto") to a concrete render mode for the given width. */
-export function resolveDiffRenderMode(mode: "split" | "unified" | "auto", width: number): DiffRenderMode {
-	if (mode === "split") return "split";
-	if (mode === "unified") return "unified";
-	return width >= SPLIT_MODE_MIN_WIDTH ? "split" : "unified";
-}
-
-// ── UnifiedDiffComponent ───────────────────────────────────────────
-// Single-column (unified) diff view sharing the split view's palette,
-// syntax highlighting, and word-level emphasis. Removed lines render
-// before their added counterparts, like a classic unified diff.
-
-export class UnifiedDiffComponent extends DiffComponentBase implements Component {
-	private formatLine(kind: CellLineKind, line: DiffLine, width: number): string[] {
-		const markerChar = kind === "add" || kind === "remove" ? "▌" : " ";
-		const markerColor = kind === "add" ? "toolDiffAdded" : kind === "remove" ? "toolDiffRemoved" : "borderMuted";
-		const numberColor = kind === "add" ? "toolDiffAdded" : kind === "remove" ? "toolDiffRemoved" : "dim";
-		const lineNumber = line.lineNumber.trim().padStart(this.lineNumberWidth, " ");
-
-		const firstPrefixAnsi =
-			this.theme.fg(markerColor, markerChar) +
-			" " +
-			this.theme.fg(numberColor, lineNumber) +
-			this.theme.fg("borderMuted", " │ ");
-		const firstPrefixPlain = `${markerChar} ${lineNumber} │ `;
-
-		const contPrefixAnsi =
-			this.theme.fg(markerColor, markerChar) +
-			" " +
-			this.theme.fg("dim", " ".repeat(this.lineNumberWidth)) +
-			this.theme.fg("borderMuted", " │ ");
-
-		const codeWidth = Math.max(1, width - safeVisibleWidth(firstPrefixPlain));
-		const rowBg = kind === "add" ? this.palette.addRowBgAnsi : kind === "remove" ? this.palette.removeRowBgAnsi : undefined;
-		const emphasisBg = kind === "add" ? this.palette.addEmphasisBgAnsi : kind === "remove" ? this.palette.removeEmphasisBgAnsi : undefined;
-
-		const plainSegments = wrapPlainText(line.line, codeWidth);
-		const lines: string[] = [];
-		const spans = this.inlineHighlights.get(line) ?? [];
-
-		let consumed = 0;
-		for (let i = 0; i < plainSegments.length; i++) {
-			const prefixAnsi = i === 0 ? firstPrefixAnsi : contPrefixAnsi;
-			const plainSegment = plainSegments[i] ?? "";
-			let segment = this.syntaxHighlight(plainSegment);
-
-			if (spans.length > 0 && emphasisBg) {
-				const segmentStart = consumed;
-				for (let si = spans.length - 1; si >= 0; si--) {
-					const span = spans[si];
-					if (!span) continue;
-					const localStart = Math.max(0, span.start - segmentStart);
-					const localEnd = Math.min(plainSegment.length, span.end - segmentStart);
-					if (localEnd > localStart) {
-						segment = applyBackgroundToVisibleRange(segment, localStart, localEnd, emphasisBg, rowBg ?? this.containerBgAnsi);
-					}
-				}
-			}
-
-			segment = fitToWidth(segment, codeWidth);
-			let rendered = prefixAnsi + segment;
-
-			const expectedWidth = safeVisibleWidth(firstPrefixPlain) + codeWidth;
-			const currentWidth = safeVisibleWidth(stripAnsi(rendered));
-			if (currentWidth < expectedWidth) {
-				rendered += " ".repeat(expectedWidth - currentWidth);
-			}
-
-			if (rowBg) {
-				rendered = `${rowBg}${keepBackgroundAcrossResets(rendered, rowBg)}${this.containerBgAnsi}`;
-			}
-			lines.push(padRenderedLineWidth(rendered, width));
-			consumed += plainSegment.length;
-		}
-
-		return lines;
-	}
-
-	render(width: number): string[] {
-		if (this.cacheWidth === width && this.cacheLines) return this.cacheLines;
-
-		const safeWidth = Math.max(20, width);
-		const lines: string[] = [];
-
-		for (const row of this.rows.slice(0, this.maxRows)) {
-			switch (row.kind) {
-				case "gap": {
-					const label = formatGapLabel(row.count);
-					lines.push(padRenderedLineWidth(this.theme.fg("muted", label), safeWidth));
-					break;
-				}
-				case "changed":
-					if (row.left) lines.push(...this.formatLine("remove", row.left, safeWidth));
-					if (row.right) lines.push(...this.formatLine("add", row.right, safeWidth));
-					break;
-				case "removed":
-					if (row.left) lines.push(...this.formatLine("remove", row.left, safeWidth));
-					break;
-				case "added":
-					if (row.right) lines.push(...this.formatLine("add", row.right, safeWidth));
-					break;
-				default:
-					if (row.right) lines.push(...this.formatLine("context", row.right, safeWidth));
-					else if (row.left) lines.push(...this.formatLine("context", row.left, safeWidth));
-					break;
-			}
-		}
-
-		if (this.rows.length > this.maxRows) {
-			lines.push(this.theme.fg("muted", `... ${this.rows.length - this.maxRows} more rows`));
-		}
-
+		if (used < this.shown.length) lines.push(geekFg("faint", `${gapIndent}… ${this.shown.length - used} more rows`));
 		this.cacheWidth = width;
 		this.cacheLines = lines;
 		return lines;

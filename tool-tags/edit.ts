@@ -4,25 +4,23 @@ import { pathToFileURL } from "node:url";
 
 import type { ExtensionAPI, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
 import { getAgentDir, getLanguageFromPath } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
+import type { Component } from "@earendil-works/pi-tui";
 
-import { loadConfig } from "../config.js";
 import { safeTruncateToWidth } from "../render-budget.js";
 import { stripAnsi } from "../theme/ansi.js";
+import { geekFg } from "../theme/geek-palette.js";
 import {
-	SplitDiffComponent,
-	UnifiedDiffComponent,
-	buildSplitRows,
+	DiffRowsComponent,
+	buildDiffRows,
 	countDiffStats,
 	extractEditedPath,
 	firstText,
-	renderDiffMeter,
-	resolveDiffRenderMode,
 } from "../split-diff.js";
-import { formatBoxedFooter, getTextOutput, isExpanded, renderBoxedToolCall, renderBoxedToolResult, resolveRelativePath } from "./common.js";
-import { markToolCallExecutionStarted, wrapExecuteWithTiming } from "./elapsed.js";
+import { getTextOutput, isExpanded, resolveRelativePath } from "./common.js";
+import { markToolCallExecutionStarted, resolveToolCallElapsedMs, wrapExecuteWithTiming } from "./elapsed.js";
+import { metaText, renderCallRow, renderOutputBody, setRowMeta } from "./tool-row.js";
+import { secondsText } from "./tool-summary.js";
 
-const MAX_HIGHLIGHT_DIFF_CHARS = 12000;
 const MAX_HIGHLIGHT_DIFF_ROWS = 120;
 
 type EditCoreModule = {
@@ -113,51 +111,64 @@ function countRowStats(rows: Array<{ left?: unknown; right?: unknown; kind: stri
 	return { additions, removals };
 }
 
-/** Multi-line tool output as one box row per line — an embedded newline breaks the box. */
-function outputRows(theme: any, text: string, color: string, firstPrefix = ""): string[] {
-	return text.split("\n").map((line, index) => theme.fg(color, index === 0 ? `${firstPrefix}${line}` : line));
+/** `+2 -2 · 0.1s` meta shared by every edit-class result. */
+export function publishEditMeta(context: any, result: any, additions: number, removals: number): void {
+	const elapsed = resolveToolCallElapsedMs(context, result);
+	const parts = [`${geekFg("mono", `+${additions}`)} ${geekFg("delMark", `-${removals}`)}`];
+	if (elapsed !== undefined) parts.push(secondsText(elapsed));
+	setRowMeta(context?.state, metaText(parts));
 }
 
-export function renderEditCall(args: any, theme: any, context: any) {
+export function publishFailedMeta(context: any, result: any): void {
+	const elapsed = resolveToolCallElapsedMs(context, result);
+	setRowMeta(context?.state, metaText([geekFg("delMark", "failed"), ...(elapsed !== undefined ? [secondsText(elapsed)] : [])]));
+}
+
+/** One titled diff per file; `maxRows` is split between files so a big patch cannot hide the rest. */
+export function diffSectionsBody(sections: Array<{ title?: string; rows: ReturnType<typeof buildDiffRows>; language?: string }>, maxRows: number): Component {
+	const parts = sections.map((section) => {
+		const highlight = Boolean(section.language) && section.rows.length <= MAX_HIGHLIGHT_DIFF_ROWS;
+		const partRows = section.title ? Math.max(6, Math.floor(maxRows / sections.length)) : maxRows;
+		return { title: section.title, diff: new DiffRowsComponent(section.rows, partRows, highlight ? section.language : undefined) };
+	});
+	return {
+		render(width: number): string[] {
+			return parts.flatMap(({ title, diff }) => [
+				...(title ? [geekFg("dim", safeTruncateToWidth(title, width, "…"))] : []),
+				...diff.render(width),
+			]);
+		},
+		invalidate(): void {
+			for (const { diff } of parts) diff.invalidate();
+		},
+	};
+}
+
+export function renderEditCall(args: any, _theme: any, context: any) {
 	markToolCallExecutionStarted(context);
 	const cwd = typeof context?.cwd === "string" ? context.cwd : process.cwd();
 	const paths = scriptModePaths(args);
-	let label = "Path: ";
 	let detail: string;
 	if (paths && paths.length > 0) {
-		label = "Paths: ";
 		const shown = paths.length > 2 ? `${paths.length} paths` : paths.map((p) => resolveRelativePath(p, cwd) || p).join(", ");
 		const lang = typeof args?.lang === "string" && args.lang ? ` (${args.lang})` : "";
 		detail = shown + lang;
 	} else {
 		const rawPath = String(args?.path ?? args?.file_path ?? "");
-		const relPath = rawPath ? resolveRelativePath(rawPath, cwd) : "";
-		detail = relPath || "(unknown)";
+		detail = (rawPath ? resolveRelativePath(rawPath, cwd) : "") || "(unknown)";
 	}
-	return renderBoxedToolCall(theme, "Edit", [`${theme.fg("dim", label)}${detail}`], {
-		isError: Boolean(context?.isError),
-		isPartial: Boolean(context?.isPartial),
-		isPending: Boolean(context?.isPartial && !context?.hasResult),
-	});
+	return renderCallRow(`edit ${detail}`, context);
 }
 
-export function renderEditResult(result: any, options: ToolRenderResultOptions, theme: any, context: any) {
-	// Handle partial/streaming state
-	if (options.isPartial) {
-		return renderBoxedToolResult(theme, () => [`${theme.fg("dim", "↳")} ${theme.fg("muted", "Applying edit...")}`], { isPartial: true });
-	}
+export function renderEditResult(result: any, options: ToolRenderResultOptions, _theme: any, context: any) {
+	if (options.isPartial) return renderOutputBody({ content: [] }, { expanded: true });
 
-	// Handle errors
 	if (result.isError) {
-		const output = stripAnsi(getTextOutput(result)).trim() || "Error";
-		return renderBoxedToolResult(theme, () => outputRows(theme, output, "error"), {
-			footerLines: [formatBoxedFooter(theme, result, [], context)],
-			isError: true,
-		});
+		publishFailedMeta(context, result);
+		return renderOutputBody(result, { expanded: true });
 	}
 
-	// Extract diff from result details. Script-mode edit carries a unified
-	// patch; default edit keeps its native `diff` format untouched.
+	// Script-mode edit carries a unified patch; default edit keeps its native `diff` format untouched.
 	const scriptMode = scriptModePaths(context?.args) !== null;
 	const details = result.details as { diff?: string; patch?: string; path?: string } | undefined;
 	const rawDiff = scriptMode ? (details?.patch ?? details?.diff) : details?.diff;
@@ -165,73 +176,27 @@ export function renderEditResult(result: any, options: ToolRenderResultOptions, 
 	const diff = sections.map((section) => section.body).join("\n");
 
 	if (!diff) {
-		const output = stripAnsi(getTextOutput(result)).trim() || "Edit applied";
-		return renderBoxedToolResult(theme, () => outputRows(theme, output, "dim", "↳ "), {
-			footerLines: [formatBoxedFooter(theme, result, [], context)],
-		});
+		publishEditMeta(context, result, 0, 0);
+		const output = stripAnsi(getTextOutput(result)).trim();
+		return renderOutputBody({ content: [{ type: "text", text: output }] }, { expanded: true });
 	}
 
-	// Resolve language for syntax highlighting
 	const message = firstText(result.content);
 	const argPath = String(context?.args?.path ?? context?.args?.file_path ?? (scriptMode ? (context?.args?.paths?.[0] ?? "") : ""));
 	const sourcePath = details?.path ?? (argPath || extractEditedPath(message));
 	const language = sourcePath ? getLanguageFromPath(sourcePath) : undefined;
-
-	// Build diff rows: one component per file, titled when several. The
-	// diffMode config ("split" | "unified" | "auto") picks the renderer at
-	// render time; "auto" falls back to unified below SPLIT_MODE_MIN_WIDTH.
-	const diffMode = loadConfig().diffMode;
-	const expanded = isExpanded(options);
-	const maxRows = expanded ? 160 : 36;
 	const titled = sections.length > 1;
 	const cwd = typeof context?.cwd === "string" ? context.cwd : process.cwd();
-	const parts = sections.map((section) => {
-		const rows = buildSplitRows(section.body);
-		const sectionLanguage = section.path ? getLanguageFromPath(section.path) : language;
-		const shouldHighlight =
-			Boolean(sectionLanguage) &&
-			section.body.length <= MAX_HIGHLIGHT_DIFF_CHARS &&
-			rows.length <= MAX_HIGHLIGHT_DIFF_ROWS;
-		const title = titled && section.path ? `▸ ${resolveRelativePath(section.path, cwd) || section.path}` : undefined;
-		const partMaxRows = titled ? Math.max(6, Math.floor(maxRows / sections.length)) : maxRows;
-		const partLanguage = shouldHighlight ? sectionLanguage : undefined;
-		const split = new SplitDiffComponent(theme, rows, partMaxRows, partLanguage);
-		const unified = diffMode === "split" ? undefined : new UnifiedDiffComponent(theme, rows, partMaxRows, partLanguage);
-		return { title, split, unified, rows };
-	});
+	const parts = sections.map((section) => ({
+		title: titled && section.path ? `▸ ${resolveRelativePath(section.path, cwd) || section.path}` : undefined,
+		rows: buildDiffRows(section.body),
+		language: section.path ? getLanguageFromPath(section.path) : language,
+	}));
 
-	// Build summary header with diff stats and meter
-	// Script-mode bodies carry no file headers, so count parsed rows: a
-	// content line like "+---" must count, not be skipped as a header.
+	// Script-mode bodies carry no file headers, so count parsed rows: a content line like "+---" must count.
 	const { additions, removals } = scriptMode ? countRowStats(parts.flatMap((part) => part.rows)) : countDiffStats(diff);
-	const meter = renderDiffMeter(theme, additions, removals);
-	const buildSummary = (modeLabel: string) =>
-		`${theme.fg("dim", "↳")} ${theme.fg("muted", "diff")}` +
-		` ${theme.fg("toolDiffAdded", `+${additions}`)}` +
-		` ${theme.fg("toolDiffRemoved", `-${removals}`)}` +
-		` ${theme.fg("muted", modeLabel)}` +
-		(meter ? ` ${meter}` : "");
-
-	return renderBoxedToolResult(theme, {
-		render(width: number): string[] {
-			const safeWidth = Math.max(20, width);
-			const mode = resolveDiffRenderMode(diffMode, safeWidth);
-			const headerLines = new Text(buildSummary(mode), 0, 0).render(safeWidth);
-			const body = parts.flatMap(({ title, split, unified }) => [
-				...(title ? [safeTruncateToWidth(theme.fg("muted", title), safeWidth, "…")] : []),
-				...(mode === "unified" && unified ? unified : split).render(safeWidth),
-			]);
-			return [...headerLines, ...body];
-		},
-		invalidate(): void {
-			for (const { split, unified } of parts) {
-				split.invalidate();
-				unified?.invalidate();
-			}
-		},
-	}, {
-		footerLines: [formatBoxedFooter(theme, result, [], context)],
-	});
+	publishEditMeta(context, result, additions, removals);
+	return diffSectionsBody(parts, isExpanded(options) ? 160 : 36);
 }
 
 /**

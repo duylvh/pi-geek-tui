@@ -150,3 +150,9 @@ export function resolveToolCallElapsedMs(
 	}
 	return typeof resolved === "number" && Number.isFinite(resolved) ? resolved : undefined;
 }
+
+/** Live elapsed of a tool that has started but not finished, from the start stamp in renderer state. */
+export function runningElapsedMs(state: Record<string, unknown> | undefined, now = performance.now()): number | undefined {
+	const startedAt = state?.[STATE_STARTED_AT_KEY];
+	return typeof startedAt === "number" ? Math.max(0, now - startedAt) : undefined;
+}
