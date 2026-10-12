@@ -15,6 +15,7 @@ import { recordToolCallTimingEnd, recordToolCallTimingStart } from "./tool-tags/
 import { installStartupUiPatch, setStartupHeader, suppressStartupModelScopeLog } from "./startup-ui.js";
 import { installInteractiveChatVirtualization } from "./performance/virtualize-chat.js";
 import { setGeekAccent } from "./theme/geek-palette.js";
+import { createGeekTheme } from "./theme/geek-theme.js";
 import { beginAssistantStream, endAssistantStream, trackAssistantStreamMessage } from "./messages/assistant-streaming-state.js";
 
 type SessionModules = typeof import("./session-modules.js");
@@ -238,6 +239,8 @@ export default function (pi: ExtensionAPI) {
 		const config = modules.loadConfig();
 		reportConfigIssue(sessionUi);
 		setGeekAccent(config.accent);
+		// Session-only (a Theme instance is never written to the user's settings).
+		sessionUi.setTheme(createGeekTheme(sessionUi.theme.getColorMode?.() === "256color" ? "256color" : "truecolor"));
 		currentVisibleChatTail = config.visibleChatTail;
 		await ensureToolCallTagsRegistered();
 		if (!isCurrentSessionRun()) return;

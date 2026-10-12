@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { highlightCode } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
 
 const repoRoot = process.cwd();
@@ -27,6 +28,7 @@ const build = spawnSync(process.execPath, [
 	join(repoRoot, "editor", "geek-editor.ts"),
 	join(repoRoot, "editor", "live-state.ts"),
 	join(repoRoot, "startup-ui.ts"),
+	join(repoRoot, "theme", "geek-theme.ts"),
 ], { cwd: repoRoot, encoding: "utf8" });
 if (build.status !== 0) throw new Error(`tsc failed\n${build.stdout}\n${build.stderr}`);
 
@@ -34,6 +36,7 @@ const load = (path) => import(pathToFileURL(join(buildDir, path)).href);
 const { GeekEditor } = await load("editor/geek-editor.js");
 const { setLiveState } = await load("editor/live-state.js");
 const { renderStartupHeader } = await load("startup-ui.js");
+const { createGeekTheme } = await load("theme/geek-theme.js");
 
 const strip = (text) => String(text).replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
 const failures = [];
@@ -77,10 +80,17 @@ setLiveState("thinking");
 expect("live head row shows state word and seconds", /thinking · \d+\.\ds$/.test(editor.render(width).map(strip)[1]));
 setLiveState(undefined);
 
+// Host highlighting (read/diff code rows) must come out in palette colors, not a host theme's.
+globalThis[Symbol.for("@earendil-works/pi-coding-agent:theme")] = createGeekTheme();
+const code = highlightCode("const exp = now + 1000; // ttl", "typescript")[0];
+expect("highlightCode uses palette: kw, num, comment", code.includes("38;2;104;158;128mconst") && code.includes("38;2;216;120;91m1000") && code.includes("38;2;82;91;84m// ttl"));
+
 console.log("--- startup header ---");
 for (const row of renderStartupHeader(info, width)) console.log(row);
 console.log("--- idle input zone + footer ---");
 for (const row of editor.render(width)) console.log(row);
+console.log("--- highlighted code row ---");
+console.log(code);
 setLiveState("thinking");
 console.log("--- live ---");
 console.log(editor.render(width)[1]);
