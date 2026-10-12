@@ -12,6 +12,7 @@ import { attachComponentToStream } from "./assistant-streaming-state.js";
 import { type AssistantContentRun, getAssistantContentRuns } from "./assistant-content-runs.js";
 import { markRailed } from "./chat-frame.js";
 import { claimTurnHead, keepPromptZone, turnHeadRows } from "./message-meta.js";
+import { revealBody } from "./reveal.js";
 
 const PATCHED = Symbol.for("pi-geek-tui.assistant-prefix.patched");
 
@@ -153,7 +154,7 @@ export function installAssistantMessagePrefix(_theme?: unknown, componentClass: 
 	proto.render = function patchedAssistantMessageRender(width: number): string[] {
 		if (width <= 0) return baseRender.call(this, width);
 		const raw: string[] = baseRender.call(this, getAssistantBodyWidth(width));
-		const body = trimBlankEdges(raw);
+		const body = revealBody(this, trimBlankEdges(raw));
 		const rows = assistantHeadRows(this, width);
 		if (body.length > 0) {
 			for (const line of body) rows.push(geekRow("line", dropLeadingColumns(line, 1), width));

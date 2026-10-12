@@ -42,6 +42,8 @@ export interface GeekTuiConfig {
 	forceOSC11: boolean;
 	transparentBackground: boolean;
 	visibleChatTail: number;
+	/** Smooth character-by-character reveal of streamed answers (tail fade, adaptive pace). Off = chunked drip. */
+	revealAnimation: boolean;
 }
 
 const DEFAULT_CUSTOM_WORKING_MESSAGE: CustomWorkingMessageConfig = {
@@ -61,6 +63,7 @@ const DEFAULTS: GeekTuiConfig = {
 	forceOSC11: false,
 	transparentBackground: false,
 	visibleChatTail: 30,
+	revealAnimation: true,
 };
 
 const CONFIG_PATH = join(homedir(), ".pi", "agent", "pi-geek-tui.json");
@@ -184,6 +187,7 @@ function normalizeConfig(raw: unknown): GeekTuiConfig {
 		forceOSC11: booleanOrDefault(config.forceOSC11, DEFAULTS.forceOSC11),
 		transparentBackground: booleanOrDefault(config.transparentBackground, DEFAULTS.transparentBackground),
 		visibleChatTail: visibleChatTailOrDefault(config.visibleChatTail),
+		revealAnimation: booleanOrDefault(config.revealAnimation, DEFAULTS.revealAnimation),
 	};
 }
 

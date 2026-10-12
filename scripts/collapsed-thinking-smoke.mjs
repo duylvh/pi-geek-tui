@@ -53,8 +53,9 @@ function prepareBuild() {
 const CONFIG_MTIME_BASE = 1_700_000_000;
 let configMtime = CONFIG_MTIME_BASE;
 
+// Rows are checked on the first render of a live component; the reveal animation (scripts/reveal-smoke.mjs) is off here.
 function writeConfig(config) {
-	writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+	writeFileSync(configPath, `${JSON.stringify({ revealAnimation: false, ...config }, null, 2)}\n`, "utf8");
 	configMtime += 2;
 	utimesSync(configPath, configMtime, configMtime);
 }
