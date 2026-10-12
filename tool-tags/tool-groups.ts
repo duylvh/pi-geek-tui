@@ -1,16 +1,14 @@
 import { frameChatChild } from "../messages/chat-frame.js";
 import { turnHeadRows } from "../messages/message-meta.js";
 import { GEEK_PREFIX_WIDTH, geekRow, geekSplitRow } from "../presentation/geek-rows.js";
-import { safeVisibleWidth } from "../render-budget.js";
 import { geekFg } from "../theme/geek-palette.js";
-import { renderToolTree, type TreeEntry } from "./tool-tree.js";
+import { nameColumn } from "./tool-call-line.js";
+import { type TreeEntry, entryBodyRows, entryLine, renderToolTree } from "./tool-tree.js";
 import {
-	describeCall,
 	isEditClassTool,
 	isToolComponent,
 	isToolRunning,
 	secondsText,
-	summarizeCalls,
 	toolElapsedMs,
 	toolRail,
 } from "./tool-summary.js";
@@ -36,6 +34,26 @@ function isGroupMember(component: any): boolean {
 	return isToolComponent(component) ? !isEditClassTool(component.toolName) : toolOnlyAssistantContent(component) !== null;
 }
 
+const bold = (text: string) => `\x1b[1m${text}\x1b[22m`;
+const dim = (text: string) => geekFg("dim", text);
+const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`;
+
+/** `// 0.6s` (+ `running ·` for a lone running call); empty when there is nothing to say. */
+function elapsedMeta(elapsedMs: number | undefined, running: boolean): string {
+	const parts = [...(running ? [geekFg("accent", "running")] : []), ...(elapsedMs === undefined ? [] : [secondsText(elapsedMs)])];
+	return parts.length > 0 ? `${dim("// ")}${parts.join(dim(" · "))}` : "";
+}
+
+/** `Done(3 tool calls · 1 thought · 1 failed)`; while running, `Running(… · <last running tool>)`. */
+function headLeft(tools: any[], thoughts: number, failed: number, running: boolean): string {
+	const parts = [dim(plural(tools.length, "tool call"))];
+	if (thoughts > 0) parts.push(dim(plural(thoughts, "thought")));
+	if (failed > 0) parts.push(geekFg("delMark", `${failed} failed`));
+	const live = running ? tools.filter(isToolRunning).pop() : undefined;
+	if (live) parts.push(geekFg("ink", live.toolName));
+	return `${geekFg(running ? "accent" : "ink", bold(running ? "Running" : "Done"))}${dim("(")}${parts.join(dim(" · "))}${dim(")")}`;
+}
+
 function thoughtText(component: any): string {
 	const content = toolOnlyAssistantContent(component) ?? [];
 	return content
@@ -45,21 +63,11 @@ function thoughtText(component: any): string {
 		.join(" ");
 }
 
-function metaParts(callCount: number, thoughts: number, failed: number, running: boolean, elapsedMs: number | undefined): string {
-	const dim = (text: string) => geekFg("dim", text);
-	const parts = [dim(`${callCount} call`)];
-	if (thoughts > 0) parts.push(dim(`${thoughts} thought`));
-	if (failed > 0) parts.push(geekFg("delMark", `${failed} failed`));
-	if (running) parts.push(geekFg("accent", "running"));
-	if (elapsedMs !== undefined) parts.push(secondsText(elapsedMs));
-	return `${dim("// ")}${parts.join(dim(" · "))}`;
-}
-
 /**
- * One block for a run of tool calls. Finished and collapsed: a single summary row (spec §4).
- * Running or expanded (Ctrl+O): the summary head plus a tree of calls (spec §7), with each
- * call's output under its node when expanded. Folded assistant members are never rendered, so a
- * turn-opening one hands over its `pi@agent` head row, printed above the group.
+ * One block for a run of tool calls (spec §4): a `Done(…)` / `Running(…)` head and one row per call
+ * under `├─`/`└─` guides; a lone call is just its row (thoughts only show once expanded). Ctrl+O adds each call's output (and the
+ * thoughts) under its guide. Folded assistant members are never rendered, so a turn-opening one hands
+ * over its `pi@agent` head row, printed above the block.
  */
 export function renderToolGroup(members: any[], width: number): string[] {
 	const tools = members.filter(isToolComponent);
@@ -73,25 +81,25 @@ export function renderToolGroup(members: any[], width: number): string[] {
 		if (ms !== undefined) elapsedMs = (elapsedMs ?? 0) + ms;
 	}
 
-	const meta = metaParts(tools.length, thoughts, failed, running, elapsedMs);
-	const tree = running || expanded;
-	const right = tree ? meta : `${geekFg("faint", "^o  ")}${meta}`;
-	const bodyWidth = Math.max(1, width - GEEK_PREFIX_WIDTH);
-	// Leave the left side everything the right meta does not use, so no call is cut off silently.
-	const room = Math.max(1, bodyWidth - safeVisibleWidth(right) - 1 - 2);
-	const left = `${geekFg(running ? "accent" : "ink", "› ")}${summarizeCalls(tools.map((tool) => describeCall(tool.toolName, tool.args)), room)}`;
 	const rail = toolRail(tools);
-	const rows = [
-		...members.filter((member) => !isToolComponent(member)).flatMap((member) => turnHeadRows(member, width)),
-		geekRow(rail, geekSplitRow(left, right, bodyWidth), width),
-	];
-	if (tree) {
+	const bodyWidth = Math.max(1, width - GEEK_PREFIX_WIDTH);
+	const hint = expanded ? "" : geekFg("faint", "^o  ");
+	const rows = members.filter((member) => !isToolComponent(member)).flatMap((member) => turnHeadRows(member, width));
+
+	if (tools.length === 1 && !(expanded && thoughts > 0)) {
+		const entry: TreeEntry = { kind: "tool", tool: tools[0] };
+		const line = entryLine(entry, nameColumn([tools[0].toolName]));
+		rows.push(geekRow(rail, geekSplitRow(line, `${hint}${elapsedMeta(elapsedMs, running)}`.trimEnd(), bodyWidth), width));
+		if (expanded) rows.push(...entryBodyRows(entry, width, rail, "  "));
+	} else {
 		const entries: TreeEntry[] = [];
 		for (const member of members) {
 			if (isToolComponent(member)) entries.push({ kind: "tool", tool: member });
-			else if (thoughtText(member)) entries.push({ kind: "thought", text: thoughtText(member) });
+			else if (expanded && thoughtText(member)) entries.push({ kind: "thought", text: thoughtText(member) });
 		}
-		rows.push(...renderToolTree(entries, width, rail, expanded));
+		const column = nameColumn([...tools.map((tool) => tool.toolName), ...(entries.some((entry) => entry.kind === "thought") ? ["thinking"] : [])]);
+		rows.push(geekRow(rail, geekSplitRow(headLeft(tools, thoughts, failed, running), `${hint}${elapsedMeta(elapsedMs, false)}`.trimEnd(), bodyWidth), width));
+		rows.push(...renderToolTree(entries, width, rail, expanded, column));
 	}
 	rows.push(geekRow("line", "", width));
 	return rows;

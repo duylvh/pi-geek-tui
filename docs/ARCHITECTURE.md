@@ -49,11 +49,13 @@ tool-tags/
   Tool rows in the rail grammar (docs/design/geek-ui-spec.md §4/§6/§7)
   - tool-groups.ts is a render-time projection over the chat children (called by
     performance/virtualize-chat.ts): a run of non-edit calls plus the tool-only assistant turns that
-    issued them is one summary row; running or Ctrl+O groups add the tree from tool-tree.ts.
-    edit/write-class calls break a run and render standalone
-  - tool-summary.ts (call summaries, running state, elapsed), tool-row.ts (standalone `› verb path
-    // meta` row, capped output bodies honoring maxExpandedLines); result renderers publish the row's
-    right-hand meta through renderer state
+    issued them is one block: `Done(…)`/`Running(…)` head and one row per call (tool-tree.ts), a lone
+    call is just its row. edit/write-class calls break a run and render standalone
+  - tool-call-line.ts is the one place a call becomes text: badge + primary arg for the Pi built-ins,
+    `·` + dim name + `key value` pairs for everything else (exact names, no heuristics)
+  - tool-summary.ts (running/failed state, rail kind, elapsed), tool-row.ts (standalone call row, capped
+    output bodies honoring maxExpandedLines); result renderers publish the row's right-hand meta
+    through renderer state
   - edit.ts / write.ts / quick-edit.ts feed split-diff.ts (DiffRowsComponent: del/add row backgrounds,
     numbered rows, folded `··· N unchanged lines ···`)
   - compact-tool-spacing.ts wraps ToolExecutionComponent.render once; reloads only swap its runtime

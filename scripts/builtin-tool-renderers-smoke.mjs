@@ -260,57 +260,87 @@ async function runBuiltinToolRenderersSmoke() {
 	const afterGap = piRows.find((row) => row.left?.line === "line 27");
 	assert(afterGap?.right?.lineNumber.trim() === "27", `new-side numbering did not skip the folded lines, got ${afterGap?.right?.lineNumber}`);
 
-	// --- 5. Collapsed tool group: one row per run, edit-class calls break the run ---
+	// --- 5. Tool groups: `Done(…)` head + one row per call; a lone call is just its row ---
 	const groups = await import(buildToolTags("tool-groups.js"));
 	const tool = (toolName, args, extra = {}) => ({
 		toolCallId: `${toolName}-${Math.random()}`, toolName, args, expanded: false, isPartial: false,
 		rendererState: {}, result: { content: [], details: { __elapsedMs: 500 } }, render: (w) => [`RAW ${toolName}`.padEnd(w)], ...extra,
 	});
-	const assistant = (thinking) => ({
-		lastMessage: { role: "assistant", content: [...(thinking ? [{ type: "thinking", thinking }] : []), { type: "toolCall" }] },
+	const assistant = (thinking, text) => ({
+		lastMessage: { role: "assistant", content: [...(thinking ? [{ type: "thinking", thinking }] : []), ...(text ? [{ type: "text", text }] : []), { type: "toolCall" }] },
 		render: (w) => [`ASSISTANT`.padEnd(w)],
 	});
-	const finished = [assistant("check ttl"), tool("read", { path: "src/auth/session.ts" }), tool("read", { path: "src/auth/token.ts" }), tool("grep", { pattern: "REFRESH_TTL" })];
-	for (const width of [120, 40]) {
+	const finished = [
+		assistant("check ttl"),
+		tool("read", { path: "src/auth/session.ts" }),
+		tool("read", { path: "src/auth/token.ts" }),
+		tool("grep", { pattern: "REFRESH_TTL", path: "src" }),
+		tool("piggery_send", { to: "tools", kind: "relay", body: "QUEUED\nafter P0" }),
+	];
+	for (const width of [120, 80, 50]) {
 		const rows = groups.renderChatChildren(finished, width).map(strip);
-		assert(rows.length === 2 && rows.every((row) => visibleWidth(row) === width), `group rows must be exactly ${width} cells, got ${JSON.stringify(rows)}`);
+		assert(rows.length === 6 && rows.every((row) => visibleWidth(row) === width), `@${width}: head + 4 call rows + blank, each exactly the chat width, never wrapped: ${JSON.stringify(rows)}`);
+		assert(rows[0].startsWith("      ┃ Done(4 tool calls · 1 thought)"), `@${width}: head: ${rows[0]}`);
+		assert(rows[1].includes("├─ R src/auth/session.ts") || width < 80, `@${width}: ${rows[1]}`);
 		if (width === 120) {
-			assert(rows[0].includes("› read session.ts token.ts · grep REFRESH_TTL"), `group lost its merged call summary: ${rows[0]}`);
-			assert(rows[0].includes("^o  // 3 call · 1 thought · 1.5s"), `group lost its meta: ${rows[0]}`);
+			assert(rows[0].includes("^o  // 2.0s"), `head meta: ${rows[0]}`);
+			assert(rows[2].includes("├─ R src/auth/token.ts") && rows[3].includes('├─ G "REFRESH_TTL" in src'), `common tools are badge + primary arg: ${rows[2]} / ${rows[3]}`);
+			assert(rows[4].includes("└─ · piggery_send  to tools · kind relay · body QUEUED after P0"), `other tools: dot badge, dim name, key value pairs: ${rows[4]}`);
 		}
 	}
-	const runningGroup = [tool("bash", { command: "pnpm test auth\nignored" }, { result: undefined, isPartial: true, rendererState: { __geekStartedAt: performance.now() - 4100 } })];
-	const runningRows = groups.renderChatChildren(runningGroup, 100).map(strip);
-	assert(runningRows[0].includes("┃") && runningRows[0].includes("› pnpm test auth") && runningRows[0].includes("running"), `running group should show the active rail and state: ${runningRows[0]}`);
-	assert(!runningRows[0].includes("ignored"), "bash summary must stay on the first command line");
 
-	const editTool = tool("edit", { path: "src/a.ts" });
-	const mixed = groups.renderChatChildren([tool("read", { path: "a.ts" }), editTool, tool("bash", { command: "ls" })], 100).map(strip);
-	assert(mixed.filter((row) => row.includes("RAW edit")).length === 1 && mixed.filter((row) => row.includes("call")).length === 2, `edit must break the run and render itself: ${JSON.stringify(mixed)}`);
+	// Lone call: no head, no guide; bash drops its leading cd; Ctrl+O hint on the right.
+	const lone = groups.renderChatChildren([tool("bash", { command: "cd /Users/bean/proj && ls -la\necho" })], 100).map(strip);
+	assert(lone.length === 2 && lone[0].startsWith("      ┃ $ ls -la") && lone[0].includes("^o  // 0.5s") && !lone[0].includes("Done("), `lone call row: ${JSON.stringify(lone)}`);
 
-	// --- 6. Running / expanded group renders a tree; expanded bodies stay capped ---
-	const readOutput = Array.from({ length: 120 }, (_, i) => `${i + 1}| line ${i + 1}`).join("\n");
-	const treeChildren = [
-		assistant("3 remaining tests all call rotate() before signing the token and the quick brown fox jumps over the lazy dog"),
-		tool("bash", { command: "pnpm test auth" }, { result: { content: [{ type: "text", text: "running\n[11/14]" }] }, isPartial: true, rendererState: { __geekStartedAt: performance.now() - 4100 } }),
-		tool("read", { path: "refresh.test.ts" }, { result: { content: [{ type: "text", text: readOutput }], details: {} } }),
-	];
-	const tree = groups.renderChatChildren(treeChildren, 100).map(strip);
-	assert(tree.every((row) => visibleWidth(row) === 100), "tree rows must be exactly the chat width");
-	assert(tree[0].includes("┃") && tree[0].includes("// 2 call · 1 thought · running"), `tree head: ${tree[0]}`);
-	assert(tree[1].includes("├── T thinking") && tree[1].includes('"3 remaining') && tree[1].includes("…"), `thought node: ${tree[1]}`);
-	assert(tree[2].includes("├── $ pnpm test auth") && tree[2].includes("11/14") && tree[2].includes("█") && tree[2].includes("░"), `bash node with progress bar: ${tree[2]}`);
-	assert(tree[3].includes("└── R refresh.test.ts") && tree[3].includes("120"), `last node closes the tree with a count: ${tree[3]}`);
-	assert(tree.length === 5, "collapsed tree is head + nodes + one blank row");
+	// Running head names the live tool; failed calls are counted and their badge turns del-marker.
+	const runningRows = groups.renderChatChildren([tool("read", { path: "a.ts" }), tool("bash", { command: "pnpm test" }, { result: undefined, isPartial: true, rendererState: { __geekStartedAt: performance.now() - 4100 } })], 100).map(strip);
+	assert(runningRows[0].startsWith("      ┃ Running(2 tool calls · bash)") && runningRows[0].includes("^o  // 4.6s"), `running head: ${runningRows[0]}`);
+	const failedRaw = groups.renderChatChildren([tool("read", { path: "a.ts" }), tool("bash", { command: "boom" }, { result: { content: [{ type: "text", text: "x" }], isError: true } })], 100);
+	assert(strip(failedRaw[0]).includes("Done(2 tool calls · 1 failed)") && failedRaw[2].includes("\x1b[48;2;221;86;112m\x1b[38;2;12;12;12m$"), "failed call: counted in the head, badge on the del-marker bg");
 
-	// Live capture bug: badge must close with fg+bg resets and every label needs an explicit ink fg
-	// (the terminal default fg is invisible on the page bg).
-	const rawTree = groups.renderChatChildren(treeChildren, 100);
+	// Param formatting for generic tools: single-line, ~120 cut, arrays/objects summarized; names align.
+	const generic = groups.renderChatChildren([
+		tool("custom_tool", { items: [1, 2, 3], ops: [{ type: "a" }, { type: "a" }], obj: { a: 1, b: 2 }, multi: "a\nb", text: "x".repeat(300), skip: undefined }),
+		tool("ab", { k: "v" }),
+	], 400).map(strip);
+	assert(generic[1].includes("items 3 items · ops 2 operations (a) · obj {2 keys} · multi a b · text " + "x".repeat(119) + "…") && !generic[1].includes("skip"), `generic params: ${generic[1]}`);
+	assert(generic[1].indexOf("items") === generic[2].indexOf("k v"), "generic rows share one name column");
+
+	// "No tool missing": every Pi built-in, with full / partial / empty / non-object args, gets exactly one
+	// non-blank row with the right badge at 120 and 50 cols; look-alike names stay generic (no suffix heuristics).
+	const BUILTINS = { read: "R", bash: "$", powershell: "$", edit: "E", write: "W", grep: "G", find: "F", ls: "L" };
+	const FULL = {
+		read: { path: "src/a.ts", offset: 10, limit: 5 }, bash: { command: "cd /x && git log -5" }, powershell: { command: "Get-ChildItem" },
+		edit: { path: "src/a.ts", edits: [] }, write: { path: "src/a.ts", content: "x" }, grep: { pattern: "TTL", path: "src", glob: "*.ts" },
+		find: { pattern: "*.ts", path: "src" }, ls: { path: "src" },
+	};
+	for (const [name, letter] of Object.entries(BUILTINS)) {
+		for (const [shape, args] of [["full", FULL[name]], ["partial", {}], ["empty", undefined], ["non-object", "oops"]]) {
+			for (const width of [120, 50]) {
+				// edit/write stand alone (never folded): their call renderer draws the row at body width.
+				const standalone = name === "edit" || name === "write";
+				const rows = standalone
+					? toolModules[name][name === "edit" ? "renderEditCall" : "renderWriteCall"](args, theme, { state: {}, cwd: "/repo", isPartial: false }).render(width - 8).map((line) => `        ${strip(line)}`)
+					: groups.renderChatChildren([tool(name, args)], width).map(strip);
+				const row = rows[0] ?? "";
+				assert((standalone ? rows.length === 1 : rows.length === 2) && row.length >= 8 && row.slice(8).trim().length > 1 && (standalone || visibleWidth(row) === width), `${name}/${shape}@${width}: one non-blank row: ${JSON.stringify(rows)}`);
+				assert(row.slice(8).startsWith(`${letter} `), `${name}/${shape}@${width}: badge ${letter}: ${row}`);
+				if (shape !== "full" && name !== "ls" && !(standalone && shape === "non-object")) assert(row.includes("…"), `${name}/${shape}: a missing primary arg shows … : ${row}`);
+			}
+		}
+	}
+	const row1 = (name, args) => groups.renderChatChildren([tool(name, args)], 120).map(strip)[0].slice(8);
+	assert(row1("read", FULL.read).startsWith("R src/a.ts:10-14") && row1("read", { path: "a", offset: 3 }).startsWith("R a:3+"), "read shows :offset-end / :offset+");
+	assert(row1("bash", FULL.bash).startsWith("$ git log -5") && row1("grep", FULL.grep).startsWith('G "TTL" in src glob *.ts') && row1("ls", {}).startsWith("L ."), "bash cd-strip, grep pattern+path+glob, ls default");
+	for (const lookalike of ["memory_read", "memory_write", "cycle_bash", "thought_edit", "read_file"]) {
+		assert(row1(lookalike, { path: "x" }).startsWith(`· ${lookalike}  path x`), `${lookalike} must stay generic: ${row1(lookalike, { path: "x" })}`);
+	}
+
+	// Live capture bug: badge closes with fg+bg resets and every label has an explicit ink fg (terminal default is invisible).
 	const INK_ESC = "\x1b[38;2;216;212;180m";
-	assert(rawTree[3].includes(`\x1b[48;2;168;163;133m\x1b[38;2;12;12;12mR\x1b[39m\x1b[49m ${INK_ESC}refresh.test.ts\x1b[39m`), `read badge + ink label escapes: ${JSON.stringify(rawTree[3])}`);
-	assert(groups.renderChatChildren(finished, 100)[0].includes(`${INK_ESC}read session.ts token.ts\x1b[39m`), "group head call text must be ink");
-	const longCall = groups.renderChatChildren([tool("bash", { command: "rg -n REFRESH_TTL src/auth/session.ts src/auth/token.ts" }, { expanded: true })], 100).map(strip).find((row) => row.includes("── "));
-	assert(/…\s+\S/.test(longCall) && !/…\S/.test(longCall), `truncated call cell must keep a gap before the state label: ${longCall}`);
+	const rawFinished = groups.renderChatChildren(finished, 100);
+	assert(rawFinished[1].includes(`\x1b[48;2;168;163;133m\x1b[38;2;12;12;12mR\x1b[39m\x1b[49m ${INK_ESC}src/auth/session.ts\x1b[39m`), `read badge + ink path escapes: ${JSON.stringify(rawFinished[1])}`);
 
 	// A tool-only first assistant message is folded into the group; its turn head row must survive above it.
 	const meta = await import(pathToFileURL(join(buildDir, "messages", "message-meta.js")).href);
@@ -318,19 +348,33 @@ async function runBuiltinToolRenderersSmoke() {
 	opener.lastMessage.timestamp = Date.UTC(2026, 0, 1, 14, 52);
 	meta.claimTurnHead(opener);
 	const headed = groups.renderChatChildren([opener, tool("read", { path: "a.ts" })], 100).map(strip);
-	assert(headed.length === 3 && headed[0].includes("•") && headed[0].includes("@") && headed[1].includes("› read a.ts"), `turn head row must sit above the folded group: ${JSON.stringify(headed)}`);
+	assert(headed.length === 3 && headed[0].includes("•") && headed[0].includes("@") && headed[1].includes("R a.ts"), `turn head row must sit above the folded group: ${JSON.stringify(headed)}`);
 	assert(groups.renderChatChildren([assistant(), tool("read", { path: "a.ts" })], 100).length === 2, "an assistant member that did not open the turn adds no head row");
 
-	// Live bug: long first calls used to fill the row, so later calls vanished from the summary while
-	// the count still said N. Every call is either named or counted by "+N" at any width.
-	const cdCalls = ["git log --oneline -5", "pnpm test", "rg -n REFRESH_TTL src", "ls widgets", "cat README.md"].map((command) => tool("bash", { command: `cd /Users/bean/Documents/Develope/pi-agent-ext/pi-geek-tui && ${command}` }));
-	for (const width of [120, 80, 50]) {
-		const row = groups.renderChatChildren(cdCalls, width).map(strip)[0];
-		const named = ["git log", "pnpm test", "rg -n", "ls widgets", "cat README"].filter((name) => row.includes(name)).length;
-		const hidden = Number((row.match(/· \+(\d+)/) ?? [0, 0])[1]);
-		assert(named >= 1 && named + hidden === 5 && !row.includes("/Users/bean"), `@${width}: every call must be named or counted (named ${named}, +${hidden}): ${row}`);
-		if (width >= 80) assert(row.includes("// 5 call"), `@${width}: count lost: ${row}`);
-	}
+	// Running → finished: every call stays visible at every stage (the user's "swallowed after finish" report).
+	const callRows = (children) => groups.renderChatChildren(children, 100).map(strip).filter((row) => /┃ (?:[├└]─ )?[R$GFLWE·] /.test(row)).length;
+	const turn = [assistant(undefined, "I will read a.")];
+	const t1 = tool("read", { path: "a.ts" }, { result: undefined, isPartial: true });
+	turn.push(t1);
+	assert(callRows(turn) === 1, "running: first call visible");
+	t1.result = { content: [], details: {} }; t1.isPartial = false;
+	turn.push(assistant(undefined, "Now bash."), tool("bash", { command: "ls" }, { result: undefined, isPartial: true }), tool("bash", { command: "pwd" }, { result: undefined, isPartial: true }));
+	assert(callRows(turn) === 3, "mid-turn: all three calls visible");
+	for (const member of turn) if (member.toolName) { member.result = { content: [], details: {} }; member.isPartial = false; }
+	turn.push({ lastMessage: { role: "assistant", content: [{ type: "text", text: "All done." }], stopReason: "stop" }, render: (w) => ["FINAL".padEnd(w)] });
+	assert(callRows(turn) === 3, `after the turn finishes all three calls are still visible: ${callRows(turn)}`);
+	assert(groups.renderChatChildren(turn, 100).map(strip).filter((row) => row.includes("Done(")).length === 1 && groups.renderChatChildren(turn, 100).map(strip).some((row) => row.includes("ASSISTANT")), "text-bearing assistants render between groups");
+
+	// --- 6. Expanded groups: outputs under their guide, capped; head no longer advertises ^o ---
+	const readOutput = Array.from({ length: 120 }, (_, i) => `${i + 1}| line ${i + 1}`).join("\n");
+	const expandedChildren = [
+		tool("bash", { command: "pnpm test auth" }, { expanded: true, result: { content: [{ type: "text", text: "ok\nall good" }] } }),
+		tool("read", { path: "refresh.test.ts" }, { expanded: true, result: { content: [{ type: "text", text: readOutput }], details: {} } }),
+	];
+	const expandedTree = groups.renderChatChildren(expandedChildren, 100).map(strip);
+	const readBody = expandedTree.filter((row) => /line \d+/.test(row));
+	assert(readBody.length === 50 && expandedTree.some((row) => row.includes("… 70 more lines")), `expanded read body must honor maxExpandedLines (50): got ${readBody.length}`);
+	assert(!expandedTree[0].includes("^o") && expandedTree.some((row) => row.includes("all good")), "expanded head must not advertise ^o and bash output shows under its row");
 
 	// Rail color: ┃ accent while running, kw when finished, del marker when a call failed; the closing blank row stays │.
 	const palette = await import(pathToFileURL(join(buildDir, "theme", "geek-palette.js")).href);
@@ -344,12 +388,7 @@ async function runBuiltinToolRenderersSmoke() {
 	const liveRows = groups.renderChatChildren([tool("bash", { command: "ls" }, { result: undefined, isPartial: true })], 100);
 	assert(railOf(liveRows[0]) === ACCENT, `running group keeps the accent ┃: ${railOf(liveRows[0])}`);
 	palette.setGeekAccent("#dd5670");
-
-	const expandedChildren = treeChildren.map((c) => (c.toolName ? { ...c, expanded: true, isPartial: false } : c));
-	const expandedTree = groups.renderChatChildren(expandedChildren, 100).map(strip);
-	const readBody = expandedTree.filter((row) => /line \d+/.test(row));
-	assert(readBody.length === 50 && expandedTree.some((row) => row.includes("… 70 more lines")), `expanded read body must honor maxExpandedLines (50): got ${readBody.length}`);
-	assert(!expandedTree[0].includes("^o"), "expanded head must not advertise ^o");
+	const treeChildren = [tool("read", { path: "a.ts" }), tool("bash", { command: "pnpm test" }, { result: undefined, isPartial: true, rendererState: { __geekStartedAt: performance.now() - 4100 } })];
 
 	// --- 7. Standalone block as the chat renders it: gutter + rail, diff rows indented under the call ---
 	const spacing = await import(buildToolTags("compact-tool-spacing.js"));
@@ -361,29 +400,10 @@ async function runBuiltinToolRenderersSmoke() {
 	spacing.installCompactToolSpacing(FakeToolExecution);
 	const block = new FakeToolExecution().render(WIDTH).map(strip);
 	assert(block.every((row) => visibleWidth(row) === WIDTH), "standalone rows must be exactly the chat width");
-	assert(block[0].startsWith("      ┃ › edit src/auth/session.ts") && block[0].includes("// +2 -2 · 0.1s"), `edit call row: ${block[0]}`);
+	assert(block[0].startsWith("      ┃ E src/auth/session.ts") && block[0].includes("// +2 -2 · 0.1s"), `edit call row: ${block[0]}`);
 	assert(block[1].startsWith("      ┃   ") && block[1].includes("20 - const exp"), `diff rows sit under the call, indented 2: ${block[1]}`);
 	assert(block.at(-1).trim() === "│", "block must end with one blank rail row");
 	assert(new FakeToolExecution().render(WIDTH).slice(0, -1).every((row) => /\x1b\[38;2;104;158;128m┃/.test(row)) && /\x1b\[38;2;58;58;52m│/.test(new FakeToolExecution().render(WIDTH).at(-1)), "finished standalone edit block: every row kw ┃, closing blank plain │");
-
-	// Running progress bar only for unambiguous n/m forms.
-	const progressRow = (last) => groups.renderChatChildren([tool("bash", { command: "build" }, { expanded: true, isPartial: true, result: { content: [{ type: "text", text: `step\n${last}` }] } })], 100).map(strip).find((row) => row.includes("── ")) ?? "";
-	for (const last of ["[37/120]", "(37/120)", "37/120 files", "37/120", "37/120 (31%)"]) assert(progressRow(last).includes("37/120") && progressRow(last).includes("█"), `"${last}" should draw a bar: ${progressRow(last)}`);
-	for (const last of ["2026/10/12", "10/12 meeting", "src/1/2.ts", "see 3/4 of it"]) assert(!progressRow(last).includes("░"), `"${last}" must not draw a bar: ${progressRow(last)}`);
-
-	// Runner summary beats the plain line count; no summary falls back to `lines N`.
-	const bash = (command, text, extra = {}) => tool("bash", { command }, { expanded: true, result: { content: [{ type: "text", text }], ...extra } });
-	const passRows = groups.renderChatChildren([
-		bash("pnpm test", "Tests  11 passed, 3 failed, 14 total", { isError: true }),
-		bash("pnpm t2", "Tests 14 passed (14)"),
-		bash("ls", "a\nb"),
-	], 100).map(strip).filter((row) => row.includes("── "));
-	assert(passRows[0].includes("failed") && passRows[0].includes("11/14") && passRows[0].includes("█"), `failing run should show failed + n/m bar: ${passRows[0]}`);
-	assert(passRows[1].includes("passed") && passRows[1].includes("14/14"), `passing run should show passed + full bar: ${passRows[1]}`);
-	// Live bug: "exit 3" on one line and "failing" on the next read as "3 failing" (0/3 bar).
-	const exitRow = groups.renderChatChildren([bash("./fail.sh", "exit 3\nbg-1 · ./fail.sh · failed · exit 3\nfailing", { isError: true })], 100).map(strip).find((row) => row.includes("── ")) ?? "";
-	assert(exitRow.includes("failed") && !exitRow.includes("░") && !exitRow.includes("0/3"), `an exit code plus a stray word is not a test summary: ${exitRow}`);
-	assert(passRows[2].includes("lines") && !passRows[2].includes("/"), `no summary falls back to the line count: ${passRows[2]}`);
 
 	// --- 8. Terminal image lines survive the render patch; reload re-installs without stacking ---
 	const kitty = "\x1b_Gf=100,t=d,a=T;QUFBQQ==\x1b\\";

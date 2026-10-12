@@ -6,7 +6,7 @@ import { stripAnsi } from "../theme/ansi.js";
 import { geekFg } from "../theme/geek-palette.js";
 import { extractTrailingNotice, getTextOutput, stripTrailingNotice } from "./common.js";
 import { markToolCallExecutionStarted } from "./elapsed.js";
-import { describeCall } from "./tool-summary.js";
+import { callParams, soloLine } from "./tool-call-line.js";
 import { EMPTY_BODY, renderBody, renderCallRow, renderOutputBody } from "./tool-row.js";
 
 const MAX_HIGHLIGHT_OUTPUT_CHARS = 12000;
@@ -45,8 +45,7 @@ function parseReadOutput(text: string): ParsedReadOutput {
 
 export function renderReadCall(args: any, _theme: any, context: any) {
 	markToolCallExecutionStarted(context);
-	const { verb, text } = describeCall("read", args);
-	return renderCallRow(`${verb} ${text || "(unknown)"}`, context);
+	return renderCallRow(soloLine("read", callParams("read", args), Boolean(context?.isError)), context);
 }
 
 /** Expanded body: numbered, syntax-highlighted file content capped at maxExpandedLines. */

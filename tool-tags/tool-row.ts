@@ -10,7 +10,7 @@ import { resolveToolCallElapsedMs, runningElapsedMs } from "./elapsed.js";
 import { secondsText } from "./tool-summary.js";
 
 /**
- * Standalone tool rows (docs/design/geek-ui-spec.md §6): `› edit path` on the left and a dim
+ * Standalone tool rows (docs/design/geek-ui-spec.md §6): `E Edit(Path: …)` on the left and a dim
  * `// meta` on the right. Widths here are body widths: the render patch in compact-tool-spacing
  * adds the gutter + rail and hands renderers `width - prefix`.
  */
@@ -40,15 +40,14 @@ function defaultMeta(context: RowContext | undefined): string {
 	return parts.length > 0 ? metaText(parts) : "";
 }
 
-/** One row: `› <left>` … `// <meta>`. `left` is the already-styled call text. */
+/** One row: call line … `// <meta>`. `left` is the already-styled call line (badge + Name(params)). */
 export function renderCallRow(left: string, context: RowContext | undefined): Component {
 	return {
 		invalidate() {},
 		render(width: number): string[] {
 			const meta = context?.state?.[META_KEY];
 			const running = Boolean(context?.isPartial);
-			const head = geekFg(running ? "accent" : "ink", "› ");
-			return [geekSplitRow(`${head}${geekFg("ink", left)}`, typeof meta === "string" && !running ? meta : defaultMeta(context), width)];
+			return [geekSplitRow(left, typeof meta === "string" && !running ? meta : defaultMeta(context), width)];
 		},
 	};
 }

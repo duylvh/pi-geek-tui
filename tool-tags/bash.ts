@@ -1,6 +1,6 @@
 import { stripAnsi } from "../theme/ansi.js";
 import { markToolCallExecutionStarted } from "./elapsed.js";
-import { describeCall } from "./tool-summary.js";
+import { callParams, soloLine } from "./tool-call-line.js";
 import { renderCallRow, renderOutputBody } from "./tool-row.js";
 
 const BASH_TOOL_NOTICE_PATTERN = /^\[Showing (?:last|lines)\b.*\. Full output: .+\]$/;
@@ -15,7 +15,7 @@ function stripBashToolNoticeLines(text: string): string {
 
 export function renderBashCall(args: any, _theme: any, context: any) {
 	markToolCallExecutionStarted(context);
-	return renderCallRow(describeCall("bash", args).text || "...", context);
+	return renderCallRow(soloLine("bash", callParams("bash", args), Boolean(context?.isError)), context);
 }
 
 /** Expanded body: tail of the output (the end is what a command reports), notices stripped. */

@@ -18,6 +18,7 @@ import {
 } from "../split-diff.js";
 import { getTextOutput, isExpanded, resolveRelativePath } from "./common.js";
 import { markToolCallExecutionStarted, resolveToolCallElapsedMs, wrapExecuteWithTiming } from "./elapsed.js";
+import { inkParams, soloLine } from "./tool-call-line.js";
 import { metaText, renderCallRow, renderOutputBody, setRowMeta } from "./tool-row.js";
 import { secondsText } from "./tool-summary.js";
 
@@ -155,9 +156,9 @@ export function renderEditCall(args: any, _theme: any, context: any) {
 		detail = shown + lang;
 	} else {
 		const rawPath = String(args?.path ?? args?.file_path ?? "");
-		detail = (rawPath ? resolveRelativePath(rawPath, cwd) : "") || "(unknown)";
+		detail = (rawPath ? resolveRelativePath(rawPath, cwd) : "");
 	}
-	return renderCallRow(`edit ${detail}`, context);
+	return renderCallRow(soloLine("edit", inkParams(detail), Boolean(context?.isError)), context);
 }
 
 export function renderEditResult(result: any, options: ToolRenderResultOptions, _theme: any, context: any) {

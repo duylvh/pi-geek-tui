@@ -50,32 +50,43 @@ Agent: `pi@agent …` with kw dot. Time = message timestamp HH:MM, only on head 
 ### 3. User prompt body
 `│ › refresh token expires after 5 minutes, fix it` (`› ` then text, ink).
 
-### 4. Collapsed tool group (finished)
-`┃ › read session.ts token.ts · grep REFRESH_TTL            ^o  // 3 call · 1 thought · 1.9s` (`┃` kw: finished ok)
-Left: `› ` + calls summarised as `verb args`, joined by faint ` · `. Right-aligned: faint `^o  ` (expand hint),
-dim `// N call · N thought · ` + num seconds + dim `s`.
+### 4. Tool group (one row per call)
+```
+16:42 ┃ Done(3 tool calls · 1 thought)                          ^o  // 0.6s
+      ┃ ├─ R tool-tags/tool-groups.ts
+      ┃ ├─ $ git log --oneline -5 && …
+      ┃ ├─ G "REFRESH_TTL" in src
+      ┃ └─ · piggery_send  to tools · kind relay · body QUEUED after P0 #1358 — …
+```
+A run of consecutive non-edit calls (and the tool-only assistant turns that issued them) is one block; edit/write
+break the run. Head: `Done(` / `Running(` bold (Running in accent), dim counts `N tool call(s) · N thought(s)`,
+`N failed` in del, while running ` · <name of the live tool>`, dim `)`. Right: faint `^o  ` (hidden once expanded)
++ dim `// ` + num seconds + dim `s` (summed). A lone call is just its row (no head, no guide) with the same
+right meta (`running` accent while it runs). Rows are clipped with `…`, never wrapped.
+
+Call row = 1-cell badge + space + params. Built-ins (Pi 1.1.0 `allToolNames`, exact names) have a dedicated badge
+that stands for the name and show only their primary arg in ink: `R` read path (`:10-14` / `:10+` with
+offset/limit), `$` bash/powershell command (leading `cd <dir> &&` dropped; num bg), `E` edit path (kw bg),
+`W` write path (kw bg), `G` grep `"pattern"` + dim ` in path` / ` glob g`, `F` find pattern + path, `L` ls path
+(default `.`); `T` thinking is accent bg. Every other tool: `·` badge, raw name dim padded to a shared column
+(longest generic name + 2, clamped 4..16), then `key value` pairs (faint key, ink value) joined by dim ` · `.
+No suffix heuristics: `memory_read` is generic. Values are single-line, cut at ~120, arrays `N items` /
+`N operations (type)`, objects `{N keys}`. A missing primary arg (still streaming) shows dim `…`.
+A failed call's badge turns del-marker bg (generic names too). Ctrl+O adds each call's output (dim, capped by
+`maxExpandedLines`) under its guide, plus thought rows (`T`). `┃` per the rail rules above.
 
 ### 5. Assistant markdown
 `## cause` accent; inline code = faint backtick + mono text + faint backtick; numbers num;
 list bullet `- ` accent.
 
 ### 6. Edit call
-`┃ › edit src/auth/session.ts                                  // +2 -2 · 0.1s` (`+2` mono, `-2` del marker).
+`┃ E src/auth/session.ts                                      // +2 -2 · 0.1s` (`+2` mono, `-2` del marker; `failed` in del on error).
 Diff rows indented 2ch, fixed width block (mockup 72ch, clamp to body width) with row bg:
 `  20 - const exp = now + REFRESH_TTL;` (line no faint, marker colored, code syntax-colored).
-Gap: `       ··· 16 unchanged lines ···` faint.
+Gap: `       ··· 16 unchanged lines ···` faint. Write: `W path   // +N · s`, file shown as added rows on Ctrl+O.
 
-### 7. Running tool group (expanded tree)
-```
-14:53 ┃ › pnpm test auth · read refresh.test.ts                 // 2 call · running · 4.1s
-      ┃   ├── $ test auth          passed      11  █████████████░░░  11/14
-      ┃   ├── R refresh.test.ts    lines    1'204
-      ┃   └── T thinking           "3 remaining tests all call rotate() before sign…"
-```
-Rail `┃` accent while running (kw finished, del marker on failure); head `› ` accent; `running` accent. Tree glyphs faint. Call column 22ch:
-1-cell badge (bash `$` num bg, read `R` default, think `T` accent bg, edit `E` kw bg) + space + label.
-Then dim label padded to 9, num value right-aligned 6, optional progress bar (accent fill `█`, faint `░`, 16 cells) + dim `n/m`.
-Number grouping uses `'` (1'204), like hancore.
+### 7. (merged into §4)
+Running groups use the same rows: `Running(2 tool calls · bash)` head with the accent rail.
 
 ### 8. Input zone (no box)
 ```
@@ -84,10 +95,12 @@ Number grouping uses `'` (1'204), like hancore.
 ```
 Head row = same as message head, right side shows live state: the state word
 (`thinking` / `working` / `running` / `answering`) + dim ` · ` + num secs + dim `s`. Idle: right side empty.
-The word is "light" text (no spark glyphs): every char `dim`; a ~3-char band of `ink` sweeps left→right
-(cosine falloff, RGB blend dim↔ink, 1.2s sweep + 0.4s pause, repaint tick 70ms, only while live).
-When the word changes it decodes in ~300ms: unsettled chars show random glyphs (`▚▞░▒#%/\`) in dim and
-settle left→right; the shimmer resumes after. Width of the word never changes between frames.
+The word is hancore-style matrix text (no spark glyphs, no sweeping band): while live, every 70ms tick ~22-34% of
+its positions (re-rolled each tick, never frozen) show a random single-width glyph (`▚▞░▒#%/\<>*+=01xz$&`) in bold
+`ink`, the rest are their true letters in `dim`; a glyph that just went back to its letter flashes `ink` for one tick.
+Every 2s nothing flips for ~350ms (resolve beat) so the word reads cleanly. When the word changes (working → thinking
+→ running) it decodes in ~300ms: unsettled chars are glyphs and settle left→right. Width never changes between frames;
+repaint ticks only while live.
 After `(branch)` the head row shows the working-tree diff: `+12` mono, `-3` del marker, `~4` dim (files incl.
 untracked); zero parts are omitted, clean tree / not a repo → nothing. Width priority: live state (right) and
 diff stat stay whole, the cwd path gives way first (keeps its tail, `…` prefix; dropped below 6 cells).

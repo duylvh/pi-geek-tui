@@ -5,6 +5,7 @@ import { buildAddedRows } from "../split-diff.js";
 import { stripAnsi } from "../theme/ansi.js";
 import { geekFg } from "../theme/geek-palette.js";
 import { getTextOutput, isExpanded, resolveRelativePath } from "./common.js";
+import { inkParams, soloLine } from "./tool-call-line.js";
 import { diffSectionsBody, publishFailedMeta } from "./edit.js";
 import { markToolCallExecutionStarted, resolveToolCallElapsedMs } from "./elapsed.js";
 import { EMPTY_BODY, metaText, renderCallRow, renderOutputBody, setRowMeta } from "./tool-row.js";
@@ -14,7 +15,7 @@ export function renderWriteCall(args: any, _theme: any, context: any) {
 	markToolCallExecutionStarted(context);
 	const rawPath = String(args?.path ?? args?.file_path ?? "");
 	const cwd = typeof context?.cwd === "string" ? context.cwd : process.cwd();
-	return renderCallRow(`write ${(rawPath ? resolveRelativePath(rawPath, cwd) : "") || "(unknown)"}`, context);
+	return renderCallRow(soloLine("write", inkParams((rawPath ? resolveRelativePath(rawPath, cwd) : "")), Boolean(context?.isError)), context);
 }
 
 /** Meta `+N · 0.1s` (lines written); Ctrl+O shows the file as added rows, capped at maxExpandedLines. */

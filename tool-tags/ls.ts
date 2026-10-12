@@ -1,11 +1,10 @@
 import { markToolCallExecutionStarted } from "./elapsed.js";
-import { describeCall } from "./tool-summary.js";
+import { callParams, soloLine } from "./tool-call-line.js";
 import { renderCallRow, renderOutputBody } from "./tool-row.js";
 
 export function renderLsCall(args: any, _theme: any, context: any) {
 	markToolCallExecutionStarted(context);
-	const { verb, text } = describeCall("ls", args);
-	return renderCallRow(`${verb} ${text}`, context);
+	return renderCallRow(soloLine("ls", callParams("ls", args), Boolean(context?.isError)), context);
 }
 
 /** Expanded body: the listing, capped at maxExpandedLines. */

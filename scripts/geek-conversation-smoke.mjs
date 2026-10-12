@@ -107,7 +107,7 @@ foldMode.chatContainer.addChild({ toolCallId: "1", toolName: "read", args: { pat
 foldMode.addMessageToChat({ role: "assistant", timestamp: T_AGENT + 5_000, stopReason: "stop", content: [{ type: "text", text: "all good" }] });
 const foldedRows = renderChatChildren(foldMode.chatContainer.children, 80).map(plain);
 const foldedAgentHeads = foldedRows.filter((row) => row[6] === "•" && row.includes("pi@agent"));
-expect("folded tool-only opener still prints the agent head once, above the group", foldedAgentHeads.length === 1 && foldedAgentHeads[0].startsWith(clock(T_AGENT)) && foldedRows.findIndex((row) => row.includes("pi@agent")) < foldedRows.findIndex((row) => row.includes("› read")), JSON.stringify(foldedRows));
+expect("folded tool-only opener still prints the agent head once, above the group", foldedAgentHeads.length === 1 && foldedAgentHeads[0].startsWith(clock(T_AGENT)) && foldedRows.findIndex((row) => row.includes("pi@agent")) < foldedRows.findIndex((row) => row.includes("R session.ts")), JSON.stringify(foldedRows));
 
 // Pi's widget spacer between chat and input zone is railed, so the rail has no un-railed gap before the input head.
 const spacerRows = mode.widgetContainerAbove.render(80).map(plain);
