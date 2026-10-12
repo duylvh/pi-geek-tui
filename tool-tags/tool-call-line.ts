@@ -4,7 +4,7 @@ import { type GeekColorRole, geekBg, geekFg } from "../theme/geek-palette.js";
 /**
  * One tool call as `R tool-tags/tool-groups.ts` or `· piggery_send  to tools · kind relay` (docs/design/
  * geek-ui-spec.md §4): common tools (read/bash/edit/write/grep/find/ls) are a colored 1-cell badge plus
- * their primary arg; other tools get `·`, the raw name in dim padded to a shared column, and `key value`
+ * their primary arg; other tools get `·`, the raw name in punct padded to a shared column, and `key value`
  * pairs with faint keys.
  * Used by group rows, tree rows and standalone call rows so every call reads the same.
  */
@@ -78,9 +78,9 @@ export function nameColumn(toolNames: string[]): number {
 	return Math.max(MIN_NAME_COLUMN, Math.min(MAX_NAME_COLUMN, longest + 2));
 }
 
-const dim = (text: string) => geekFg("dim", text);
-/** Params sit one step below the answer text: dim values, faint keys. */
-const param = (text: string) => geekFg("dim", text);
+/** Params sit two steps below the answer text: punct values and names (the mockup path color), faint keys and separators. */
+const param = (text: string) => geekFg("punct", text);
+const faint = (text: string) => geekFg("faint", text);
 
 function field(args: any, ...keys: string[]): string {
 	if (!args || typeof args !== "object") return "";
@@ -92,7 +92,7 @@ function field(args: any, ...keys: string[]): string {
 }
 
 /** Primary arg not streamed in yet. */
-export const MISSING = dim("…");
+export const MISSING = faint("…");
 
 function readTarget(args: any): string {
 	const path = field(args, "path", "file_path");
@@ -126,18 +126,18 @@ export function callParams(toolName: string, args: any): string {
 		case "find": {
 			const pattern = field(args, "pattern");
 			if (!pattern) return MISSING;
-			const quoted = toolName === "grep" ? `${dim('"')}${param(pattern)}${dim('"')}` : param(pattern);
+			const quoted = toolName === "grep" ? `${faint('"')}${param(pattern)}${faint('"')}` : param(pattern);
 			const where = field(args, "path");
 			const glob = field(args, "glob");
-			return `${quoted}${where && where !== "." ? `${dim(" in ")}${param(where)}` : ""}${glob ? `${dim(" glob ")}${param(glob)}` : ""}`;
+			return `${quoted}${where && where !== "." ? `${faint(" in ")}${param(where)}` : ""}${glob ? `${faint(" glob ")}${param(glob)}` : ""}`;
 		}
 	}
 	if (args === null || args === undefined) return MISSING;
 	if (typeof args !== "object" || Array.isArray(args)) return param(formatParamValue(args)) || MISSING;
 	const pairs = Object.entries(args as Record<string, unknown>)
 		.filter(([, value]) => value !== undefined)
-		.map(([key, value]) => `${geekFg("faint", key)} ${param(formatParamValue(value))}`);
-	return pairs.length > 0 ? pairs.join(dim(" · ")) : MISSING;
+		.map(([key, value]) => `${faint(key)} ${param(formatParamValue(value))}`);
+	return pairs.length > 0 ? pairs.join(faint(" · ")) : MISSING;
 }
 
 /** Common tool: `badge params`. Other tools: `· name<pad>params`. `failed` marks the badge (and name) with the del marker. */
@@ -145,7 +145,7 @@ export function callLine(toolName: string, params: string, column: number, faile
 	if (isCommonTool(toolName)) return `${badge(toolName, failed)} ${params}`;
 	const name = safeTruncateToWidth(toolName, column - 1, "…");
 	const pad = " ".repeat(Math.max(1, column - safeVisibleWidth(name)));
-	return `${badge(toolName, failed)} ${geekFg(failed ? "delMark" : "dim", name)}${pad}${params}`;
+	return `${badge(toolName, failed)} ${geekFg(failed ? "delMark" : "punct", name)}${pad}${params}`;
 }
 
 /** Standalone call: name column fits just this tool. */

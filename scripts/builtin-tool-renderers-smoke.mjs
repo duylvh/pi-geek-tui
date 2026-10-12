@@ -339,7 +339,7 @@ async function runBuiltinToolRenderersSmoke() {
 
 	// Live capture bug: badge closes with fg+bg resets and every label has an explicit ink fg (terminal default is invisible).
 	const rawFinished = groups.renderChatChildren(finished, 100);
-	assert(rawFinished[1].includes(`\x1b[48;2;168;163;133m\x1b[38;2;12;12;12mR\x1b[39m\x1b[49m \x1b[38;2;168;163;133msrc/auth/session.ts\x1b[39m`), `read badge + dim path escapes: ${JSON.stringify(rawFinished[1])}`);
+	assert(rawFinished[1].includes(`\x1b[48;2;168;163;133m\x1b[38;2;12;12;12mR\x1b[39m\x1b[49m \x1b[38;2;114;112;96msrc/auth/session.ts\x1b[39m`), `read badge + punct path escapes: ${JSON.stringify(rawFinished[1])}`);
 
 	// A tool-only first assistant message is folded into the group; its turn head row must survive above it.
 	const meta = await import(pathToFileURL(join(buildDir, "messages", "message-meta.js")).href);
@@ -405,16 +405,16 @@ async function runBuiltinToolRenderersSmoke() {
 	}
 	assert(fgOfText(bodies.find((line) => strip(line).includes("stderr: it broke")), "stderr: it broke") === DEL_FG, "error output keeps the del color");
 
-	// Hierarchy of a call row: badge > args (dim) > generic keys (faint); names of generic tools dim.
-	const FAINT_FG = "82;91;84";
+	// Hierarchy of a call row: badge > args (punct #727060) > generic keys / separators (faint); generic names match their values.
+	const FAINT_FG = "82;91;84", PUNCT_FG = "114;112;96";
 	const callRowsRaw = groups.renderChatChildren([
 		tool("read", { path: "src/auth.ts" }), tool("bash", { command: "git status" }), tool("grep", { pattern: "TTL", path: "src" }),
 		tool("piggery_send", { to: "tools" }),
 	], 120);
 	const rowWith = (needle) => callRowsRaw.find((line) => strip(line).includes(needle));
-	assert(fgOfText(rowWith("src/auth.ts"), "src/auth.ts") === DIM_FG && fgOfText(rowWith("git status"), "git status") === DIM_FG, "common-tool args are dim");
-	assert(fgOfText(rowWith('"TTL"'), "TTL") === DIM_FG && fgOfText(rowWith('"TTL"'), "src") === DIM_FG, "grep pattern and path are dim");
-	assert(fgOfText(rowWith("piggery_send"), "to tools") === FAINT_FG && fgOfText(rowWith("piggery_send"), "tools") === DIM_FG && fgOfText(rowWith("piggery_send"), "piggery_send") === DIM_FG, "generic: key faint, value dim, name dim");
+	assert(fgOfText(rowWith("src/auth.ts"), "src/auth.ts") === PUNCT_FG && fgOfText(rowWith("git status"), "git status") === PUNCT_FG, "common-tool args are punct");
+	assert(fgOfText(rowWith('"TTL"'), "TTL") === PUNCT_FG && fgOfText(rowWith('"TTL"'), "src") === PUNCT_FG && fgOfText(rowWith('"TTL"'), '"TTL') === FAINT_FG, "grep pattern and path are punct, quotes faint");
+	assert(fgOfText(rowWith("piggery_send"), "to tools") === FAINT_FG && fgOfText(rowWith("piggery_send"), "tools") === PUNCT_FG && fgOfText(rowWith("piggery_send"), "piggery_send") === PUNCT_FG, "generic: key faint, value and name punct");
 
 	// Rail color: ┃ accent while running, kw when finished, del marker when a call failed; the closing blank row stays │.
 	const palette = await import(pathToFileURL(join(buildDir, "theme", "geek-palette.js")).href);
