@@ -10,7 +10,7 @@ import { renderGrepResult } from "./grep.js";
 import { renderLsResult } from "./ls.js";
 import { renderReadResult } from "./read.js";
 import { renderOutputBody } from "./tool-row.js";
-import { isToolRunning, formatSeconds, toolElapsedMs } from "./tool-summary.js";
+import { describeCall, formatSeconds, isToolRunning, toolElapsedMs } from "./tool-summary.js";
 
 /**
  * Expanded / running group body (docs/design/geek-ui-spec.md §7):
@@ -44,7 +44,7 @@ function callLabel(tool: any): string {
 	const args = tool.args ?? {};
 	switch (tool.toolName) {
 		case "bash":
-			return String(args.command ?? "").split("\n")[0] ?? "";
+			return describeCall("bash", args).text;
 		case "read":
 		case "ls":
 			return String(args.path ?? args.file_path ?? ".");
