@@ -27,16 +27,21 @@ const isTurnStart = (child: any): boolean => Boolean(child?.[TURN_START]);
 const isSpacer = (child: any): boolean => child?.constructor?.name === "Spacer";
 
 /**
- * Rows for one chat child. `next` is the following sibling: a Spacer right before a user message separates
- * turns and stays un-railed; every other spacer inside a turn keeps the rail continuous.
+ * Rows for one chat child. `next`/`prev` are its siblings. A Spacer right before a user message separates
+ * turns and stays un-railed; every other spacer inside a turn keeps the rail continuous, but adds nothing
+ * after a grammar block (which already ends in a railed blank row) or another spacer: exactly one `│`
+ * separator between blocks.
  */
-export function frameChatChild(child: any, width: number, next?: any): string[] {
+export function frameChatChild(child: any, width: number, next?: any, prev?: any): string[] {
 	if (width <= 0 || isRailed(child)) return child.render(width);
 	// Decided at the child's first render (right after Pi adds it), so a startup notice stays outside the
 	// rail when a turn begins later.
 	child[IN_TURN] ??= hasTurnStarted();
 	const rail = child[IN_TURN] && !(isSpacer(child) && isTurnStart(next)) ? "line" : "blank";
-	if (isSpacer(child)) return child.render(width).map(() => geekRow(rail, "", width));
+	if (isSpacer(child)) {
+		if (rail === "line" && (isRailed(prev) || isSpacer(prev))) return [];
+		return child.render(width).map(() => geekRow(rail, "", width));
+	}
 	const bodyWidth = Math.max(1, width - GEEK_PREFIX_WIDTH - 1);
 	return child.render(bodyWidth).map((row: string) => geekRow(rail, stripAnsi(row).startsWith(" ") ? dropLeadingColumns(row, 1) : row, width));
 }

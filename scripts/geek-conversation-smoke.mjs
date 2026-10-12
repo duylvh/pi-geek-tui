@@ -82,7 +82,7 @@ const markdownAnswer = [
 
 // Chat rows that are not our own components (Pi's showStatus / showWarning / showError / extension notify)
 // must follow the row grammar too. Built by Pi's real methods on a stand-in `this`.
-const frameAll = (children, width) => children.flatMap((child, index) => frameChatChild(child, width, children[index + 1]));
+const frameAll = (children, width) => children.flatMap((child, index) => frameChatChild(child, width, children[index + 1], children[index - 1]));
 const piNotices = () => ({ chatContainer: new Container(), ui: { requestRender() {} } });
 const beforeTurn = piNotices();
 core.InteractiveMode.prototype.showStatus.call(beforeTurn, "Memory injected: 1 files (message-append)");
@@ -130,6 +130,11 @@ for (const width of [24, 40, 80]) {
 }
 const noticeRows = frameAll(inTurn.chatContainer.children, 80).map(plain);
 expect("notice bodies start at col 8", ["Tool output: expanded", "Warning: careful", "Error: boom"].every((text) => noticeRows.some((row) => row.slice(8).startsWith(text))), JSON.stringify(noticeRows));
+// Exactly one railed blank between blocks: a Pi spacer after a grammar block (or another spacer) adds nothing.
+const sepRows = frameAll([userA, new Spacer(1), new Spacer(1)], 80).map(plain);
+expect("spacer after a railed block adds no second blank", sepRows.filter((row) => row.trim() === "│").length === 1, JSON.stringify(sepRows));
+const noticeGap = frameAll(inTurn.chatContainer.children, 80).map(plain);
+expect("no two consecutive blank railed rows around notices", noticeGap.every((row, i) => !(i > 0 && row.trim() === "│" && noticeGap[i - 1].trim() === "│")), JSON.stringify(noticeGap));
 const turnGap = frameAll([new Spacer(1), userA], 80).map(plain);
 expect("the spacer before a user message stays un-railed (turn boundary)", turnGap[0][6] === " ");
 
