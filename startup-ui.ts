@@ -39,7 +39,7 @@ function displayCwd(cwd: string): string {
 	return normalized === home || normalized.startsWith(`${home}/`) ? `~${normalized.slice(home.length)}` : normalized;
 }
 
-/** Spec §1: two rows, `π pi … session <name>` and an indented dim line with `turn N · last`. */
+/** Spec §1: two rows, `π pi … session <name>` and an indented dim line with `turn N` (no "last": the header cannot tell where the viewport is). */
 export function renderStartupHeader(info: StartupHeaderInfo, width: number): string[] {
 	const name = info.getSessionName();
 	const turns = info.getTurnCount();
@@ -49,7 +49,7 @@ export function renderStartupHeader(info: StartupHeaderInfo, width: number): str
 	const title = `${geekFg("accent", "π")} ${geekFg("ink", "pi")}`;
 	const session = name ? `${geekFg("dim", "session ")}${geekFg("ink", name)}` : "";
 	const where = geekFg("dim", `pi — ${displayCwd(info.cwd)}${name ? ` · ${name}` : ""}`);
-	const turn = turns > 0 ? geekFg("faint", `turn ${turns} · last`) : "";
+	const turn = turns > 0 ? geekFg("faint", `turn ${turns}`) : "";
 
 	return [
 		geekSplitRow(title, session, Math.max(1, width)),
