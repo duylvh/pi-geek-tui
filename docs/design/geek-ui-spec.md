@@ -19,7 +19,7 @@ is forked from pi-geek-tui and must keep working — change visuals, not the eng
 | punct | `#727060` | `~/path`, code punctuation |
 | rail | `#3a3a34` | idle rail `│` |
 | rule | `#2a2a26` | footer horizontal rule `─` |
-| accent | `#dd5670` default; config options `#dd5670` `#d8785b` `#88c6a3` `#d8d4b4` | `π`, `## heading`, list `-`, active rail `┃`, running state, progress fill, thinking spark |
+| accent | `#dd5670` default; config options `#dd5670` `#d8785b` `#88c6a3` `#d8d4b4` | `π`, `## heading`, list `-`, active rail `┃`, running state, progress fill |
 | del | marker `#dd5670`, row bg `#251518` | diff removed |
 | add | marker `#88c6a3`, row bg `#1b221e` | diff added |
 | badge default | bg `#a8a385`, fg `#0c0c0c` | 1-cell tool badge (`R`, `T`…) |
@@ -79,11 +79,15 @@ Number grouping uses `'` (1'204), like hancore.
 
 ### 8. Input zone (no box)
 ```
-      • bean@kpi-api ~/code/kpi-api (fix/refresh-ttl)            ▂▄▆▄ thinking · 2.3s
+      • bean@kpi-api ~/code/kpi-api (fix/refresh-ttl)                 thinking · 2.3s
         › run tests again then commit█
 ```
-Head row = same as message head, right side shows live state: accent spark `▂▄▆▄` + accent state word
+Head row = same as message head, right side shows live state: the state word
 (`thinking` / `working` / `running` / `answering`) + dim ` · ` + num secs + dim `s`. Idle: right side empty.
+The word is "light" text (no spark glyphs): every char `dim`; a ~3-char band of `ink` sweeps left→right
+(cosine falloff, RGB blend dim↔ink, 1.2s sweep + 0.4s pause, repaint tick 70ms, only while live).
+When the word changes it decodes in ~300ms: unsettled chars show random glyphs (`▚▞░▒#%/\`) in dim and
+settle left→right; the shimmer resumes after. Width of the word never changes between frames.
 Input row: blank rail, `› ` then editor text; cursor = ink block.
 
 ### 9. Footer (2 rows, under a rule)

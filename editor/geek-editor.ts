@@ -10,6 +10,7 @@ import { safeTruncateToWidth, safeVisibleWidth, safeWrapTextWithAnsi } from "../
 import { stripAnsi } from "../theme/ansi.js";
 import { geekBg, geekFg } from "../theme/geek-palette.js";
 import { getLiveState } from "./live-state.js";
+import { shimmerWord } from "./shimmer.js";
 
 type ContextUsage = { tokens: number | null; percent: number | null; contextWindow: number };
 type ModelInfo = { provider?: string; id?: string; reasoning?: boolean; thinkingLevel?: string };
@@ -26,9 +27,7 @@ export interface GeekEditorProviders {
 type SlashItem = { value?: string; label?: string; description?: string };
 
 const BAR_CELLS = 16;
-const SPARK_LEVELS = "▁▂▃▄▅▆▇█";
-const SPARK_CELLS = 4;
-const TICK_MS = 120;
+const TICK_MS = 70; // smooth shimmer sweep; the ticker only runs while the agent is live
 const PROMPT = "› ";
 
 function clamp(value: number, min: number, max: number): number {
@@ -81,13 +80,6 @@ function bar(percent: number | null): string {
 	return geekFg("kw", "█".repeat(filled)) + geekFg("faint", "░".repeat(BAR_CELLS - filled));
 }
 
-function spark(nowMs: number): string {
-	const phase = nowMs / 110;
-	let cells = "";
-	for (let i = 0; i < SPARK_CELLS; i++) cells += SPARK_LEVELS[3 + Math.round(2 * Math.sin(phase + i * 1.3))];
-	return cells;
-}
-
 /** Label in the 5-col gutter column, then 3 blank rail cells, then the body (spec §9). */
 function labelRow(label: string, body: string, width: number): string {
 	const cell = " ".repeat(Math.max(0, GEEK_GUTTER_WIDTH - label.length)) + geekFg("dim", label);
@@ -104,7 +96,10 @@ export class GeekEditor extends CustomEditor {
 		this.renderHost = tui;
 	}
 
-	// Repaint while the agent is live (spark + seconds); stops itself once the run is over.
+	private shownWord = "";
+	private wordChangedAt = 0;
+
+	// Repaint while the agent is live (shimmer + seconds); stops itself once the run is over.
 	private syncTicker(): void {
 		const live = getLiveState() !== undefined;
 		if (live && !this.ticker) {
@@ -118,10 +113,18 @@ export class GeekEditor extends CustomEditor {
 
 	private liveStateText(): string {
 		const live = getLiveState();
-		if (!live) return "";
+		if (!live) {
+			this.shownWord = ""; // the next run decodes its first word in again
+			return "";
+		}
 		const word = loadConfig().customWorkingMessage[live.name];
 		const secs = (live.elapsedMs / 1000).toFixed(1);
-		return `${geekFg("accent", `${spark(Date.now())} ${word}`)}${geekFg("dim", " · ")}${geekFg("num", secs)}${geekFg("dim", "s")}`;
+		const now = Date.now();
+		if (word !== this.shownWord) {
+			this.shownWord = word;
+			this.wordChangedAt = now;
+		}
+		return `${shimmerWord(word, now, this.wordChangedAt)}${geekFg("dim", " · ")}${geekFg("num", secs)}${geekFg("dim", "s")}`;
 	}
 
 	private headRow(width: number): string {
