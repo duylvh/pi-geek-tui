@@ -15,6 +15,7 @@ const built = buildSmoke("geek-conversation-smoke", [
 	"messages/core-message-blocks.ts",
 	"messages/message-meta.ts",
 	"messages/markdown-codeblock-renderer.ts",
+	"tool-tags/tool-groups.ts",
 ]);
 
 const failures = [];
@@ -26,7 +27,7 @@ const plain = (text) => String(text).replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, "
 const core = await import("@earendil-works/pi-coding-agent");
 // Pi core ships its own pi-tui copy; the Markdown patch must land on the class its components use.
 const corePiTui = join(process.cwd(), "node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/dist/index.js");
-const { Markdown, Container } = await import(existsSync(corePiTui) ? corePiTui : "@earendil-works/pi-tui");
+const { Markdown, Container, Spacer } = await import(existsSync(corePiTui) ? corePiTui : "@earendil-works/pi-tui");
 core.initTheme("dark");
 
 const { installUserMessagePrefix } = await built.importBuilt("messages/user-prefix.js");
@@ -34,6 +35,7 @@ const { installAssistantMessagePrefix } = await built.importBuilt("messages/assi
 const { installCoreMessageBlockStyling, setCoreMessageBlockTheme } = await built.importBuilt("messages/core-message-blocks.js");
 const { installMessageMeta } = await built.importBuilt("messages/message-meta.js");
 const { installMarkdownCodeBlockRenderer } = await built.importBuilt("messages/markdown-codeblock-renderer.js");
+const { renderChatChildren } = await built.importBuilt("tool-tags/tool-groups.js");
 
 installMarkdownCodeBlockRenderer(Markdown);
 installMarkdownCodeBlockRenderer(); // the extension's own pi-tui copy (same class under Pi's module aliasing)
@@ -45,6 +47,15 @@ setCoreMessageBlockTheme(core.theme);
 // A stand-in for InteractiveMode: same addMessageToChat shape (user -> UserMessageComponent, assistant -> AssistantMessageComponent).
 class FakeInteractiveMode {
 	chatContainer = new Container();
+	// Pi keeps a Spacer(1) between the chat and the input zone (renderWidgets in interactive-mode.js).
+	widgetContainerAbove = new Container();
+	renderWidgetContainer(container) {
+		container.clear();
+		container.addChild(new Spacer(1));
+	}
+	renderWidgets() {
+		this.renderWidgetContainer(this.widgetContainerAbove);
+	}
 	addMessageToChat(message) {
 		if (message.role === "user") this.chatContainer.addChild(new core.UserMessageComponent(message.content));
 		if (message.role === "assistant") this.chatContainer.addChild(new core.AssistantMessageComponent(message, true));
@@ -74,6 +85,21 @@ mode.addMessageToChat({ role: "assistant", timestamp: T_AGENT + 60_000, stopReas
 mode.addMessageToChat({ role: "user", content: "thanks", timestamp: T_AGENT + 120_000 });
 mode.addMessageToChat({ role: "assistant", timestamp: T_AGENT + 130_000, stopReason: "stop", content: [{ type: "text", text: "done" }] });
 const [userA, agentTools, agentText, userB, agentB] = mode.chatContainer.children;
+
+// A turn whose first assistant message only issues tool calls: tools folds it (and its tool components)
+// into one group row and never renders it, so the head must come from the group.
+const foldMode = new FakeInteractiveMode();
+foldMode.addMessageToChat({ role: "user", content: "run it", timestamp: T_USER });
+foldMode.addMessageToChat({ role: "assistant", timestamp: T_AGENT, stopReason: "toolUse", content: [{ type: "toolCall", id: "1", name: "read", arguments: { path: "session.ts" } }] });
+foldMode.chatContainer.addChild({ toolCallId: "1", toolName: "read", args: { path: "session.ts" }, result: { content: [{ type: "text", text: "x" }] }, expanded: false, render: () => [] });
+foldMode.addMessageToChat({ role: "assistant", timestamp: T_AGENT + 5_000, stopReason: "stop", content: [{ type: "text", text: "all good" }] });
+const foldedRows = renderChatChildren(foldMode.chatContainer.children, 80).map(plain);
+const foldedAgentHeads = foldedRows.filter((row) => row[6] === "•" && row.includes("pi@agent"));
+expect("folded tool-only opener still prints the agent head once, above the group", foldedAgentHeads.length === 1 && foldedAgentHeads[0].startsWith(clock(T_AGENT)) && foldedRows.findIndex((row) => row.includes("pi@agent")) < foldedRows.findIndex((row) => row.includes("› read")), JSON.stringify(foldedRows));
+
+// Pi's widget spacer between chat and input zone is railed, so the rail has no un-railed gap before the input head.
+const spacerRows = mode.widgetContainerAbove.render(80).map(plain);
+expect("widget spacer row is railed", spacerRows.length === 1 && spacerRows[0][6] === "│", JSON.stringify(spacerRows));
 
 const blocks = [
 	new core.CompactionSummaryMessageComponent({ role: "compactionSummary", summary: "## Goal\nfix refresh ttl", tokensBefore: 12345, timestamp: T_USER }),
@@ -113,7 +139,7 @@ const answer = rows(agentText).join("\n");
 expect("heading keeps its ## marks", answer.includes("## cause"));
 expect("inline code keeps backticks", answer.includes("`REFRESH_TTL`") && answer.includes("`sign()`"));
 expect("list bullets", answer.includes("- fix `session.ts` line 20"));
-expect("collapsed thinking row", answer.includes("Thinking") || answer.includes("thinking"), answer);
+expect("collapsed thinking row", answer.includes("thinking ·"), answer);
 expect("compaction collapsed: grouped tokens + expand hint", rows(blocks[0]).some((row) => row.includes("compaction") && row.includes("12'345 tokens") && row.includes("^o")));
 expect("compaction expanded: summary body", rows(expanded).some((row) => row.includes("## Goal")) && !rows(expanded).some((row) => row.includes("^o")));
 expect("skill/branch/custom heads", rows(blocks[1]).some((r) => r.includes("branch")) && rows(blocks[2]).some((r) => r.includes("skill") && r.includes("review")) && rows(blocks[3]).some((r) => r.includes("note")) && rows(blocks[3]).some((r) => r.includes("plain custom text")));

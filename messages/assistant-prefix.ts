@@ -65,7 +65,8 @@ function buildCollapsedThinkingRow(run: AssistantContentRun, label: string, live
 
 	const tail = trimTailWhitespaceAfterEllipsis(safeTakeTailToWidth(lastThinkingTailLine(run.text), tailBudget));
 	const marker = live ? geekFg("accent", THINKING_TAIL_LIVE_MARKER) : geekFg("faint", THINKING_TAIL_SETTLED_MARKER);
-	return ` ${geekFg("dim", label)} ${marker} ${geekFg("faint", tail)}`;
+	// Spec strings are lowercase (`thinking ▸ …`), whatever casing Pi's hidden-thinking label uses.
+	return ` ${geekFg("dim", label.toLowerCase())} ${marker} ${geekFg("faint", tail)}`;
 }
 
 type ThinkingChildContext = {

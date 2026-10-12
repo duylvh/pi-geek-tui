@@ -34,8 +34,8 @@ for (const thoughts of [["alpha"], ["alpha", "beta"], ["alpha", "beta", "gamma"]
 		assert(!isItalic(finalRow), `${label}: final response must not inherit thinking italics`);
 		assert(stripAnsi(finalRow).indexOf("FINALANSWER") === 8, `${label}: final response should sit right after the 8-cell gutter+rail`);
 		if (hideThinking) {
-			// The collapsed row is `Thinking ▸/· …tail`; it must be the thinking child, not the answer.
-			const hiddenRow = rowWith(raw, "Thinking");
+			// The collapsed row is `thinking ▸/· …tail`; it must be the thinking child, not the answer.
+			const hiddenRow = rowWith(raw, "thinking");
 			assert(hiddenRow !== undefined && !isItalic(hiddenRow), `${label}: hidden thinking row should render upright`);
 		} else {
 			for (const thought of thoughts) {

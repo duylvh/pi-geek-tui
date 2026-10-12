@@ -1,5 +1,6 @@
-// Per-message metadata Pi's components don't keep: the message timestamp (head row time) and which
-// assistant component opens a turn (only that one prints the `pi@agent` head row).
+// Chat-level bookkeeping Pi's components don't keep: the message timestamp (head row time), which
+// assistant component opens a turn (only that one prints the `pi@agent` head row), and the railed
+// spacer between chat and input zone.
 //
 // Chat order == construction order for both live streaming and session resume, and every user
 // message passes through InteractiveMode.addMessageToChat, so a counter bumped there delimits turns.
@@ -7,6 +8,7 @@
 // (fresh module instance) keeps existing components consistent.
 
 import { geekHeadRow } from "../presentation/geek-head.js";
+import { geekRow } from "../presentation/geek-rows.js";
 
 const PATCHED = Symbol.for("pi-geek-tui.message-meta.patched");
 const STATE = Symbol.for("pi-geek-tui.message-meta.state");
@@ -50,13 +52,37 @@ export function turnHeadRows(component: any, width: number): string[] {
 	return [geekHeadRow("agent", width, stamp)];
 }
 
+// Pi always keeps a Spacer(1) in widgetContainerAbove (between the chat and the input zone). Left alone it
+// is the one un-railed blank inside the rail column, so it is swapped for a railed blank row.
+const RAIL_SPACER = { invalidate() {}, render: (width: number): string[] => [geekRow("line", "", width)] };
+const RAILED = Symbol.for("pi-geek-tui.message-meta.railed-widgets");
+
+function railWidgetSpacers(mode: any): void {
+	const children: any[] | undefined = mode.widgetContainerAbove?.children;
+	if (children) mode.widgetContainerAbove.children = children.map((child) => (child?.constructor?.name === "Spacer" ? RAIL_SPACER : child));
+}
+
 export function installMessageMeta(InteractiveModeClass: any): void {
 	const proto = InteractiveModeClass?.prototype;
 	if (!proto || proto[PATCHED] || typeof proto.addMessageToChat !== "function") return;
 	proto[PATCHED] = true;
 
+	const baseRenderWidgetContainer = proto.renderWidgetContainer;
+	if (typeof baseRenderWidgetContainer === "function") {
+		proto.renderWidgetContainer = function patchedRenderWidgetContainer(this: any, container: any, ...rest: any[]): unknown {
+			const result = baseRenderWidgetContainer.call(this, container, ...rest);
+			if (container === this.widgetContainerAbove) railWidgetSpacers(this);
+			return result;
+		};
+	}
+
 	const base = proto.addMessageToChat;
 	proto.addMessageToChat = function patchedAddMessageToChat(this: any, message: any, ...rest: any[]): unknown {
+		if (!this[RAILED] && typeof this.renderWidgets === "function") {
+			// The spacer built before this patch existed is still in place; rebuild the container once.
+			this[RAILED] = true;
+			this.renderWidgets();
+		}
 		const children: any[] | undefined = this.chatContainer?.children;
 		const before = children?.length ?? 0;
 		if (message?.role === "user") state().turn++;
