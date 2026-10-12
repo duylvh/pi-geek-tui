@@ -70,7 +70,7 @@ for (const width of [60, 92, 120]) {
 const width = 92;
 const idle = editor.render(width).map(strip);
 expect("idle head row has no state word", !/thinking|working|answering|running/.test(idle[1]));
-expect("head row carries time, user, path and branch", /^\s*\d\d:\d\d • \S+@\S+ ~\/code\/kpi-api \(fix\/refresh-ttl\)/.test(idle[1]));
+expect("head row carries user@project, path and branch (no time)", /^ {6}• \S+@kpi-api ~\/code\/kpi-api \(fix\/refresh-ttl\)/.test(idle[1]));
 expect("input row is `› text` on a blank rail", /^ {8}› run tests again then commit/.test(idle[2]));
 expect("footer has ctx and tok rows", idle.some((r) => /^\s+ctx\s+█+░+  31\.4%\/200k/.test(r)) && idle.some((r) => /^\s+tok\s+↑41k ↓6\.9k  R212k W18k  CH 82\.4%.*\$0\.412$/.test(r)));
 setLiveState("thinking");

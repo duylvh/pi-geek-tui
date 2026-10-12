@@ -1,6 +1,7 @@
 import { CustomEditor } from "@earendil-works/pi-coding-agent";
 import { CURSOR_MARKER } from "@earendil-works/pi-tui";
-import { homedir, hostname, userInfo } from "node:os";
+import { homedir, userInfo } from "node:os";
+import { basename } from "node:path";
 
 import { loadConfig } from "../config.js";
 import type { FooterTokenUsage } from "../footer-patch.js";
@@ -75,11 +76,6 @@ function displayCwd(cwd: string): string {
 	return normalized === home || normalized.startsWith(`${home}/`) ? `~${normalized.slice(home.length)}` : normalized;
 }
 
-function clock(): string {
-	const now = new Date();
-	return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-}
-
 function bar(percent: number | null): string {
 	const filled = percent === null ? 0 : clamp(Math.round((percent / 100) * BAR_CELLS), 0, BAR_CELLS);
 	return geekFg("kw", "█".repeat(filled)) + geekFg("faint", "░".repeat(BAR_CELLS - filled));
@@ -101,7 +97,6 @@ function labelRow(label: string, body: string, width: number): string {
 export class GeekEditor extends CustomEditor {
 	private ticker: ReturnType<typeof setInterval> | undefined;
 	private readonly renderHost: any;
-	private readonly host = hostname().split(".")[0] || "host";
 	private readonly user = username();
 
 	constructor(tui: any, editorTheme: any, kb: any, private readonly providers: GeekEditorProviders) {
@@ -131,9 +126,9 @@ export class GeekEditor extends CustomEditor {
 
 	private headRow(width: number): string {
 		const branch = this.providers.getBranch()?.branch;
-		const left = geekHeadBody({ name: this.user, host: this.host, cwd: displayCwd(this.providers.cwd), branch });
+		const left = geekHeadBody({ name: this.user, host: basename(this.providers.cwd) || "host", cwd: displayCwd(this.providers.cwd), branch });
 		const body = geekSplitRow(left, this.liveStateText(), Math.max(1, width - GEEK_PREFIX_WIDTH));
-		return geekRow("head-user", body, width, clock());
+		return geekRow("head-user", body, width);
 	}
 
 	private renderInputLines(text: string, width: number): string[] {
