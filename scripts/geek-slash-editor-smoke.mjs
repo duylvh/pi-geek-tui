@@ -5,12 +5,10 @@
  * nothing is shown when no slash autocomplete is active. (renderSlashMenu itself: slash-menu-smoke.)
  */
 import { join } from "node:path";
-import { existsSync, readdirSync, rmSync } from "node:fs";
-import { visibleWidth } from "@earendil-works/pi-tui";
+import { rmSync } from "node:fs";
+import { SelectList, visibleWidth } from "@earendil-works/pi-tui";
 import { buildSmoke } from "./smoke-build.mjs";
 
-// buildSmoke points HOME at a scratch dir; the host Pi install is looked up under the real one first.
-const realHome = process.env.HOME ?? "";
 const built = buildSmoke("geek-slash-editor-smoke", ["editor/geek-editor.ts", "editor/live-state.ts"]);
 const { GeekEditor } = await built.importBuilt("editor/geek-editor.js");
 const { GEEK_PREFIX_WIDTH: P } = await built.importBuilt("presentation/geek-rows.js");
@@ -53,24 +51,13 @@ editor.autocompleteState = undefined;
 editor.autocompleteList = undefined;
 expect("menu disappears with the autocomplete", headIndex(editor.render(100).map(strip)) === 0);
 
-// Mouse (Pi >= 1.1 hit-tests ITS layout; GeekEditor translates ours). Needs Pi's real SelectList with
-// handleMouse: the host install's pi-tui (the repo devDeps are 0.78, which has no mouse API).
-const hostTui = (() => {
-	const root = join(realHome, ".pi", "agent", "install", "releases");
-	if (!existsSync(root)) return undefined;
-	const versions = readdirSync(root).filter((v) => /^\d+\.\d+\.\d+$/.test(v)).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-	const found = versions.reverse().map((v) => join(root, v, "node_modules", "@earendil-works", "pi-tui", "dist", "index.js")).find(existsSync);
-	return found;
-})();
-const HostSelectList = hostTui ? (await import(hostTui)).SelectList : undefined;
-if (!HostSelectList?.prototype?.handleMouse) {
-	console.log(`SKIP mouse checks: no Pi >= 1.1 SelectList with handleMouse found (${hostTui ?? "no ~/.pi/agent/install/releases"})`);
-} else {
+// Mouse: Pi hit-tests ITS editor layout; GeekEditor translates ours (menu above the head, no borders).
+{
 	const many = Array.from({ length: 20 }, (_, i) => ({ value: `cmd${String(i).padStart(2, "0")}`, label: `cmd${String(i).padStart(2, "0")}`, description: `command ${i}` }));
 	const open = (selected) => {
 		editor.setText("/");
 		editor.autocompleteState = "regular";
-		editor.autocompleteList = new HostSelectList(many, 5, editorTheme.selectList);
+		editor.autocompleteList = new SelectList(many, 5, editorTheme.selectList);
 		editor.autocompleteList.setSelectedIndex(selected);
 		return editor.render(100).map(strip);
 	};
@@ -113,9 +100,7 @@ if (!HostSelectList?.prototype?.handleMouse) {
 }
 
 // Click inside the input text puts Pi's cursor under the clicked cell (x shifted past rail + prompt).
-if (typeof Object.getPrototypeOf(GeekEditor.prototype).handleMouse !== "function") {
-	console.log("SKIP input-click checks: the editor base class has no handleMouse (Pi < 1.0 devDeps)");
-} else {
+{
 	const clickAt = (text, row, col) => {
 		editor.setText(text);
 		const all = editor.render(100).map(strip);
