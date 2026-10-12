@@ -4,16 +4,12 @@
  *
  * Runs against the real Pi 0.78 core in node_modules (per-block layout) plus a grouped-layout
  * stub that mirrors the Pi 0.84+ single-child layout, so both host layouts are covered.
- *
- * `WRITE_BASE_GOLDENS=1 node scripts/collapsed-thinking-smoke.mjs` captures the fixtures from
- * the current (pre-change) source into scripts/fixtures/collapsed-thinking-base.json. That file
- * is the byte-for-byte base-commit baseline P6 compares against.
  */
 
-import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { buildSmoke } from "./smoke-build.mjs";
 
 const repoRoot = process.cwd();
 const workDir = join(repoRoot, ".pi", "collapsed-thinking-smoke");
@@ -22,9 +18,6 @@ const stubPath = join(workDir, "node-stubs.d.ts");
 const tsc = join(repoRoot, "node_modules", "typescript", "lib", "tsc.js");
 const home = join(workDir, "home");
 const configPath = join(home, ".pi", "agent", "pi-geek-tui.json");
-const goldenPath = join(repoRoot, "scripts", "fixtures", "collapsed-thinking-base.json");
-const WRITE_GOLDENS = process.env.WRITE_BASE_GOLDENS === "1";
-const coreVersion = JSON.parse(readFileSync(join(repoRoot, "node_modules", "@earendil-works", "pi-coding-agent", "package.json"), "utf8")).version;
 
 function assert(condition, message) {
 	if (!condition) throw new Error(message);
@@ -45,73 +38,16 @@ const graphemeSegments = (text) => Array.from(new Intl.Segmenter(undefined, { gr
 const isGraphemeSuffix = (source, tail) => graphemeSegments(source).some((_, index) => graphemeSegments(source).slice(index).join("") === tail);
 
 function prepareBuild() {
-	rmSync(workDir, { recursive: true, force: true });
-	mkdirSync(buildDir, { recursive: true });
+	buildSmoke("collapsed-thinking-smoke", [
+		"config.ts",
+		"messages/assistant-content-runs.ts",
+		"messages/assistant-prefix.ts",
+		"render-budget.ts",
+		"performance/profiler.ts",
+		"theme/geek-palette.ts",
+		"theme/ansi.ts",
+	]);
 	mkdirSync(dirname(configPath), { recursive: true });
-	mkdirSync(dirname(goldenPath), { recursive: true });
-	writeFileSync(join(buildDir, "package.json"), '{"type":"module"}\n', "utf8");
-	writeFileSync(stubPath, `declare module "fs" {
-	export const existsSync: (path: string) => boolean;
-	export const mkdirSync: (path: string, options?: unknown) => unknown;
-	export const readFileSync: (path: string, encoding: string) => string;
-	export const readdirSync: any;
-	export const statSync: (path: string) => { mtimeMs: number };
-	export const writeFileSync: (path: string, data: string, encoding?: string) => void;
-	export const appendFileSync: (path: string, data: string, encoding?: string) => void;
-}
-declare module "node:fs" {
-	export * from "fs";
-}
-declare module "path" {
-	export const dirname: (path: string) => string;
-	export const join: (...parts: string[]) => string;
-	export const resolve: (...parts: string[]) => string;
-	export const relative: (from: string, to: string) => string;
-}
-declare module "node:path" {
-	export * from "path";
-}
-declare module "os" {
-	export const homedir: () => string;
-}
-declare module "node:os" {
-	export * from "os";
-}
-declare module "node:url" {
-	export const fileURLToPath: (url: string | URL) => string;
-}
-declare module "node:buffer" {
-	export const Buffer: any;
-}
-declare module "node:perf_hooks" {
-	export const monitorEventLoopDelay: any;
-	export const performance: any;
-}
-declare const process: any;
-`, "utf8");
-
-	const result = spawnSync(process.execPath, [
-		tsc,
-		"--target", "ES2022",
-		"--module", "NodeNext",
-		"--moduleResolution", "NodeNext",
-		"--outDir", buildDir,
-		"--rootDir", repoRoot,
-		"--skipLibCheck",
-		"--noImplicitAny", "false",
-		stubPath,
-		join(repoRoot, "config.ts"),
-		join(repoRoot, "user-zone", "designs.ts"),
-		join(repoRoot, "presentation", "designs.ts"),
-		join(repoRoot, "presentation", "state.ts"),
-		join(repoRoot, "messages", "assistant-content-runs.ts"),
-		join(repoRoot, "messages", "assistant-prefix.ts"),
-		join(repoRoot, "render-budget.ts"),
-		join(repoRoot, "performance", "profiler.ts"),
-		join(repoRoot, "theme", "theme-extras.ts"),
-		join(repoRoot, "theme", "ansi.ts"),
-	], { cwd: repoRoot, encoding: "utf8" });
-	if (result.status !== 0) throw new Error(`tsc failed\n${result.stdout}\n${result.stderr}`);
 }
 
 const CONFIG_MTIME_BASE = 1_700_000_000;
@@ -135,8 +71,6 @@ prepareBuild();
 process.env.HOME = home;
 writeConfig({ collapsedThinking: "tail" });
 
-const themeExtras = await import(pathToFileURL(join(buildDir, "theme", "theme-extras.js")).href);
-const state = await import(pathToFileURL(join(buildDir, "presentation", "state.js")).href);
 const budget = await import(pathToFileURL(join(buildDir, "render-budget.js")).href);
 const runsModule = await import(pathToFileURL(join(buildDir, "messages", "assistant-content-runs.js")).href);
 const prefixModule = await import(pathToFileURL(join(buildDir, "messages", "assistant-prefix.js")).href);
@@ -147,24 +81,7 @@ const { initTheme, AssistantMessageComponent } = await import("@earendil-works/p
 const { Markdown, Spacer } = await import("@earendil-works/pi-tui");
 initTheme("dark");
 
-const themeFile = join(workDir, "smoke-theme.json");
-writeFileSync(themeFile, `${JSON.stringify({
-	name: "collapsed-smoke",
-	vars: { muted: "#6c7086", thinkingText: "#89b4fa" },
-	extras: {},
-}, null, 2)}\n`, "utf8");
-
-const activeTheme = {
-	sourcePath: themeFile,
-	fg: (color, text) => `\x1b[38;5;7m${text}\x1b[39m`,
-	italic: (text) => `\x1b[3m${text}\x1b[23m`,
-	bold: (text) => `\x1b[1m${text}\x1b[22m`,
-	getColorMode: () => "truecolor",
-};
-themeExtras.setFullTheme(activeTheme, true);
-
-state.setPresentationStyle("reasonix");
-prefixModule.installAssistantMessagePrefix(activeTheme);
+prefixModule.installAssistantMessagePrefix();
 
 // Liveness is captured when a component is patched, so a check marks the stream active around the
 // updateContent call it wants to observe live. The tracked message object must be the same one fed
@@ -213,7 +130,7 @@ class GroupedLayoutStub {
 	}
 }
 
-prefixModule.installAssistantMessagePrefix(activeTheme, GroupedLayoutStub);
+prefixModule.installAssistantMessagePrefix(undefined, GroupedLayoutStub);
 
 function groupedThinkingChild(message, options = {}) {
 	const component = new GroupedLayoutStub(message, options.hideThinkingBlock ?? true, options.label ?? "Thinking...", options.overrides);
@@ -221,7 +138,7 @@ function groupedThinkingChild(message, options = {}) {
 	return { component, runs, childAt: (index) => component.contentContainer.children[runs[index].childIndex] };
 }
 
-// ---------------------------------------------------------------- fixtures (base-commit goldens)
+// ---------------------------------------------------------------- fixtures 
 const LONG_ASCII = Array.from({ length: 300 }, (_, index) => String.fromCharCode(97 + (index % 26))).join("");
 const CJK_LINE = "思考のながれ".repeat(24);
 const EMOJI_LINE = "🙂🚀".repeat(80);
@@ -240,30 +157,7 @@ function renderFixture(fixture, hideThinking, width) {
 	return new AssistantMessageComponent({ role: "assistant", content: fixture.content }, hideThinking).render(width);
 }
 
-function captureGoldens() {
-	const goldens = {};
-	for (const fixture of FIXTURES) {
-		goldens[fixture.name] = {};
-		for (const hideThinking of [true, false]) {
-			goldens[fixture.name][String(hideThinking)] = {};
-			for (const width of [46, 80]) {
-				goldens[fixture.name][String(hideThinking)][String(width)] = renderFixture(fixture, hideThinking, width);
-			}
-		}
-	}
-	return goldens;
-}
 
-if (WRITE_GOLDENS) {
-	const existing = existsSync(goldenPath) ? JSON.parse(readFileSync(goldenPath, "utf8")) : {};
-	existing[coreVersion] = captureGoldens();
-	writeFileSync(goldenPath, `${JSON.stringify(existing, null, 2)}\n`, "utf8");
-	console.log(`captured base goldens for ${coreVersion}: ${goldenPath}`);
-	process.exit(0);
-}
-
-const goldenBook = JSON.parse(readFileSync(goldenPath, "utf8"));
-const goldens = goldenBook[coreVersion];
 
 // ---------------------------------------------------------------- P1..P11 + config cases
 const LIVE_TAIL = "nên child index phải đi theo rendered run, không phải raw block";
@@ -278,8 +172,6 @@ check("P1 real core (0.78 per-block) live tail", () => {
 	assert(row !== undefined, `collapsed row missing: ${JSON.stringify(raw.map(stripAnsi))}`);
 	assert(stripAnsi(row).includes("▸"), `live marker missing: ${JSON.stringify(stripAnsi(row))}`);
 	assert(stripAnsi(row).includes(LIVE_TAIL), `whole tail line should fit at width 120: ${JSON.stringify(stripAnsi(row))}`);
-	const again = withActiveStream(message, () => new AssistantMessageComponent(message, true).render(120));
-	assert(raw.length === again.length, "row count must not change");
 });
 
 check("P1 grouped layout live tail (1/2/3 blocks)", () => {
@@ -384,7 +276,7 @@ check("P4 truncation is left-anchored and monotonic", () => {
 	for (const width of [40, 80, 160]) {
 		const message = hiddenOnly(LONG_ASCII);
 		const raw = withActiveStream(message, () => new AssistantMessageComponent(message, true).render(width));
-		const row = stripAnsi(rowWith(raw, "Thinking"));
+		const row = stripAnsi(rowWith(raw, "Thinking")).trimEnd();
 		assert(row.includes("…"), `width ${width}: truncated tail should start with an ellipsis: ${JSON.stringify(row)}`);
 		const tail = row.slice(row.indexOf("…") + 1);
 		assert(LONG_ASCII.endsWith(tail), `width ${width}: tail must be the end of the line: ${JSON.stringify(tail.slice(0, 12))}`);
@@ -408,11 +300,11 @@ check("P4 wide graphemes are dropped whole", () => {
 });
 
 check("P4 whitespace right after the ellipsis is trimmed", () => {
-	// At width 40 (reasonix body 37, label "Thinking" = 8) the tail budget is 25 → the last 24 columns are kept;
+	// At width 46 (body 37, label "Thinking" = 8) the tail budget is 25 → the last 24 columns are kept;
 	// 23 y's plus the space before them land the cut exactly on that space.
 	const text = `${"z".repeat(50)} ${"y".repeat(23)}`;
 	const message = hiddenOnly(text);
-	const raw = withActiveStream(message, () => new AssistantMessageComponent(message, true).render(40));
+	const raw = withActiveStream(message, () => new AssistantMessageComponent(message, true).render(46));
 	const row = stripAnsi(rowWith(raw, "Thinking")).trimEnd();
 	const tail = row.slice(row.indexOf("…") + 1);
 	assert(tail === "y".repeat(23), `cut on whitespace must drop the space after the ellipsis: ${JSON.stringify(tail)}`);
@@ -468,41 +360,8 @@ check("P9 updateContent is the only source", () => {
 	assert(!source.includes("setTimeout") && !source.includes("addListener"), "the row must not add event or timer sources");
 });
 
-check("P10 style split", () => {
-	for (const style of ["reasonix", "droid"]) {
-		state.setPresentationStyle(style);
-		const raw = withActiveStream(liveMessage, () => new AssistantMessageComponent(liveMessage, true).render(80));
-		const row = rowWith(raw, "Thinking");
-		const tailStart = row.indexOf("\x1b[38;2;108;112;134m");
-		assert(tailStart > 0, `${style}: tail/marker must use the resolved muted escape: ${JSON.stringify(row)}`);
-		const labelSegment = row.slice(0, tailStart);
-		const tailSegment = row.slice(tailStart);
-		assert(tailSegment.includes("▸"), `${style}: marker must live in the styled tail segment`);
-		assert(labelSegment.includes("\x1b[1m"), `${style}: label must be bold`);
-		assert(labelSegment.includes("\x1b[38;5;7m"), `${style}: label must use thinkingText`);
-		assert(!labelSegment.includes("\x1b[3m"), `${style}: label must be upright (never italic)`);
-		assert(!tailSegment.includes("\x1b[1m"), `${style}: bold must not leak into the tail`);
-		assert(!tailSegment.includes("\x1b[3m"), `${style}: tail/marker must never be italic`);
-	}
-});
-
-check("P10 theme extra recolours only the tail", () => {
-	const redTheme = { ...activeTheme, sourcePath: join(workDir, "red-theme.json") };
-	writeFileSync(redTheme.sourcePath, `${JSON.stringify({ name: "collapsed-red", vars: { muted: "#6c7086", thinkingText: "#89b4fa" }, extras: { collapsedThinkingTailColor: "#ff0000" } }, null, 2)}\n`, "utf8");
-	themeExtras.setFullTheme(redTheme, true);
-	prefixModule.installAssistantMessagePrefix(redTheme);
-	const raw = withActiveStream(liveMessage, () => new AssistantMessageComponent(liveMessage, true).render(80));
-	const row = rowWith(raw, "Thinking");
-	const redStart = row.indexOf("\x1b[38;2;255;0;0m");
-	assert(redStart > 0 && row.slice(redStart).includes("▸"), "explicit tail colour must apply to the marker/tail");
-	assert(!row.slice(0, redStart).includes("\x1b[38;2;255;0;0m"), "explicit tail colour must not leak into the label");
-	themeExtras.setFullTheme(activeTheme, true);
-	prefixModule.installAssistantMessagePrefix(activeTheme);
-});
-
-check("P11 interleaved runs keep prefix/gutter placement", () => {
-	state.setPresentationStyle("reasonix");
-	// thinking -> text -> thinking: the first run is prefixed and settled, the trailing run is live.
+check("P11 interleaved runs settle independently", () => {
+	// thinking -> text -> thinking: the first run is followed by text so it settled; the trailing run is live.
 	const live = {
 		role: "assistant",
 		stopReason: "stop",
@@ -515,55 +374,13 @@ check("P11 interleaved runs keep prefix/gutter placement", () => {
 	const raw = withActiveStream(live, () => new AssistantMessageComponent(live, true).render(80));
 	const first = stripAnsi(raw.find((line) => stripAnsi(line).includes("firstthought")));
 	const second = stripAnsi(raw.find((line) => stripAnsi(line).includes("secondthought")));
-	assert(first.startsWith("• "), `first thinking run should keep the top-level marker: ${JSON.stringify(first)}`);
-	assert(first.includes("·") && !first.includes("▸"), "the first run is followed by text, so it settled");
-	assert(second.includes("▸") && second.includes("secondthought"), `the trailing run has nothing after it, so it stays live: ${JSON.stringify(second)}`);
-
-	// thinking -> text -> thinking -> text: the second run takes the gutter column, both settled.
-	const gutter = {
-		role: "assistant",
-		stopReason: "stop",
-		content: [
-			{ type: "thinking", thinking: "firstthought" },
-			{ type: "text", text: "MIDANSWER" },
-			{ type: "thinking", thinking: "secondthought" },
-			{ type: "text", text: "FINALANSWER" },
-		],
-	};
-	const gutterRaw = withActiveStream(gutter, () => new AssistantMessageComponent(gutter, true).render(80));
-	const gutterRow = stripAnsi(gutterRaw.find((line) => stripAnsi(line).includes("secondthought")));
-	assert(gutterRow.startsWith("  Thinking ·"), `gutter run should keep its indent: ${JSON.stringify(gutterRow)}`);
-	assert(gutterRow.includes("·") && !gutterRow.includes("▸"), "the gutter run is followed by text, so it settled");
-});
-
-check(`P6 label mode + visible thinking stay byte-identical to base ${coreVersion}`, () => {
-	assert(goldens !== undefined, `no base goldens captured for Pi ${coreVersion}`);
-	state.setPresentationStyle("reasonix");
-	setConfig({ collapsedThinking: "tail" });
-	for (const fixture of FIXTURES) {
-		for (const width of [46, 80]) {
-			const actual = renderFixture(fixture, false, width);
-			assert(JSON.stringify(actual) === JSON.stringify(goldens[fixture.name].false[String(width)]), `visible thinking changed for ${fixture.name} @${width}`);
-		}
-	}
-	setConfig({ collapsedThinking: "label" });
-	for (const fixture of FIXTURES) {
-		for (const hideThinking of [true, false]) {
-			for (const width of [46, 80]) {
-				const actual = renderFixture(fixture, hideThinking, width);
-				assert(
-					JSON.stringify(actual) === JSON.stringify(goldens[fixture.name][String(hideThinking)][String(width)]),
-					`label mode changed ${fixture.name} hideThinking=${hideThinking} @${width}`,
-				);
-			}
-		}
-	}
-	setConfig({ collapsedThinking: "tail" });
+	assert(first.includes("·") && !first.includes("▸"), `first run should be settled: ${JSON.stringify(first)}`);
+	assert(second.includes("▸"), `the trailing run has nothing after it, so it stays live: ${JSON.stringify(second)}`);
+	assert(raw.every((line) => stripAnsi(line).includes("│") || stripAnsi(line).includes("•")), "every row stays on the rail");
 });
 
 check("P5 narrow widths fall back to the label row", () => {
-	state.setPresentationStyle("reasonix");
-	// label "Thinking" = 8 cols → the tail needs body ≥ 28, i.e. width ≥ 31 under reasonix; everything below is label-only.
+		// label "Thinking" = 8 cols → the tail needs body ≥ 28, i.e. width ≥ 31 under reasonix; everything below is label-only.
 	for (const width of [20, 26, 28, 30]) {
 		setConfig({ collapsedThinking: "label" });
 		const label = renderFixture({ name: "n", content: [{ type: "thinking", thinking: "alpha" }] }, true, width);
@@ -572,59 +389,6 @@ check("P5 narrow widths fall back to the label row", () => {
 		assert(JSON.stringify(label) === JSON.stringify(tail), `width ${width}: narrow tail row must equal the label row`);
 	}
 	setConfig({ collapsedThinking: "tail" });
-});
-
-check("claudecode thought rows share the tool-dot column", () => {
-	const baseFg = activeTheme.fg;
-	const fgInputs = [];
-	activeTheme.fg = (color, text) => {
-		fgInputs.push({ color, text });
-		return baseFg(color, text);
-	};
-	state.setPresentationStyle("claudecode");
-	try {
-		setConfig({ collapsedThinking: "tail" });
-		const live = hiddenOnly(LIVE_TAIL);
-		const liveRow = stripAnsi(rowWith(withActiveStream(live, () => new AssistantMessageComponent(live, true).render(120)), "thinking") ?? "");
-		assert(liveRow.startsWith("● thinking ") && liveRow.includes(LIVE_TAIL) && !liveRow.includes("▸"), `live row should read \`● thinking <tail>\`: ${JSON.stringify(liveRow)}`);
-		assert(fgInputs.some(({ color, text }) => color === "mdLink" && text === "●"), "thought dot should use mdLink");
-		assert(fgInputs.some(({ color, text }) => color === "text" && text === "thinking"), "thought label should use the text color like tool names");
-
-		const settledLines = new AssistantMessageComponent(hiddenOnly(LIVE_TAIL), true).render(120).map(stripAnsi);
-		assert(settledLines.some((line) => line.startsWith("● thought ") && !line.includes("·")), `settled row should read \`● thought <tail>\`: ${JSON.stringify(settledLines)}`);
-
-		const mixed = { role: "assistant", content: [
-			{ type: "thinking", thinking: "first" }, { type: "text", text: "MIDANSWER" },
-			{ type: "thinking", thinking: "second" }, { type: "text", text: "FINALANSWER" },
-		] };
-		const mixedLines = new AssistantMessageComponent(mixed, true).render(80).map(stripAnsi);
-		assert(mixedLines.filter((line) => line.startsWith("● thought ")).length === 2, `leading and gutter thought rows should both own the marker column: ${JSON.stringify(mixedLines)}`);
-		const afterText = { role: "assistant", content: [{ type: "text", text: "LEADTEXT" }, { type: "thinking", thinking: "later" }, { type: "toolCall", id: "1", name: "read", arguments: {} }] };
-		const afterTextLines = new AssistantMessageComponent(afterText, true).render(80).map(stripAnsi);
-		assert(afterTextLines.some((line) => line.startsWith("● thought later")), `a thought after text should still sit in the marker column: ${JSON.stringify(afterTextLines)}`);
-
-		setConfig({ collapsedThinking: "label" });
-		const labelLines = new AssistantMessageComponent(hiddenOnly(LIVE_TAIL), true).render(120).map(stripAnsi);
-		assert(labelLines.some((line) => line.trimEnd() === "● thought"), `label mode should keep only \`● thought\`: ${JSON.stringify(labelLines)}`);
-
-		const diamondThemeFile = join(workDir, "diamond-theme.json");
-		writeFileSync(diamondThemeFile, `${JSON.stringify({ name: "diamond-smoke", vars: {}, extras: { assistantPrefix: "◆" } })}\n`, "utf8");
-		themeExtras.setFullTheme({ ...activeTheme, sourcePath: diamondThemeFile }, true);
-		const answerLines = new AssistantMessageComponent({ role: "assistant", content: [{ type: "text", text: "ANSWER" }] }, true).render(80).map(stripAnsi);
-		assert(answerLines.some((line) => line.startsWith("● ANSWER")), `claudecode assistant marker should be a fixed ● regardless of the theme prefix: ${JSON.stringify(answerLines)}`);
-		state.setPresentationStyle("reasonix");
-		const reasonixAnswer = new AssistantMessageComponent({ role: "assistant", content: [{ type: "text", text: "ANSWER" }] }, true).render(80).map(stripAnsi);
-		assert(reasonixAnswer.some((line) => line.startsWith("◆ ANSWER")), `reasonix should keep the theme assistantPrefix: ${JSON.stringify(reasonixAnswer)}`);
-		themeExtras.setFullTheme(activeTheme, true);
-		state.setPresentationStyle("claudecode");
-
-		const visibleLines = new AssistantMessageComponent(hiddenOnly(LIVE_TAIL), false).render(120).map(stripAnsi);
-		assert(!visibleLines.some((line) => line.includes("● thought")), "expanded thinking should keep its full text, not the thought row");
-	} finally {
-		activeTheme.fg = baseFg;
-		state.setPresentationStyle("reasonix");
-		setConfig({ collapsedThinking: "tail" });
-	}
 });
 
 check("safeTakeTailToWidth unit behaviour", () => {

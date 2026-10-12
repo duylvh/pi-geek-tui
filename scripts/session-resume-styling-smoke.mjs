@@ -68,9 +68,6 @@ function prepareBuild() {
 		"--skipLibCheck",
 		"--noImplicitAny", "false",
 		stubPath,
-		join(repoRoot, "presentation", "designs.ts"),
-		join(repoRoot, "presentation", "reasonix-layout.ts"),
-		join(repoRoot, "presentation", "state.ts"),
 		join(repoRoot, "performance", "profiler.ts"),
 		join(repoRoot, "render-budget.ts"),
 		join(repoRoot, "theme", "ansi.ts"),
@@ -107,22 +104,18 @@ try {
 	};
 	delete globalThis[globalPatchFlag];
 
-	const runtimeAState = await importRuntime(runtimeADir, "presentation/state.js");
 	const runtimeACompact = await importRuntime(runtimeADir, "tool-tags/compact-tool-spacing.js");
-	runtimeAState.setPresentationStyle("droid");
 	runtimeACompact.setToolSpacingTheme(theme);
 	runtimeACompact.installCompactToolSpacing(ToolExecutionComponent);
-	const droidLines = proto.render.call({ expanded: false }, 40);
-	assert(droidLines.length === 3 && droidLines[0] === "┌box", "runtime A should retain the boxed Droid tool");
 
-	const runtimeBState = await importRuntime(runtimeBDir, "presentation/state.js");
 	const runtimeBCompact = await importRuntime(runtimeBDir, "tool-tags/compact-tool-spacing.js");
-	runtimeBState.setPresentationStyle("reasonix");
 	runtimeBCompact.setToolSpacingTheme(theme);
 	runtimeBCompact.installCompactToolSpacing(ToolExecutionComponent);
 	const resumedLines = proto.render.call({ expanded: false }, 40);
-	assert(resumedLines[0] === "┌box", "runtime B should preserve the tool title");
-	assert(resumedLines.length === 4 && resumedLines.at(-1) === "", "runtime B should take ownership and apply Reasonix trailing spacing");
+	// Ownership moved to runtime B without stacking: the base tool's 3 rows + 1 separator, each wrapped once.
+	const plainRow = (line) => line.replace(/\x1b\[[0-9;]*m/g, "");
+	assert(resumedLines.length === 4 && plainRow(resumedLines[0]).includes("┌box"), "runtime B should keep the tool title and add one separator row: " + JSON.stringify(resumedLines));
+	assert(resumedLines.every((line) => (plainRow(line).match(/[┃│]/g) ?? []).length === (line === resumedLines[1] ? 2 : 1)), "runtime B must wrap each row once, not stack on runtime A's wrapper");
 
 	const restoredTool = {
 		toolName: "read",

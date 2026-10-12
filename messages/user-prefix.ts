@@ -1,81 +1,27 @@
+// User prompt rows (spec §2/§3): head row `HH:MM • bean@proj ~/path (branch)` then `│ › text`.
 import { UserMessageComponent } from "@earendil-works/pi-coding-agent";
 
-import { getPresentationDesign } from "../presentation/state.js";
-import { loadConfig } from "../config.js";
-import { dropLeadingColumns, fgHex, isHexColor, stripAnsi } from "../theme/ansi.js";
-import { getThemeExtra } from "../theme/theme-extras.js";
-import { safeTruncateToWidth, safeVisibleWidth } from "../render-budget.js";
+import { geekHeadRow } from "../presentation/geek-head.js";
+import { GEEK_PREFIX_WIDTH, geekRow } from "../presentation/geek-rows.js";
+import { safeVisibleWidth } from "../render-budget.js";
+import { dropLeadingColumns, stripAnsi } from "../theme/ansi.js";
+import { geekFg } from "../theme/geek-palette.js";
+import { getMessageTimestamp, keepPromptZone } from "./message-meta.js";
 
-let activeTheme: any = null;
 const PATCHED = Symbol.for("pi-geek-tui.user-prefix.patched");
+const FIRST_SEEN = Symbol.for("pi-geek-tui.user-prefix.first-seen");
+const PROMPT = "› ";
 
-function usesLegacyQuotePrefix(): boolean {
-	return getThemeExtra(activeTheme, "quoteStyle") === "true" && getThemeExtra(activeTheme, "userPrefix") === "│";
+/** Pi's user box is padded 1 column on each side; its background/emphasis give way to plain ink. */
+function plainBodyLines(lines: string[]): string[] {
+	let first = 0;
+	while (first < lines.length && stripAnsi(lines[first] ?? "").trim() === "") first++;
+	let last = lines.length - 1;
+	while (last > first && stripAnsi(lines[last] ?? "").trim() === "") last--;
+	return lines.slice(first, last + 1).map((line) => stripAnsi(dropLeadingColumns(line, 1)).trimEnd());
 }
 
-function colorUserPrefix(text: string): string {
-	const color = usesLegacyQuotePrefix() ? "accent" : getThemeExtra(activeTheme, "userPrefixColor");
-	if (!activeTheme || !color) return text;
-	if (isHexColor(color)) return fgHex(activeTheme, color, text);
-
-	try {
-		return typeof activeTheme.fg === "function" ? activeTheme.fg(color, text) : text;
-	} catch {
-		return text;
-	}
-}
-
-function buildPrefixSegment(stripBg: boolean): string {
-	const configuredChar = getThemeExtra(activeTheme, "userPrefix");
-	const char = usesLegacyQuotePrefix() ? "❯" : configuredChar;
-	const prefix = colorUserPrefix(char);
-	const design = getPresentationDesign();
-	if (!stripBg && typeof activeTheme?.bg === "function") {
-		return activeTheme.bg("userMessageBg", `${prefix}  `);
-	}
-	return `${prefix}${design.markerGap}`;
-}
-
-function buildDividerLine(width: number): string {
-	if (width <= 0) return "";
-	const char = getThemeExtra(activeTheme, "dividerChar");
-	const color = getThemeExtra(activeTheme, "dividerColor");
-	const line = char.repeat(width);
-	return activeTheme ? fgHex(activeTheme, color, line) : line;
-}
-function stripBackgroundAnsi(text: string): string {
-	return text.replace(/\x1b\[(?:4[0-9]|10[0-7])(?:;[0-9;]*)?m/g, "");
-}
-
-function stripEmphasisAnsi(text: string): string {
-	return text.replace(/\x1b\[(?:(?:1|3|22|23);)*(?:1|3|22|23)m/g, "");
-}
-
-function buildContinuationSegment(stripBg: boolean): string {
-	const char = getThemeExtra(activeTheme, "quoteChar") || "┆";
-	const prefix = colorUserPrefix(char);
-	const design = getPresentationDesign();
-	if (!stripBg && typeof activeTheme?.bg === "function") {
-		return activeTheme.bg("userMessageBg", `${prefix}  `);
-	}
-	return `${prefix}${design.markerGap}`;
-}
-
-function alignContinuationLines(lines: string[], targetIndex: number, stripBg: boolean): void {
-	const continuationSegment = buildContinuationSegment(stripBg);
-	for (let i = targetIndex + 1; i < lines.length; i++) {
-		const line = lines[i] ?? "";
-		const clean = stripAnsi(line);
-		if (clean.trim().length === 0) {
-			lines[i] = continuationSegment.trimEnd();
-			continue;
-		}
-		lines[i] = `${continuationSegment}${dropLeadingColumns(line, 1)}`;
-	}
-}
-
-export function installUserMessagePrefix(theme: any): void {
-	activeTheme = theme;
+export function installUserMessagePrefix(_theme?: unknown): void {
 	const proto = UserMessageComponent.prototype as any;
 	if (proto[PATCHED] || proto.render?.name === "patchedUserMessageRender") {
 		proto[PATCHED] = true;
@@ -86,49 +32,21 @@ export function installUserMessagePrefix(theme: any): void {
 	const baseRender = proto.render;
 
 	proto.render = function patchedUserMessageRender(width: number): string[] {
-		const lines = baseRender.call(this, width);
-		if (lines.length === 0 || width <= 0) return lines;
+		if (width <= 0) return baseRender.call(this, width);
+		const bodyWidth = Math.max(1, width - GEEK_PREFIX_WIDTH - PROMPT.length);
+		const raw: string[] = baseRender.call(this, bodyWidth + 2);
+		const body = plainBodyLines(raw);
+		if (body.length === 0) return [];
 
-		// Strip leading/trailing blank lines from base render (Spacer + Markdown paddingY)
-		let first = 0;
-		while (first < lines.length && stripAnsi(lines[first] ?? "").trim() === "") first++;
-		let last = lines.length - 1;
-		while (last > first && stripAnsi(lines[last] ?? "").trim() === "") last--;
-		const trimmed = lines.slice(first, last + 1);
-		if (trimmed.length === 0) return lines;
-
-		const output = [...trimmed];
-		const design = getPresentationDesign();
-		const stripBg = design.stripsBackground || loadConfig().transparentBackground;
-
-		// Find first non-empty line to inject prefix
-		let targetIndex = 0;
-		for (let i = 0; i < output.length; i++) {
-			const clean = stripAnsi(output[i] ?? "");
-			if (clean.trim().length > 0) {
-				targetIndex = i;
-				break;
-			}
-		}
-
-		const prefixSegment = buildPrefixSegment(stripBg);
-		const line = output[targetIndex] ?? "";
-		const presentationLine = stripBg ? stripBackgroundAnsi(line) : line;
-		const remainder = stripEmphasisAnsi(dropLeadingColumns(presentationLine, 1));
-		output[targetIndex] = `${prefixSegment}${remainder}`;
-		alignContinuationLines(output, targetIndex, stripBg);
-
-		const result = output.map((renderedLine) => {
-			const presentationLine = stripBg ? stripBackgroundAnsi(renderedLine) : renderedLine;
-			const plainLine = stripEmphasisAnsi(presentationLine);
-			return safeVisibleWidth(plainLine) > width ? safeTruncateToWidth(plainLine, width, "") : plainLine;
+		// Live messages are rendered right after creation, so first-render time is the send time when
+		// Pi's addMessageToChat stamp (message-meta) is missing.
+		const stamp = getMessageTimestamp(this) ?? (this[FIRST_SEEN] ??= Date.now());
+		const rows = [geekHeadRow("user", width, stamp)];
+		body.forEach((line, index) => {
+			const lead = index === 0 ? geekFg("ink", PROMPT) : " ".repeat(safeVisibleWidth(PROMPT));
+			rows.push(geekRow("line", lead + geekFg("ink", line), width));
 		});
-
-		if (design.compactLayout) return [...result, ""];
-
-		// Add turn divider before user message
-		const divider = buildDividerLine(width);
-		const showDivider = getThemeExtra(activeTheme, "showDivider") !== "false";
-		return showDivider ? [divider, "", ...result, ""] : ["", ...result, ""];
+		rows.push(geekRow("line", "", width));
+		return keepPromptZone(raw, rows);
 	};
 }

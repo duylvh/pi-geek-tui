@@ -1,15 +1,18 @@
 import { Markdown } from "@earendil-works/pi-tui";
-import { setFullTheme } from "../theme/theme-extras.js";
-import { boxBg, boxBgLines } from "../tool-tags/common.js";
-import { renderBoxedMessageBlock } from "./boxed-message-block.js";
+
+import { geekNumber } from "../presentation/geek-rows.js";
+import { geekFg } from "../theme/geek-palette.js";
+import { getMessageTimestamp } from "./message-meta.js";
+import { renderRailMessageBlock } from "./rail-message-block.js";
 
 const PATCH_FLAG = "__geekCoreMessageBlocksPatched__";
+const EXPAND_HINT = `${geekFg("faint", "^o")} ${geekFg("dim", "expand")}`;
 
+/** Pi's own theme, only needed to hand to extension-supplied custom message renderers. */
 let cachedTheme: any = null;
 
 export function setCoreMessageBlockTheme(theme: any): void {
 	cachedTheme = theme;
-	setFullTheme(theme);
 }
 
 type ComponentCtor = { prototype?: any };
@@ -24,160 +27,61 @@ export function installCoreMessageBlockStyling(ctors: {
 	if (globalState[PATCH_FLAG]) return;
 	globalState[PATCH_FLAG] = true;
 
-	patchCompaction(ctors.CompactionSummaryMessageComponent);
-	patchSkill(ctors.SkillInvocationMessageComponent);
-	patchBranch(ctors.BranchSummaryMessageComponent);
+	patchBoxBlock(ctors.CompactionSummaryMessageComponent, (c) =>
+		c.message?.tokensBefore == null
+			? null
+			: { kind: "compaction", title: `${geekNumber(Number(c.message.tokensBefore))} tokens`, text: c.message.summary },
+	);
+	patchBoxBlock(ctors.SkillInvocationMessageComponent, (c) =>
+		c.skillBlock?.name ? { kind: "skill", title: c.skillBlock.name, text: c.skillBlock.content } : null,
+	);
+	patchBoxBlock(ctors.BranchSummaryMessageComponent, (c) => (c.message == null ? null : { kind: "branch", text: c.message.summary }));
 	patchCustomMessage(ctors.CustomMessageComponent);
 }
 
-function setMessageBlockBackground(component: any, theme: any): void {
-	if (typeof component?.setBgFn !== "function") return;
-	component.setBgFn((text: string) => boxBg(theme, text, "customMessageBg"));
+function markdownBody(text: unknown, markdownTheme: any): (bodyWidth: number) => string[] {
+	if (typeof text !== "string" || !text || !markdownTheme) return () => [];
+	const md = new Markdown(text, 0, 0, markdownTheme);
+	return (bodyWidth) => md.render(bodyWidth);
 }
 
-function withMessageBlockBackground(component: any, theme: any): any {
-	return {
-		invalidate() {
-			if (typeof component?.invalidate === "function") component.invalidate();
-		},
-		render(width: number): string[] {
-			return boxBgLines(theme, component.render(width), "customMessageBg");
-		},
-	};
+/** The rail block replaces Pi's tinted box: no padding, no background. */
+function flattenBox(box: any): void {
+	box.paddingX = 0;
+	box.paddingY = 0;
+	box.setBgFn?.((text: string) => text);
 }
 
-function attachCustomMessageBlock(instance: any, theme: any, block: any): void {
-	if (instance.box && typeof instance.box.clear === "function" && typeof instance.box.addChild === "function") {
-		setMessageBlockBackground(instance.box, theme);
-		instance.addChild(instance.box);
-		instance.box.clear();
-		instance.box.addChild(block);
-	} else {
-		instance.customComponent = withMessageBlockBackground(block, theme);
-		instance.addChild(instance.customComponent);
-	}
-}
+type BlockInfo = { kind: string; title?: string; text?: unknown };
 
-function createMarkdownBody(text: string, markdownTheme: any, theme: any): (contentWidth: number) => string[] {
-	const md = new Markdown(text || "", 0, 0, markdownTheme, {
-		color: (t: string) => theme.fg("customMessageText", t),
-	});
-	return (contentWidth: number) => md.render(contentWidth);
-}
-
-function patchCompaction(ctor?: ComponentCtor): void {
+function patchBoxBlock(ctor: ComponentCtor | undefined, describe: (component: any) => BlockInfo | null): void {
 	const proto = ctor?.prototype;
 	if (!proto || typeof proto.updateDisplay !== "function") return;
 
 	const base = proto.updateDisplay;
-	proto.updateDisplay = function patchedCompactionUpdateDisplay(this: any) {
-		const theme = cachedTheme;
-		if (!theme || this.message == null) return base.call(this);
+	proto.updateDisplay = function patchedBlockUpdateDisplay(this: any) {
+		const info = describe(this);
+		if (!info) return base.call(this);
 
-		const tokensBefore = this.message.tokensBefore;
-		if (tokensBefore == null) return base.call(this);
-
-		setMessageBlockBackground(this, theme);
+		flattenBox(this);
 		this.clear();
-
 		const expanded = Boolean(this.expanded);
-		const summary = typeof this.message.summary === "string" ? this.message.summary : "";
-		const markdownTheme = this.markdownTheme;
-
-		const body = expanded && summary && markdownTheme
-			? createMarkdownBody(summary, markdownTheme, theme)
-			: () => [];
-
-		const tokenStr = tokensBefore.toLocaleString();
-
-		try {
-			const block = renderBoxedMessageBlock(theme, {
-				kind: "Compaction",
-				title: `${tokenStr} tokens`,
-				right: expanded ? undefined : "(Ctrl+O to expand)",
-				body,
-				icon: "⊟",
-				hasDivider: expanded,
-			});
-			this.addChild(block);
-		} catch {
-			return base.call(this);
-		}
+		this.addChild(
+			renderRailMessageBlock({
+				kind: info.kind,
+				title: info.title,
+				right: expanded ? undefined : EXPAND_HINT,
+				timestamp: getMessageTimestamp(this) ?? this.message?.timestamp,
+				body: expanded ? markdownBody(info.text, this.markdownTheme) : () => [],
+			}),
+		);
 	};
 }
 
-function patchSkill(ctor?: ComponentCtor): void {
-	const proto = ctor?.prototype;
-	if (!proto || typeof proto.updateDisplay !== "function") return;
-
-	const base = proto.updateDisplay;
-	proto.updateDisplay = function patchedSkillUpdateDisplay(this: any) {
-		const theme = cachedTheme;
-		if (!theme || this.skillBlock == null) return base.call(this);
-
-		const skillName = this.skillBlock.name;
-		if (!skillName) return base.call(this);
-
-		setMessageBlockBackground(this, theme);
-		this.clear();
-
-		const expanded = Boolean(this.expanded);
-		const content = typeof this.skillBlock.content === "string" ? this.skillBlock.content : "";
-		const markdownTheme = this.markdownTheme;
-
-		const body = expanded && content && markdownTheme
-			? createMarkdownBody(content, markdownTheme, theme)
-			: () => [];
-
-		try {
-			const block = renderBoxedMessageBlock(theme, {
-				kind: "Skill",
-				title: skillName,
-				right: expanded ? undefined : "(Ctrl+O to expand)",
-				body,
-				icon: "⊟",
-				hasDivider: expanded,
-			});
-			this.addChild(block);
-		} catch {
-			return base.call(this);
-		}
-	};
-}
-
-function patchBranch(ctor?: ComponentCtor): void {
-	const proto = ctor?.prototype;
-	if (!proto || typeof proto.updateDisplay !== "function") return;
-
-	const base = proto.updateDisplay;
-	proto.updateDisplay = function patchedBranchUpdateDisplay(this: any) {
-		const theme = cachedTheme;
-		if (!theme || this.message == null) return base.call(this);
-
-		setMessageBlockBackground(this, theme);
-		this.clear();
-
-		const expanded = Boolean(this.expanded);
-		const summary = typeof this.message?.summary === "string" ? this.message.summary : "";
-		const markdownTheme = this.markdownTheme;
-
-		const body = expanded && summary && markdownTheme
-			? createMarkdownBody(summary, markdownTheme, theme)
-			: () => [];
-
-		try {
-			const block = renderBoxedMessageBlock(theme, {
-				kind: "Branch",
-				right: expanded ? undefined : "(Ctrl+O to expand)",
-				body,
-				icon: "⊟",
-				hasDivider: expanded,
-			});
-			this.addChild(block);
-		} catch {
-			return base.call(this);
-		}
-	};
+function messageText(message: any): string {
+	if (typeof message?.content === "string") return message.content;
+	if (!Array.isArray(message?.content)) return "";
+	return message.content.filter((c: any) => c.type === "text").map((c: any) => c.text).join("\n");
 }
 
 function patchCustomMessage(ctor?: ComponentCtor): void {
@@ -186,72 +90,32 @@ function patchCustomMessage(ctor?: ComponentCtor): void {
 
 	const base = proto.rebuild;
 	proto.rebuild = function patchedCustomMessageRebuild(this: any) {
-		// Remove previous content component
 		if (this.customComponent) {
 			this.removeChild(this.customComponent);
 			this.customComponent = undefined;
 		}
 		this.removeChild(this.box);
 
-		const theme = cachedTheme;
-		if (!theme) return base.call(this);
+		const kind = this.message?.customType || "custom";
+		const timestamp = getMessageTimestamp(this) ?? this.message?.timestamp;
 
-		const customType = this.message?.customType || "Custom";
-
-		// Try custom renderer first, but keep the special block shell/background owned here.
-		if (this.customRenderer) {
+		// Extension renderers keep their own content; the rail block supplies the shell.
+		if (this.customRenderer && cachedTheme) {
 			try {
-				const component = this.customRenderer(this.message, { expanded: this._expanded }, theme);
+				const component = this.customRenderer(this.message, { expanded: this._expanded }, cachedTheme);
 				if (component && typeof component.render === "function") {
-					const block = renderBoxedMessageBlock(theme, {
-						kind: "Custom",
-						title: customType,
-						body: (contentWidth) => component.render(contentWidth),
-						icon: "⊟",
-						hasDivider: "auto",
-						cache: false,
-					});
-					attachCustomMessageBlock(this, theme, block);
+					this.customComponent = renderRailMessageBlock({ kind, timestamp, body: (bodyWidth) => component.render(bodyWidth) });
+					this.addChild(this.customComponent);
 					return;
 				}
 			} catch {
-				// Fall through to default rendering
+				// Fall through to default rendering.
 			}
 		}
 
-		// Default rendering: use boxed message block
-
-		// Extract text content
-		let text: string;
-		if (typeof this.message.content === "string") {
-			text = this.message.content;
-		} else if (Array.isArray(this.message.content)) {
-			text = this.message.content
-				.filter((c: any) => c.type === "text")
-				.map((c: any) => c.text)
-				.join("\n");
-		} else {
-			text = "";
-		}
-
-		const markdownTheme = this.markdownTheme;
-
-		const body = text && markdownTheme
-			? createMarkdownBody(text, markdownTheme, theme)
-			: () => [];
-
-		try {
-			const block = renderBoxedMessageBlock(theme, {
-				kind: "Custom",
-				title: customType,
-				body,
-				icon: "⊟",
-				hasDivider: Boolean(text),
-			});
-
-			attachCustomMessageBlock(this, theme, block);
-		} catch {
-			return base.call(this);
-		}
+		flattenBox(this.box);
+		this.addChild(this.box);
+		this.box.clear();
+		this.box.addChild(renderRailMessageBlock({ kind, timestamp, body: markdownBody(messageText(this.message), this.markdownTheme) }));
 	};
 }
