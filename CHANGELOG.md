@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- Requires Pi 1.x: the peer dependency range for `@earendil-works/pi-coding-agent` and `@earendil-works/pi-tui` is now `>=1.0.0 <2.0.0`. Pi 0.x is no longer supported.
+
 ## 2.18.0 - 2026-10-09
 
 ### Added

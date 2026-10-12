@@ -55,17 +55,22 @@ function geekForeground(): Record<ThemeColor, string> {
 		thinkingMedium: P.kw,
 		thinkingHigh: P.mono,
 		thinkingXhigh: accent,
+		thinkingMax: accent,
 		bashMode: P.num,
+		scrollbarTrack: P.rail,
+		scrollbarThumb: P.faint,
+		searchMatchText: P.ink,
 	};
 }
 
-const BACKGROUNDS: Record<string, string> = {
+const BACKGROUNDS = {
 	selectedBg: P.panelSel, // same surface as the selected slash-menu row
 	userMessageBg: P.bg,
 	customMessageBg: P.bg,
 	toolPendingBg: P.bg,
 	toolSuccessBg: P.addBg,
 	toolErrorBg: P.delBg,
+	searchMatchBg: P.panelSel,
 };
 
 /** Fresh theme for the current accent. `colorMode` follows the host theme (truecolor / 256color). */

@@ -1,5 +1,5 @@
 import { CustomEditor } from "@earendil-works/pi-coding-agent";
-import { CURSOR_MARKER } from "@earendil-works/pi-tui";
+import { CURSOR_MARKER, type TuiMouseEvent, type TuiMouseEventResult } from "@earendil-works/pi-tui";
 import { homedir, userInfo } from "node:os";
 import { basename } from "node:path";
 
@@ -265,9 +265,9 @@ export class GeekEditor extends CustomEditor {
 	 * row goes to the list as its local row (Pi's own select/click/wheel semantics, same window as we draw), input
 	 * rows (x shifted past rail + prompt) and file-autocomplete rows go to Pi's coordinates, footer rows are ignored.
 	 */
-	handleMouse(event: { y: number; type?: string; [key: string]: unknown }): unknown {
+	handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
 		const rows = this.mouseRows;
-		const list = (this as any).autocompleteList as { handleMouse?: (event: unknown) => any } | undefined;
+		const list = (this as any).autocompleteList as { handleMouse?: (event: TuiMouseEvent) => TuiMouseEventResult | undefined } | undefined;
 		if (event.y < rows.menu) {
 			const index = event.y - 1; // row 0 is the menu header
 			const onItem = index >= 0 && index < rows.items;
@@ -275,18 +275,17 @@ export class GeekEditor extends CustomEditor {
 			const result = list.handleMouse({ ...event, y: onItem ? index : 0, height: rows.items });
 			return result ? { ...result, focus: true } : undefined;
 		}
-		const parent = Object.getPrototypeOf(GeekEditor.prototype).handleMouse as ((event: unknown) => unknown) | undefined;
+		const parent = super.handleMouse;
 		const y = event.y - rows.menu; // 0 = head row, then input rows, file-autocomplete rows, footer rows
-		if (!parent || y > rows.input + rows.autocomplete) return undefined;
+		if (y > rows.input + rows.autocomplete) return undefined;
 		const listStart = Number((this as any).renderedVisibleLineCount) + 2;
 		if (y > rows.input) return parent.call(this, { ...event, y: listStart + (y - rows.input - 1) });
 		// Slash menu open: Pi's own list rows are not drawn, so an input-row event must never land in its list zone.
 		if (rows.menu > 0 && y >= listStart) return { handled: true, focus: true };
 		if (y === 0) return parent.call(this, { ...event, y });
 		// Input rows: our text starts after the rail + prompt cells; Pi's starts after its paddingX.
-		const width = Number(event.width) || 0;
-		const padding = Math.min(Number((this as any).paddingX) || 0, Math.max(0, Math.floor((width - 1) / 2)));
-		const x = Math.max(0, Number(event.x) - GEEK_PREFIX_WIDTH - PROMPT.length) + padding;
+		const padding = Math.min(Number((this as any).paddingX) || 0, Math.max(0, Math.floor((event.width - 1) / 2)));
+		const x = Math.max(0, event.x - GEEK_PREFIX_WIDTH - PROMPT.length) + padding;
 		return parent.call(this, { ...event, x, y });
 	}
 }

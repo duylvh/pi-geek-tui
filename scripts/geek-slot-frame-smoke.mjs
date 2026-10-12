@@ -32,6 +32,7 @@ const mode = {
 	defaultEditor: { onSubmit() {}, onChange() {}, getPaddingX: () => 0, actionHandlers: new Map() },
 	ui: { setFocus() {}, requestRender() {}, terminal: { rows: 24 } },
 	keybindings: {},
+	disposeActiveSelector() {}, // Pi 1.x setCustomEditorComponent closes an open selector first
 };
 core.InteractiveMode.prototype.setCustomEditorComponent.call(mode, () => mode.editor);
 const container = mode.editorContainer;
@@ -104,7 +105,7 @@ showsSelected("filtered", render(100, 40));
 // --- header: crumb from the component, i/N counter, Pi's hint row kept, default hint otherwise
 swapIn(selectors.thinking());
 const thinkingRows = render(80).map(strip);
-expect("header shows the component's name", new RegExp(`^ {${P}} thinking`).test(thinkingRows[0]), thinkingRows[0]);
+expect("header shows the selector's own title (Pi 1.x selectors carry one)", new RegExp(`^ {${P}} Thinking Level\\b`).test(thinkingRows[0]), thinkingRows[0]);
 const thinkingPanel = thinkingRows.slice(0, -3);
 expect("a hint row closes the panel", /esc|enter|select/i.test(thinkingPanel[thinkingPanel.length - 1]), thinkingPanel[thinkingPanel.length - 1]);
 

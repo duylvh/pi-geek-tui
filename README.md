@@ -4,6 +4,8 @@ Hancore-inspired geek terminal UI for Pi: a timestamp gutter and continuous rail
 
 ## Install
 
+Requires Pi 1.x (`@earendil-works/pi-coding-agent` and `pi-tui` `>=1.0.0 <2.0.0`); Pi 0.x is not supported.
+
 ```sh
 pi install npm:@sting8k/pi-geek-tui
 ```
