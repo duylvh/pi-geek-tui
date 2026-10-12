@@ -34,7 +34,6 @@ function normalizeTasksWidgetStyle(value: unknown): TasksWidgetStyle {
 export interface GeekTuiConfig {
 	alwaysExpanded: boolean;
 	maxExpandedLines: number;
-	dimToolOutput: boolean;
 	customWorkingMessage: CustomWorkingMessageConfig;
 	/** Accent color: one of GEEK_ACCENT_OPTIONS or any #rgb / #rrggbb hex. */
 	accent: string;
@@ -55,7 +54,6 @@ const DEFAULT_CUSTOM_WORKING_MESSAGE: CustomWorkingMessageConfig = {
 const DEFAULTS: GeekTuiConfig = {
 	alwaysExpanded: false,
 	maxExpandedLines: 50,
-	dimToolOutput: false,
 	customWorkingMessage: DEFAULT_CUSTOM_WORKING_MESSAGE,
 	accent: DEFAULT_GEEK_ACCENT,
 	tasksWidgetStyle: "compact",
@@ -67,7 +65,7 @@ const DEFAULTS: GeekTuiConfig = {
 
 const CONFIG_PATH = join(homedir(), ".pi", "agent", "pi-geek-tui.json");
 const MAX_EXPANDED_LINES_LIMIT = 1000;
-const DEPRECATED_CONFIG_KEYS = ["fixedUserZoneMouseScroll", "fixedUserZoneSidebar", "fixedUserZone", "presentationStyle", "userZoneStyle", "inputBox", "diffMode"] as const;
+const DEPRECATED_CONFIG_KEYS = ["fixedUserZoneMouseScroll", "fixedUserZoneSidebar", "fixedUserZone", "presentationStyle", "userZoneStyle", "inputBox", "diffMode", "dimToolOutput"] as const;
 
 let cached: GeekTuiConfig = defaultConfig();
 let cachedMtimeMs = -1;
@@ -179,7 +177,6 @@ function normalizeConfig(raw: unknown): GeekTuiConfig {
 	return {
 		alwaysExpanded: booleanOrDefault(config.alwaysExpanded, DEFAULTS.alwaysExpanded),
 		maxExpandedLines: maxExpandedLinesOrDefault(config.maxExpandedLines),
-		dimToolOutput: booleanOrDefault(config.dimToolOutput, DEFAULTS.dimToolOutput),
 		customWorkingMessage: customWorkingMessageOrDefault(config.customWorkingMessage),
 		accent: normalizeAccent(config.accent),
 		tasksWidgetStyle: normalizeTasksWidgetStyle(config.tasksWidgetStyle),

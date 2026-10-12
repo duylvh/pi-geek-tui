@@ -26,7 +26,6 @@ Current options:
 {
   "alwaysExpanded": false,
   "maxExpandedLines": 50,
-  "dimToolOutput": false,
   "customWorkingMessage": {
     "working": "Working",
     "thinking": "Thinking",

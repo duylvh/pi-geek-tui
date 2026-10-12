@@ -41,7 +41,6 @@ Config is stored at `~/.pi/agent/pi-geek-tui.json`:
 {
   "alwaysExpanded": false,
   "maxExpandedLines": 50,
-  "dimToolOutput": false,
   "accent": "#dd5670",
   "customWorkingMessage": {
     "working": "working",
@@ -61,7 +60,6 @@ Config is stored at `~/.pi/agent/pi-geek-tui.json`:
 | --- | --- | --- | --- |
 | `alwaysExpanded` | `true`, `false` | `false` | Open tool output by default. `Ctrl+O` still toggles it. |
 | `maxExpandedLines` | `0`–`1000` | `50` | Limit expanded tool output. Use `0` for no limit. |
-| `dimToolOutput` | `true`, `false` | `false` | Dim tool output so the conversation stands out. |
 | `accent` | `#dd5670`, `#d8785b`, `#88c6a3`, `#d8d4b4`, or any hex | `#dd5670` | Accent color (see Look). |
 | `customWorkingMessage` | Custom text | See example | Rename the live-state words shown in the input head row. You can set only the ones you want to change. |
 | `tasksWidgetStyle` | `compact`, `default` | `compact` | Use the one-line tasks widget, or leave the original `pi-tasks` widget unchanged. |
