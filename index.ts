@@ -12,7 +12,7 @@ import {
 import { getConfigIssue, loadConfig } from "./config.js";
 import { registerToolCallTags } from "./tool-tags/register-tool-call-tags.js";
 import { recordToolCallTimingEnd, recordToolCallTimingStart } from "./tool-tags/elapsed.js";
-import { installStartupUiPatch, setCompactStartupHeader, suppressStartupModelScopeLog } from "./startup-ui.js";
+import { installStartupUiPatch, setStartupHeader, suppressStartupModelScopeLog } from "./startup-ui.js";
 import { installInteractiveChatVirtualization } from "./performance/virtualize-chat.js";
 import { setGeekAccent } from "./theme/geek-palette.js";
 import { beginAssistantStream, endAssistantStream, trackAssistantStreamMessage } from "./messages/assistant-streaming-state.js";
@@ -206,7 +206,25 @@ export default function (pi: ExtensionAPI) {
 		const sessionUi = ctx.ui;
 		const sessionCwd = ctx.cwd;
 		modules.setAssistantUpdateRenderRequester(undefined);
-		setCompactStartupHeader(sessionUi, sessionCwd);
+		setStartupHeader(sessionUi, {
+			cwd: sessionCwd,
+			getSessionName: () => {
+				try {
+					return pi.getSessionName();
+				} catch (error) {
+					if (isStaleContextError(error)) return undefined;
+					throw error;
+				}
+			},
+			getTurnCount: () => {
+				try {
+					return ctx.sessionManager.getEntries().filter((entry) => entry.type === "message" && entry.message.role === "user").length;
+				} catch (error) {
+					if (isStaleContextError(error)) return 0;
+					throw error;
+				}
+			},
+		});
 		tracker.resetSession();
 		workingLoaderController?.dispose();
 		workingLoaderController = undefined;
@@ -227,13 +245,14 @@ export default function (pi: ExtensionAPI) {
 			? await loadRenderFrameDebugModule()
 			: undefined;
 		if (!isCurrentSessionRun()) return;
-		const userZoneStyle = modules.resolveUserZoneStyle(undefined); // replaced by the geek input zone in M3
 		disposePiTasksWidgetStylingForCurrentSession?.();
 		disposePiTasksWidgetStylingForCurrentSession = modules.installPiTasksWidgetStyling(sessionUi, config.tasksWidgetStyle);
 		restoreTerminalBackgroundForCurrentSession?.();
 		restoreTerminalBackgroundForCurrentSession = undefined;
-		workingLoaderController = modules.createWorkingLoaderController(sessionUi, config.customWorkingMessage);
+		workingLoaderController = modules.mirrorLiveState(modules.createWorkingLoaderController(sessionUi, config.customWorkingMessage));
 		workingLoaderController.configure();
+		// The input head row shows the live state; hide Pi's own working line.
+		sessionUi.setWorkingVisible?.(false);
 
 		// Treat `alwaysExpanded` as the session-start preference only.
 		// Ctrl+o remains authoritative after the session is initialized.
@@ -274,9 +293,9 @@ export default function (pi: ExtensionAPI) {
 			modules.installRenderFrameBackground(tui as any, uiTheme);
 			modules.installRenderPhysicalSync(tui as any);
 			renderFrameDebugModule?.installRenderFrameDebug(tui as any);
-			return new modules.BoxEditor(
-				tui, theme, kb, uiTheme, sessionCwd,
-				() => {
+			return new modules.GeekEditor(tui, theme, kb, {
+				cwd: sessionCwd,
+				getContextUsage: () => {
 					try {
 						return ctx.getContextUsage();
 					} catch (error) {
@@ -284,30 +303,21 @@ export default function (pi: ExtensionAPI) {
 						throw error;
 					}
 				},
-				() => {
+				getModelInfo: () => {
 					try {
 						const model = ctx.model;
 						return model
-							? {
-								provider: model.provider,
-								id: model.id,
-								name: (model as typeof model & { name?: string }).name,
-								reasoning: model.reasoning,
-								thinkingLevel: currentThinkingLevel,
-							}
+							? { provider: model.provider, id: model.id, reasoning: model.reasoning, thinkingLevel: currentThinkingLevel }
 							: undefined;
 					} catch (error) {
 						if (isStaleContextError(error)) return undefined;
 						throw error;
 					}
 				},
-				fetchBranch,
-				() => tracker.getWordsPerSecond(),
-				modules.getFooterStatusLine,
-				userZoneStyle,
-				"auto",
-				modules.getFooterTokenUsageLine,
-			);
+				getBranch: fetchBranch,
+				getFooterStatus: modules.getFooterStatusLine,
+				getTokenUsage: modules.getFooterTokenUsage,
+			});
 		});
 	});
 }

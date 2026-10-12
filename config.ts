@@ -60,10 +60,10 @@ export interface GeekTuiConfig {
 }
 
 const DEFAULT_CUSTOM_WORKING_MESSAGE: CustomWorkingMessageConfig = {
-	working: "Working",
-	thinking: "Thinking",
-	answering: "Answering",
-	running: "Cooking",
+	working: "working",
+	thinking: "thinking",
+	answering: "answering",
+	running: "running",
 };
 
 const DEFAULTS: GeekTuiConfig = {

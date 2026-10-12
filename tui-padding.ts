@@ -11,8 +11,9 @@ interface AnyComponent {
 	render(width: number): string[];
 }
 
-const PAD_LEFT = 1;
-const PAD_RIGHT = 1;
+// Spec margin: 4 cells each side.
+const PAD_LEFT = 4;
+const PAD_RIGHT = 4;
 const PADDING_PREFIX = " ".repeat(PAD_LEFT);
 const KITTY_IMAGE_PREFIX = "\x1b_G";
 const ITERM_IMAGE_PREFIX = "\x1b]1337;File=";

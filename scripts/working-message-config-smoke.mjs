@@ -138,23 +138,23 @@ prepareWorkDir();
 compileChangedSurface();
 
 await runConfigSmoke("scaffold default object", undefined, ({ config, raw }) => {
-	assert(raw.customWorkingMessage?.running === "Cooking", "scaffold did not write default labels");
-	assert(config.customWorkingMessage.thinking === "Thinking", "default config missing thinking label");
+	assert(raw.customWorkingMessage?.running === "running", "scaffold did not write default labels");
+	assert(config.customWorkingMessage.thinking === "thinking", "default config missing thinking label");
 });
 
 await runConfigSmoke("legacy true transforms", '{"customWorkingMessage":true}', ({ config, raw }) => {
-	assert(raw.customWorkingMessage?.running === "Cooking", "legacy true was not backfilled to labels");
-	assert(config.customWorkingMessage.working === "Working", "legacy true did not normalize to labels");
+	assert(raw.customWorkingMessage?.running === "running", "legacy true was not backfilled to labels");
+	assert(config.customWorkingMessage.working === "working", "legacy true did not normalize to labels");
 });
 
 await runConfigSmoke("legacy false transforms", '{"customWorkingMessage":false}', ({ config, raw }) => {
-	assert(raw.customWorkingMessage?.running === "Cooking", "legacy false was not backfilled to labels");
-	assert(config.customWorkingMessage.answering === "Answering", "legacy false did not normalize to labels");
+	assert(raw.customWorkingMessage?.running === "running", "legacy false was not backfilled to labels");
+	assert(config.customWorkingMessage.answering === "answering", "legacy false did not normalize to labels");
 });
 
 await runConfigSmoke("partial custom labels backfilled", '{"customWorkingMessage":{"running":"Executing","thinking":"Pondering"}}', ({ config, raw }) => {
 	assert(raw.customWorkingMessage?.running === "Executing", "custom running label was not preserved");
-	assert(raw.customWorkingMessage?.working === "Working", "missing default label was not backfilled");
+	assert(raw.customWorkingMessage?.working === "working", "missing default label was not backfilled");
 	assert(config.customWorkingMessage.thinking === "Pondering", "custom thinking label did not normalize");
 });
 

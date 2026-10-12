@@ -88,7 +88,6 @@ function compileSurface() {
 		"--skipLibCheck",
 		"--noImplicitAny", "false",
 		stubPath,
-		"user-zone/designs.ts",
 		"config.ts",
 		"performance/profiler.ts",
 		"performance/virtualize-chat.ts",

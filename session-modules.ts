@@ -1,8 +1,8 @@
-export { BoxEditor } from "./editor/box-editor.js";
+export { GeekEditor } from "./editor/geek-editor.js";
+export { mirrorLiveState } from "./editor/live-state.js";
 export { createAssistantSpeedTracker } from "./core/assistant-speed.js";
 export { createGitBranchFetcher } from "./core/git-status.js";
 export { loadConfig } from "./config.js";
-export { resolveUserZoneStyle } from "./user-zone/designs.js";
 export { installAssistantMessagePrefix } from "./messages/assistant-prefix.js";
 export { installMarkdownCodeBlockRenderer } from "./messages/markdown-codeblock-renderer.js";
 export { installAssistantStreamingMarkdownCache } from "./messages/streaming-markdown-cache.js";
@@ -28,5 +28,5 @@ export { installResumeToolRefresh } from "./tool-tags/resume-tool-refresh.js";
 export { createWorkingLoaderController, workingStateForAssistantMessage } from "./tool-tags/loader-accent.js";
 export { installWorkingLoaderAlignment } from "./tool-tags/loader-align.js";
 export { installTuiPadding } from "./tui-padding.js";
-export { getFooterStatusLine, getFooterTokenUsageLine, installFooterStatsPatch } from "./footer-patch.js";
+export { getFooterStatusLine, getFooterTokenUsage, installFooterStatsPatch } from "./footer-patch.js";
 export { installPiTasksWidgetStyling } from "./widgets/pi-tasks-widget.js";

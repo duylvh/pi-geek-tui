@@ -3,20 +3,31 @@ import { FooterComponent } from "@earendil-works/pi-coding-agent";
 const PATCHED = Symbol.for("pi-geek-tui.footer-stats.patched");
 const ORIGINAL_RENDER = Symbol.for("pi-geek-tui.footer-stats.original-render");
 const FOOTER_STATE = Symbol.for("pi-geek-tui.footer-stats.state");
-const PATCH_VERSION = 6;
+const PATCH_VERSION = 7;
 
 const ANSI_PATTERN = /\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b\[[0-9;?]*[ -/]*[@-~]/g;
 
+/** Last assistant message usage plus session-wide cost, for the footer `tok` row. */
+export type FooterTokenUsage = {
+	input: number;
+	output: number;
+	cacheRead: number;
+	cacheWrite: number;
+	/** Cache read share of prompt tokens, 0-100. */
+	cacheHitPercent: number;
+	cost: number;
+};
+
 type FooterState = {
 	latestStatusLines: string[];
-	latestTokenUsageLine: string | null;
+	latestTokenUsage: FooterTokenUsage | null;
 };
 
 function footerState(): FooterState {
 	const globalState = globalThis as Record<symbol, FooterState | undefined>;
 	let state = globalState[FOOTER_STATE];
 	if (!state) {
-		state = { latestStatusLines: [], latestTokenUsageLine: null };
+		state = { latestStatusLines: [], latestTokenUsage: null };
 		globalState[FOOTER_STATE] = state;
 	}
 	return state;
@@ -44,37 +55,37 @@ function stripAnsi(text: string): string {
 	return text.replace(ANSI_PATTERN, "");
 }
 
-function formatCompactToken(n: number): string {
-	if (n < 1000) return n.toString();
-	if (n < 10000) return `${(n / 1000).toFixed(1)}k`;
-	if (n < 1000000) return `${Math.round(n / 1000)}k`;
-	if (n < 10000000) return `${(n / 1000000).toFixed(1)}M`;
-	return `${Math.round(n / 1000000)}M`;
-}
-
-function computeTokenUsageLine(session: any): string | null {
+function computeTokenUsage(session: any): FooterTokenUsage | null {
 	if (!session?.sessionManager?.getEntries) return null;
 	const entries = session.sessionManager.getEntries();
+	let latest: any = null;
+	let cost = 0;
 	for (let i = entries.length - 1; i >= 0; i--) {
 		const entry = entries[i];
-		if (entry?.type === "message" && entry?.message?.role === "assistant") {
-			const u = entry.message.usage;
-			if (!u || entry.message.stopReason === "aborted" || entry.message.stopReason === "error") continue;
-			const inp = formatCompactToken(u.input ?? 0);
-			const out = formatCompactToken(u.output ?? 0);
-			const cacheRead = u.cacheRead ?? 0;
-			const cacheWrite = u.cacheWrite ?? 0;
-			const cr = formatCompactToken(cacheRead);
-			const promptTokens = (u.input ?? 0) + cacheRead + cacheWrite;
-			const cacheHitRate = promptTokens > 0 ? (cacheRead / promptTokens) * 100 : 0;
-			return `[↑${inp} ↓${out} R${cr} CH${cacheHitRate.toFixed(1)}%]`;
-		}
+		if (entry?.type !== "message" || entry?.message?.role !== "assistant") continue;
+		const u = entry.message.usage;
+		if (!u) continue;
+		cost += Number(u.cost?.total) || 0;
+		if (latest || entry.message.stopReason === "aborted" || entry.message.stopReason === "error") continue;
+		latest = u;
 	}
-	return null;
+	if (!latest) return null;
+	const input = latest.input ?? 0;
+	const cacheRead = latest.cacheRead ?? 0;
+	const cacheWrite = latest.cacheWrite ?? 0;
+	const promptTokens = input + cacheRead + cacheWrite;
+	return {
+		input,
+		output: latest.output ?? 0,
+		cacheRead,
+		cacheWrite,
+		cacheHitPercent: promptTokens > 0 ? (cacheRead / promptTokens) * 100 : 0,
+		cost,
+	};
 }
 
-export function getFooterTokenUsageLine(): string | null {
-	return footerState().latestTokenUsageLine;
+export function getFooterTokenUsage(): FooterTokenUsage | null {
+	return footerState().latestTokenUsage;
 }
 
 export function getFooterStatusLine(): string | null {
@@ -102,7 +113,7 @@ export function installFooterStatsPatch() {
 			const statusLines = lines.slice(2).map((line) => sanitizeStatusText(line ?? "")).filter(Boolean);
 			if (statusLines.length > 0) footerState().latestStatusLines = statusLines;
 		}
-		footerState().latestTokenUsageLine = computeTokenUsageLine(this.session);
+		footerState().latestTokenUsage = computeTokenUsage(this.session);
 		return [];
 	};
 }
