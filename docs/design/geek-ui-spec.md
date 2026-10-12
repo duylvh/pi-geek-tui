@@ -105,6 +105,9 @@ After `(branch)` the head row shows the working-tree diff: `+12` mono, `-3` del 
 untracked); zero parts are omitted, clean tree / not a repo → nothing. Width priority: live state (right) and
 diff stat stay whole, the cwd path gives way first (keeps its tail, `…` prefix; dropped below 6 cells).
 Input row: blank rail, `› ` then editor text; cursor = ink block.
+Anything else Pi puts in the editor slot (settings/model/session/tree selectors, extension select/input/editor,
+login dialogs) uses the same grammar as the slash menu: 8 blank prefix cells, a panel background body, the
+stock border strokes replaced by blank panel rows, `→` selection marker shown as `›`, never wider than the row.
 
 ### 9. Footer (2 rows, under a rule)
 ```

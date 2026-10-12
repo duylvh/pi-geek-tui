@@ -12,6 +12,7 @@ import { stripAnsi } from "../theme/ansi.js";
 import { geekBg, geekFg } from "../theme/geek-palette.js";
 import { getLiveState } from "./live-state.js";
 import { renderSlashMenu } from "./slash-menu.js";
+import { OWN_EDITOR_ROWS } from "./slot-frame.js";
 import { shimmerWord } from "./shimmer.js";
 
 type ContextUsage = { tokens: number | null; percent: number | null; contextWindow: number };
@@ -289,3 +290,6 @@ export class GeekEditor extends CustomEditor {
 		return lines;
 	}
 }
+
+// Renders its own grammar rows: the editor-slot frame must not wrap them.
+(GeekEditor.prototype as any)[OWN_EDITOR_ROWS] = true;
