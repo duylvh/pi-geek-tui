@@ -380,7 +380,7 @@ async function runVirtualizeChatSmoke() {
 	assert(isVirtualizedChatContainer(tui.children[1]), "custom tail should mark chat as actively virtualized");
 	assert(lines.includes("2 older messages hidden"), `custom tail should hide 2, got: ${lines}`);
 	const markerRow = lines.split("\n").find((row) => row.includes("older messages hidden"));
-	assert(markerRow?.indexOf("···") === 8 && markerRow.startsWith("        "), `hidden marker should sit at body col 8 on a blank rail, got: ${JSON.stringify(markerRow)}`);
+	assert(markerRow?.indexOf("···") === 3 && markerRow.startsWith("   "), `hidden marker should sit at body col 3 on a blank rail, got: ${JSON.stringify(markerRow)}`);
 	assert(!lines.includes("m1") && !lines.includes("m2") && lines.includes("m3") && lines.includes("m4"), `custom tail rendered wrong children: ${lines}`);
 
 	tui = createTui();
@@ -452,10 +452,10 @@ async function runVirtualizeChatSmoke() {
 	assert(mode.chatContainer.children.length === 2, `interactive hook should prune chatContainer to tail, got ${mode.chatContainer.children.length}`);
 	const hookLines = stripAnsi(mode.chatContainer.render(80).join("\n"));
 	assert(hookLines.includes("3 older messages hidden"), `interactive hook should show indicator, got: ${hookLines}`);
-	// Plain chat children are framed by frameChatChild (8-cell gutter + rail prefix), so compare trimmed rows.
+	// Plain chat children are framed by frameChatChild (3-cell rail prefix), so compare trimmed rows.
 	const rowsOf = (text) => text.split("\n").map((line) => line.trim());
 	assert(rowsOf(hookLines).includes("d") && rowsOf(hookLines).includes("e"), `interactive hook missing d/e: ${JSON.stringify(hookLines)}`);
-	assert(hookLines.split("\n").some((line) => line.startsWith(" ".repeat(8) + "d")), `chat child d is not framed with the 8-cell prefix: ${JSON.stringify(hookLines)}`);
+	assert(hookLines.split("\n").some((line) => line.startsWith(" ".repeat(3) + "d")), `chat child d is not framed with the 3-cell prefix: ${JSON.stringify(hookLines)}`);
 	assert(!rowsOf(hookLines).includes("a") && !rowsOf(hookLines).includes("b") && !rowsOf(hookLines).includes("c"), `interactive hook kept wrong children: ${hookLines}`);
 
 	// clear()+addChild rebuild must keep freshly parked overflow (not wiped by applyFromMode).

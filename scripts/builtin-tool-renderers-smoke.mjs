@@ -280,7 +280,7 @@ async function runBuiltinToolRenderersSmoke() {
 	for (const width of [120, 80, 50]) {
 		const rows = groups.renderChatChildren(finished, width).map(strip);
 		assert(rows.length === 6 && rows.every((row) => visibleWidth(row) === width), `@${width}: head + 4 call rows + blank, each exactly the chat width, never wrapped: ${JSON.stringify(rows)}`);
-		assert(rows[0].startsWith("      ┃ Done(4 tool calls · 1 thought)"), `@${width}: head: ${rows[0]}`);
+		assert(rows[0].startsWith(" ┃ Done(4 tool calls · 1 thought)"), `@${width}: head: ${rows[0]}`);
 		assert(rows[1].includes("├─ R src/auth/session.ts") || width < 80, `@${width}: ${rows[1]}`);
 		if (width === 120) {
 			assert(rows[0].includes("^o  // 2.0s"), `head meta: ${rows[0]}`);
@@ -291,11 +291,11 @@ async function runBuiltinToolRenderersSmoke() {
 
 	// Lone call: no head, no guide; bash drops its leading cd; Ctrl+O hint on the right.
 	const lone = groups.renderChatChildren([tool("bash", { command: "cd /Users/bean/proj && ls -la\necho" })], 100).map(strip);
-	assert(lone.length === 2 && lone[0].startsWith("      ┃ $ ls -la") && lone[0].includes("^o  // 0.5s") && !lone[0].includes("Done("), `lone call row: ${JSON.stringify(lone)}`);
+	assert(lone.length === 2 && lone[0].startsWith(" ┃ $ ls -la") && lone[0].includes("^o  // 0.5s") && !lone[0].includes("Done("), `lone call row: ${JSON.stringify(lone)}`);
 
 	// Running head names the live tool; failed calls are counted and their badge turns del-marker.
 	const runningRows = groups.renderChatChildren([tool("read", { path: "a.ts" }), tool("bash", { command: "pnpm test" }, { result: undefined, isPartial: true, rendererState: { __geekStartedAt: performance.now() - 4100 } })], 100).map(strip);
-	assert(runningRows[0].startsWith("      ┃ Running(2 tool calls · bash)") && runningRows[0].includes("^o  // 4.6s"), `running head: ${runningRows[0]}`);
+	assert(runningRows[0].startsWith(" ┃ Running(2 tool calls · bash)") && runningRows[0].includes("^o  // 4.6s"), `running head: ${runningRows[0]}`);
 	const failedRaw = groups.renderChatChildren([tool("read", { path: "a.ts" }), tool("bash", { command: "boom" }, { result: { content: [{ type: "text", text: "x" }], isError: true } })], 100);
 	assert(strip(failedRaw[0]).includes("Done(2 tool calls · 1 failed)") && failedRaw[2].includes("\x1b[48;2;221;86;112m\x1b[38;2;12;12;12m$"), "failed call: counted in the head, badge on the del-marker bg");
 
@@ -321,16 +321,16 @@ async function runBuiltinToolRenderersSmoke() {
 				// edit/write stand alone (never folded): their call renderer draws the row at body width.
 				const standalone = name === "edit" || name === "write";
 				const rows = standalone
-					? toolModules[name][name === "edit" ? "renderEditCall" : "renderWriteCall"](args, theme, { state: {}, cwd: "/repo", isPartial: false }).render(width - 8).map((line) => `        ${strip(line)}`)
+					? toolModules[name][name === "edit" ? "renderEditCall" : "renderWriteCall"](args, theme, { state: {}, cwd: "/repo", isPartial: false }).render(width - 3).map((line) => `   ${strip(line)}`)
 					: groups.renderChatChildren([tool(name, args)], width).map(strip);
 				const row = rows[0] ?? "";
-				assert((standalone ? rows.length === 1 : rows.length === 2) && row.length >= 8 && row.slice(8).trim().length > 1 && (standalone || visibleWidth(row) === width), `${name}/${shape}@${width}: one non-blank row: ${JSON.stringify(rows)}`);
-				assert(row.slice(8).startsWith(`${letter} `), `${name}/${shape}@${width}: badge ${letter}: ${row}`);
+				assert((standalone ? rows.length === 1 : rows.length === 2) && row.length >= 3 && row.slice(3).trim().length > 1 && (standalone || visibleWidth(row) === width), `${name}/${shape}@${width}: one non-blank row: ${JSON.stringify(rows)}`);
+				assert(row.slice(3).startsWith(`${letter} `), `${name}/${shape}@${width}: badge ${letter}: ${row}`);
 				if (shape !== "full" && name !== "ls" && !(standalone && shape === "non-object")) assert(row.includes("…"), `${name}/${shape}: a missing primary arg shows … : ${row}`);
 			}
 		}
 	}
-	const row1 = (name, args) => groups.renderChatChildren([tool(name, args)], 120).map(strip)[0].slice(8);
+	const row1 = (name, args) => groups.renderChatChildren([tool(name, args)], 120).map(strip)[0].slice(3);
 	assert(row1("read", FULL.read).startsWith("R src/a.ts:10-14") && row1("read", { path: "a", offset: 3 }).startsWith("R a:3+"), "read shows :offset-end / :offset+");
 	assert(row1("bash", FULL.bash).startsWith("$ git log -5") && row1("grep", FULL.grep).startsWith('G "TTL" in src glob *.ts') && row1("ls", {}).startsWith("L ."), "bash cd-strip, grep pattern+path+glob, ls default");
 	for (const lookalike of ["memory_read", "memory_write", "cycle_bash", "thought_edit", "read_file"]) {
@@ -416,13 +416,13 @@ async function runBuiltinToolRenderersSmoke() {
 	assert(fgOfText(rowWith('"TTL"'), "TTL") === PUNCT_FG && fgOfText(rowWith('"TTL"'), "src") === PUNCT_FG && fgOfText(rowWith('"TTL"'), '"TTL') === FAINT_FG, "grep pattern and path are punct, quotes faint");
 	assert(fgOfText(rowWith("piggery_send"), "to tools") === FAINT_FG && fgOfText(rowWith("piggery_send"), "tools") === PUNCT_FG && fgOfText(rowWith("piggery_send"), "piggery_send") === PUNCT_FG, "generic: key faint, value and name punct");
 
-	// Rail color: ┃ accent while running, kw when finished, del marker when a call failed; the closing blank row stays │.
+	// Rail color: ┃ accent while running, kw when finished, del marker when a call failed; the closing blank row stays ┊.
 	const palette = await import(pathToFileURL(join(buildDir, "theme", "geek-palette.js")).href);
 	palette.setGeekAccent("#d8d4b4"); // distinct from the del marker so accent vs error is observable
-	const railOf = (row) => row.match(/\x1b\[38;2;(\d+;\d+;\d+)m(┃|│)/)?.slice(1).join(" ");
-	const KW = "104;158;128 ┃", ACCENT = "216;212;180 ┃", DEL = "221;86;112 ┃", PLAIN = "58;58;52 │";
+	const railOf = (row) => row.match(/\x1b\[38;2;(\d+;\d+;\d+)m(┃|┊)/)?.slice(1).join(" ");
+	const KW = "104;158;128 ┃", ACCENT = "216;212;180 ┃", DEL = "221;86;112 ┃", PLAIN = "58;58;52 ┊";
 	const okRows = groups.renderChatChildren([tool("read", { path: "a.ts" })], 100);
-	assert(railOf(okRows[0]) === KW && railOf(okRows.at(-1)) === PLAIN, `finished ok group: kw ┃ head, plain │ blank: ${railOf(okRows[0])} / ${railOf(okRows.at(-1))}`);
+	assert(railOf(okRows[0]) === KW && railOf(okRows.at(-1)) === PLAIN, `finished ok group: kw ┃ head, plain ┊ blank: ${railOf(okRows[0])} / ${railOf(okRows.at(-1))}`);
 	const errRows = groups.renderChatChildren([tool("read", { path: "a.ts" }), tool("bash", { command: "ls" }, { expanded: true, result: { content: [{ type: "text", text: "boom" }], isError: true } })], 100);
 	assert(errRows.slice(0, -1).every((row) => railOf(row) === DEL) && railOf(errRows.at(-1)) === PLAIN, "a failed call turns every group row (head + tree) to the del-marker ┃");
 	const liveRows = groups.renderChatChildren([tool("bash", { command: "ls" }, { result: undefined, isPartial: true })], 100);
@@ -440,10 +440,10 @@ async function runBuiltinToolRenderersSmoke() {
 	spacing.installCompactToolSpacing(FakeToolExecution);
 	const block = new FakeToolExecution().render(WIDTH).map(strip);
 	assert(block.every((row) => visibleWidth(row) === WIDTH), "standalone rows must be exactly the chat width");
-	assert(block[0].startsWith("      ┃ E src/auth/session.ts") && block[0].includes("// +2 -2 · 0.1s"), `edit call row: ${block[0]}`);
-	assert(block[1].startsWith("      ┃   ") && block[1].includes("20 - const exp"), `diff rows sit under the call, indented 2: ${block[1]}`);
-	assert(block.at(-1).trim() === "│", "block must end with one blank rail row");
-	assert(new FakeToolExecution().render(WIDTH).slice(0, -1).every((row) => /\x1b\[38;2;104;158;128m┃/.test(row)) && /\x1b\[38;2;58;58;52m│/.test(new FakeToolExecution().render(WIDTH).at(-1)), "finished standalone edit block: every row kw ┃, closing blank plain │");
+	assert(block[0].startsWith(" ┃ E src/auth/session.ts") && block[0].includes("// +2 -2 · 0.1s"), `edit call row: ${block[0]}`);
+	assert(block[1].startsWith(" ┃   ") && block[1].includes("20 - const exp"), `diff rows sit under the call, indented 2: ${block[1]}`);
+	assert(block.at(-1).trim() === "┊", "block must end with one blank rail row");
+	assert(new FakeToolExecution().render(WIDTH).slice(0, -1).every((row) => /\x1b\[38;2;104;158;128m┃/.test(row)) && /\x1b\[38;2;58;58;52m┊/.test(new FakeToolExecution().render(WIDTH).at(-1)), "finished standalone edit block: every row kw ┃, closing blank plain ┊");
 
 	// --- 8. Terminal image lines survive the render patch; reload re-installs without stacking ---
 	const kitty = "\x1b_Gf=100,t=d,a=T;QUFBQQ==\x1b\\";
@@ -456,7 +456,7 @@ async function runBuiltinToolRenderersSmoke() {
 	const imageLines = new FakeImageTool().render(80);
 	assert(imageLines.includes(kitty) && imageLines.includes(iterm) && imageLines.indexOf(kitty) < imageLines.indexOf(iterm), "kitty/iTerm2 image lines must pass through untouched and in order");
 	assert(imageLines[imageLines.indexOf(kitty) - 1] === "", "one spacer row must stay before the image block");
-	assert(strip(imageLines[0]).startsWith("      ┃ › read photo.png"), `text rows around images still get gutter + rail: ${strip(imageLines[0])}`);
+	assert(strip(imageLines[0]).startsWith(" ┃ › read photo.png"), `text rows around images still get the rail: ${strip(imageLines[0])}`);
 	const wrapped = FakeImageTool.prototype.render;
 	spacing.installCompactToolSpacing(FakeImageTool);
 	const reloaded = await import(`${buildToolTags("compact-tool-spacing.js")}?reload=1`);

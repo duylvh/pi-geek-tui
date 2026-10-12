@@ -81,13 +81,13 @@ harness friction discovered.
 
 ## Rail Grammar
 
-The row layout of the conversation UI: every row is `gutter(5, right-aligned time) +
-rail(3, centered glyph) + body`. Rail glyphs: `•` head, `│` continuation, `┃` active tool
+The row layout of the conversation UI: every row is `rail(3, centered glyph) +
+body`. Rail glyphs: `•` head, `┊` continuation, `┃` active tool
 group. Implemented in `presentation/geek-rows.ts`.
 
 ## Head Row
 
-The first row of a message block: `HH:MM • name@host ~/path (branch)`. Users always print one;
+The first row of a message block: `• name@host ~/path (branch)`. Users always print one;
 the assistant prints one only for the first message of a turn (see Turn).
 
 ## Turn

@@ -17,7 +17,7 @@ is forked from pi-geek-tui and must keep working — change visuals, not the eng
 | kw | `#689e80` | `(branch)`, keywords, thinking level, agent rail dot, finished tool rail `┃`, edit badge bg, ctx bar fill |
 | str/mono | `#88c6a3` | inline code text, `+N`, `+` diff marker |
 | punct | `#727060` | `~/path`, code punctuation |
-| rail | `#3a3a34` | idle rail `│` |
+| rail | `#3a3a34` | idle rail `┊` |
 | rule | `#2a2a26` | footer horizontal rule `─` |
 | accent | `#dd5670` default; config options `#dd5670` `#d8785b` `#88c6a3` `#d8d4b4` | `π`, `## heading`, list `-`, active rail `┃`, running state, progress fill |
 | del | marker `#dd5670`, row bg `#251518` | diff removed |
@@ -26,13 +26,13 @@ is forked from pi-geek-tui and must keep working — change visuals, not the eng
 
 ## Layout grammar (columns, monospace cells)
 
-Every conversation row = `gutter(5, right-aligned time, dim @55%) + rail(3, centered glyph) + body`.
+Every conversation row = `rail(3, centered glyph) + body`: the body starts at col 3. There is no time gutter.
 Whole UI has a left/right margin (mockup: 4ch inside the window padding) — reuse tui-padding.
 
-Rail glyphs: `•` head of a block (ink for user, kw for agent), `│` continuation (rail color),
+Rail glyphs: `•` head of a block (ink for user, kw for agent), `┊` dashed continuation (rail color),
 `┃` on every row of a tool block (summary head, tree, edit/write rows): accent while it runs, kw once finished,
 del marker (`#dd5670`) if any call failed. ` ` (blank) on the input row.
-Blank separator rows — including the one closing a tool block — keep the rail `│` so the rail is continuous through a turn.
+Blank separator rows — including the one closing a tool block — keep the rail `┊` so the rail is continuous through a turn.
 
 ### 1. Startup header (replaces pixel logo)
 One title-bar line on the rule (rail color `─`), text segments with one space each side, 2 rule cells before the first and after the last:
@@ -44,19 +44,19 @@ right session name ink + dim ` · ` + dim `turn N`. No session name: just `turn 
 Narrow widths drop, in order: cwd (left-truncated with `…` first), `turn N`, session name; `π pi` always stays. Never wraps.
 
 ### 2. Message head row
-`14:52 • bean@kpi-api ~/code/kpi-api (fix/refresh-ttl)` — name ink, `@host` dim, path punct, branch kw.
-Agent: `pi@agent …` with kw dot. Time = message timestamp HH:MM, only on head rows.
+` • bean@kpi-api ~/code/kpi-api (fix/refresh-ttl)` — name ink, `@host` dim, path punct, branch kw.
+Agent: `pi@agent …` with kw dot. No time on message rows.
 
 ### 3. User prompt body
-`│ › refresh token expires after 5 minutes, fix it` (`› ` then text, ink).
+` ┊ › refresh token expires after 5 minutes, fix it` (`› ` then text, ink).
 
 ### 4. Tool group (one row per call)
 ```
-16:42 ┃ Done(3 tool calls · 1 thought)                          ^o  // 0.6s
-      ┃ ├─ R tool-tags/tool-groups.ts
-      ┃ ├─ $ git log --oneline -5 && …
-      ┃ ├─ G "REFRESH_TTL" in src
-      ┃ └─ · piggery_send  to tools · kind relay · body QUEUED after P0 #1358 — …
+ ┃ Done(3 tool calls · 1 thought)                          ^o  // 0.6s
+ ┃ ├─ R tool-tags/tool-groups.ts
+ ┃ ├─ $ git log --oneline -5 && …
+ ┃ ├─ G "REFRESH_TTL" in src
+ ┃ └─ · piggery_send  to tools · kind relay · body QUEUED after P0 #1358 — …
 ```
 A run of consecutive non-edit calls (and the tool-only assistant turns that issued them) is one block; edit/write
 break the run. Head: `Done(` / `Running(` bold (Running in accent), dim counts `N tool call(s) · N thought(s)`,
@@ -80,7 +80,7 @@ A failed call's badge turns del-marker bg (generic names too). Ctrl+O adds each 
 list bullet `- ` accent.
 
 ### 6. Edit call
-`┃ E src/auth/session.ts                                      // +2 -2 · 0.1s` (`+2` mono, `-2` del marker; `failed` in del on error).
+` ┃ E src/auth/session.ts                                      // +2 -2 · 0.1s` (`+2` mono, `-2` del marker; `failed` in del on error).
 Diff rows indented 2ch, fixed width block (mockup 72ch, clamp to body width) with row bg:
 `  20 - const exp = now + REFRESH_TTL;` (line no faint, marker colored, code syntax-colored).
 Gap: `       ··· 16 unchanged lines ···` faint. Write: `W path   // +N · s`, file shown as added rows on Ctrl+O.
@@ -90,8 +90,8 @@ Running groups use the same rows: `Running(2 tool calls · bash)` head with the 
 
 ### 8. Input zone (no box)
 ```
-      • bean@kpi-api ~/code/kpi-api (fix/refresh-ttl)                 thinking · 2.3s
-        › run tests again then commit█
+ • bean@kpi-api ~/code/kpi-api (fix/refresh-ttl)                      thinking · 2.3s
+   › run tests again then commit█
 ```
 The footer rule (§9) follows the last input row directly; nothing is left blank between them.
 Head row = same as message head, right side shows live state: the state word
@@ -107,18 +107,18 @@ untracked); zero parts are omitted, clean tree / not a repo → nothing. Width p
 diff stat stay whole, the cwd path gives way first (keeps its tail, `…` prefix; dropped below 6 cells).
 Input row: blank rail, `› ` then editor text; cursor = ink block.
 Anything else Pi puts in the editor slot (settings/model/session/tree selectors, extension select/input/editor,
-login dialogs) uses the same grammar as the slash menu: 8 blank prefix cells, a panel background body, the
+login dialogs) uses the same grammar as the slash menu: 3 blank prefix cells, a panel background body, the
 stock border strokes replaced by blank panel rows, `→` selection marker shown as `›`, never wider than the row.
 
 ### 9. Footer (rule + one statusline row, directly under the input — no blank row between)
 ```
 ──────────────────────────────────────────────────────────────── (rule color, full width)
-  HIGH  zai · glm-5.3                         41k/1.0M 4% · CH 82%  ○ 🐴 ponytail: ⚡ FULL
+ HIGH  zai · glm-5.3                          41k/1.0M 4% · CH 82%  ○ 🐴 ponytail: ⚡ FULL
 ```
-nvim-style statusline on the chat grid (`editor/statusline.ts`). The thinking badge lives in the 8-cell prefix: a
-reverse-video accent block ` HIGH ` ending on the rail column (col 6), one gap cell, then the model at body col 8
-like every chat row. Labels OFF MIN LOW MED HIGH XHIGH; `!` bash mode shows ` BASH ` in the `num` colour; a model
-without thinking has a blank prefix.
+nvim-style statusline (`editor/statusline.ts`). The thinking badge starts the line: a reverse-video accent block
+` HIGH ` at col 0, one gap cell, then the model (so the model column shifts with the label width). Labels OFF MIN LOW
+MED HIGH XHIGH; `!` bash mode shows ` BASH ` in the `num` colour; a model without thinking has no badge and starts on
+the chat body column instead.
 Left: provider faint + ` · ` + model id dim (capped at 40 cells, `…`). Right (dim, right-aligned to the chat edge):
 `<tokens>/<window> <ctx%>` + ` · CH <n>%`, two spaces, then extension statuses (joined with ` · `). Before the first
 usage the metrics read `—`.

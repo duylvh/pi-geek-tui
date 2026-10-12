@@ -11,6 +11,7 @@ import { buildSmoke } from "./smoke-build.mjs";
 
 const built = buildSmoke("geek-slash-editor-smoke", ["editor/geek-editor.ts", "editor/live-state.ts"]);
 const { GeekEditor } = await built.importBuilt("editor/geek-editor.js");
+const { GEEK_PREFIX_WIDTH: P } = await built.importBuilt("presentation/geek-rows.js");
 const strip = (text) => String(text).replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
 const failures = [];
 const expect = (name, condition, detail = "") => { if (!condition) failures.push(`${name}${detail ? `: ${detail}` : ""}`); };
@@ -29,7 +30,7 @@ const items = [
 ];
 
 const idleRows = editor.render(100).map(strip);
-const headIndex = (rows) => rows.findIndex((row) => row.startsWith("      • "));
+const headIndex = (rows) => rows.findIndex((row) => row.startsWith(`${" ".repeat(P - 2)}• `));
 expect("idle: no menu, head row first", headIndex(idleRows) === 0, JSON.stringify(idleRows.slice(0, 3)));
 
 editor.setText("/");
@@ -41,7 +42,7 @@ const rows = all.map(strip);
 const head = headIndex(rows);
 expect("menu rows come before the head row", head > 0, String(head));
 expect("menu lists the commands above the head", rows.slice(0, head).some((r) => r.includes("/model")) && rows.slice(0, head).some((r) => r.includes("/compact")), JSON.stringify(rows.slice(0, head)));
-expect("input row stays right under the head", /^ {8}› \//.test(rows[head + 1]), JSON.stringify(rows[head + 1]));
+expect("input row stays right under the head", new RegExp(`^ {${P}}› /`).test(rows[head + 1]), JSON.stringify(rows[head + 1]));
 expect("live hints are appended", rows.slice(0, head).join("\n").includes("now claude-opus-5-5") && rows.slice(0, head).join("\n").includes("ctx 31%"), JSON.stringify(rows.slice(0, head)));
 expect("no menu rows below the input", !rows.slice(head + 2).some((r) => r.includes("/copy")));
 expect("every row exactly the width", all.every((row) => visibleWidth(row) === 100 || row === ""), all.map(visibleWidth).join(","));

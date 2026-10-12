@@ -2,7 +2,7 @@
 /**
  * Conversation rows on the real Pi components (user, assistant, compaction/skill/branch/custom):
  * every row stays inside the width and on the rail, only the first assistant message of a turn prints
- * a head row, head times come from the message timestamp. Prints the rendered rows for eyeballing.
+ * a head row. Prints the rendered rows for eyeballing.
  */
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -69,7 +69,6 @@ class FakeInteractiveMode {
 }
 installMessageMeta(FakeInteractiveMode);
 
-const clock = (ts) => `${String(new Date(ts).getHours()).padStart(2, "0")}:${String(new Date(ts).getMinutes()).padStart(2, "0")}`;
 const T_USER = new Date(2026, 9, 12, 14, 52, 10).getTime();
 const T_AGENT = new Date(2026, 9, 12, 14, 53, 40).getTime();
 const markdownAnswer = [
@@ -91,7 +90,7 @@ const piNotices = () => ({ chatContainer: new Container(), ui: { requestRender()
 const beforeTurn = piNotices();
 core.InteractiveMode.prototype.showStatus.call(beforeTurn, "Memory injected: 1 files (message-append)");
 const beforeRows = frameAll(beforeTurn.chatContainer.children, 80).map(plain);
-expect("status before any turn: blank rail, body at col 8", beforeRows.length === 2 && beforeRows[1][6] === " " && beforeRows[1].slice(8).startsWith("Memory injected"), JSON.stringify(beforeRows));
+expect("status before any turn: blank rail, body at col 3", beforeRows.length === 2 && beforeRows[1][1] === " " && beforeRows[1].slice(3).startsWith("Memory injected"), JSON.stringify(beforeRows));
 
 // ...and it stays that way once a turn starts later (the rail decision is made at first render).
 const mode = new FakeInteractiveMode();
@@ -110,14 +109,14 @@ foldMode.addMessageToChat({ role: "assistant", timestamp: T_AGENT, stopReason: "
 foldMode.chatContainer.addChild({ toolCallId: "1", toolName: "read", args: { path: "session.ts" }, result: { content: [{ type: "text", text: "x" }] }, expanded: false, render: () => [] });
 foldMode.addMessageToChat({ role: "assistant", timestamp: T_AGENT + 5_000, stopReason: "stop", content: [{ type: "text", text: "all good" }] });
 const foldedRows = renderChatChildren(foldMode.chatContainer.children, 80).map(plain);
-const foldedAgentHeads = foldedRows.filter((row) => row[6] === "•" && row.includes("pi@agent"));
-expect("folded tool-only opener still prints the agent head once, above the group", foldedAgentHeads.length === 1 && foldedAgentHeads[0].startsWith(clock(T_AGENT)) && foldedRows.findIndex((row) => row.includes("pi@agent")) < foldedRows.findIndex((row) => row.includes("R session.ts")), JSON.stringify(foldedRows));
+const foldedAgentHeads = foldedRows.filter((row) => row[1] === "•" && row.includes("pi@agent"));
+expect("folded tool-only opener still prints the agent head once, above the group", foldedAgentHeads.length === 1 && foldedRows.findIndex((row) => row.includes("pi@agent")) < foldedRows.findIndex((row) => row.includes("R session.ts")), JSON.stringify(foldedRows));
 
 // Pi's widget spacer between chat and input zone is railed, so the rail has no un-railed gap before the input head.
 const spacerRows = mode.widgetContainerAbove.render(80).map(plain);
-expect("widget spacer row is railed", spacerRows.length === 1 && spacerRows[0][6] === "│", JSON.stringify(spacerRows));
+expect("widget spacer row is railed", spacerRows.length === 1 && spacerRows[0][1] === "┊", JSON.stringify(spacerRows));
 
-expect("a startup notice stays off the rail after a turn began", frameAll(beforeTurn.chatContainer.children, 80).map(plain)[1][6] === " ");
+expect("a startup notice stays off the rail after a turn began", frameAll(beforeTurn.chatContainer.children, 80).map(plain)[1][1] === " ");
 
 // Inside a turn: status/warning/error sit on the rail (Pi's spacers too), and Pi's in-place status replacement still works.
 const inTurn = piNotices();
@@ -129,18 +128,18 @@ core.InteractiveMode.prototype.showError.call(inTurn, "boom");
 for (const width of [24, 40, 80]) {
 	for (const row of frameAll(inTurn.chatContainer.children, width)) {
 		expect(`notice row fits @${width}`, visibleWidth(row) <= width, JSON.stringify(plain(row)));
-		expect(`notice row on rail @${width}`, plain(row)[6] === "│", JSON.stringify(plain(row)));
+		expect(`notice row on rail @${width}`, plain(row)[1] === "┊", JSON.stringify(plain(row)));
 	}
 }
 const noticeRows = frameAll(inTurn.chatContainer.children, 80).map(plain);
-expect("notice bodies start at col 8", ["Tool output: expanded", "Warning: careful", "Error: boom"].every((text) => noticeRows.some((row) => row.slice(8).startsWith(text))), JSON.stringify(noticeRows));
+expect("notice bodies start at col 3", ["Tool output: expanded", "Warning: careful", "Error: boom"].every((text) => noticeRows.some((row) => row.slice(3).startsWith(text))), JSON.stringify(noticeRows));
 // Exactly one railed blank between blocks: a Pi spacer after a grammar block (or another spacer) adds nothing.
 const sepRows = frameAll([userA, new Spacer(1), new Spacer(1)], 80).map(plain);
-expect("spacer after a railed block adds no second blank", sepRows.filter((row) => row.trim() === "│").length === 1, JSON.stringify(sepRows));
+expect("spacer after a railed block adds no second blank", sepRows.filter((row) => row.trim() === "┊").length === 1, JSON.stringify(sepRows));
 const noticeGap = frameAll(inTurn.chatContainer.children, 80).map(plain);
-expect("no two consecutive blank railed rows around notices", noticeGap.every((row, i) => !(i > 0 && row.trim() === "│" && noticeGap[i - 1].trim() === "│")), JSON.stringify(noticeGap));
+expect("no two consecutive blank railed rows around notices", noticeGap.every((row, i) => !(i > 0 && row.trim() === "┊" && noticeGap[i - 1].trim() === "┊")), JSON.stringify(noticeGap));
 const turnGap = frameAll([new Spacer(1), userA], 80).map(plain);
-expect("the spacer before a user message stays un-railed (turn boundary)", turnGap[0][6] === " ");
+expect("the spacer before a user message stays un-railed (turn boundary)", turnGap[0][1] === " ");
 
 const blocks = [
 	new core.CompactionSummaryMessageComponent({ role: "compactionSummary", summary: "## Goal\nfix refresh ttl", tokensBefore: 12345, timestamp: T_USER }),
@@ -158,24 +157,24 @@ for (const width of [24, 40, 80]) {
 	for (const [name, component] of Object.entries(all)) {
 		for (const row of component.render(width)) {
 			expect(`${name}@${width} row fits`, visibleWidth(row) <= width, JSON.stringify(plain(row)));
-			expect(`${name}@${width} row on rail`, "•│┃".includes(plain(row)[6] ?? "│"), JSON.stringify(plain(row)));
+			expect(`${name}@${width} row on rail`, "•┊┃".includes(plain(row)[1] ?? "┊"), JSON.stringify(plain(row)));
 		}
 	}
 }
 
 const rows = (component, width = 80) => component.render(width).map(plain);
-const heads = (component) => rows(component).filter((row) => row[6] === "•");
+const heads = (component) => rows(component).filter((row) => row[1] === "•");
 
 // Turn heads: user always; assistant only for the first message of the turn.
-expect("user prints a head with the message time", heads(userA).length === 1 && heads(userA)[0].startsWith(clock(T_USER)), JSON.stringify(heads(userA)));
-expect("first assistant of a turn prints the head", heads(agentTools).length === 1 && heads(agentTools)[0].includes("pi@agent") && heads(agentTools)[0].startsWith(clock(T_AGENT)), JSON.stringify(heads(agentTools)));
+expect("user prints one head", heads(userA).length === 1, JSON.stringify(heads(userA)));
+expect("first assistant of a turn prints the head", heads(agentTools).length === 1 && heads(agentTools)[0].includes("pi@agent"), JSON.stringify(heads(agentTools)));
 expect("second assistant in the same turn has no head", heads(agentText).length === 0);
 expect("next turn opens a new head", heads(userB).length === 1 && heads(agentB).length === 1);
-expect("tool-call-only message renders no body rows", rows(agentTools).filter((row) => row[6] === "│").length === 0);
+expect("tool-call-only message renders no body rows", rows(agentTools).filter((row) => row[1] === "┊").length === 0);
 
 // Prompt / markdown / core blocks.
 const userRows = rows(userA);
-expect("prompt rows", userRows[1]?.includes("│ › refresh token") && userRows[2]?.includes("│   fix it"), JSON.stringify(userRows));
+expect("prompt rows", userRows[1]?.includes("┊ › refresh token") && userRows[2]?.includes("┊   fix it"), JSON.stringify(userRows));
 const answer = rows(agentText).join("\n");
 expect("heading keeps its ## marks", answer.includes("## cause"));
 expect("inline code keeps backticks", answer.includes("`REFRESH_TTL`") && answer.includes("`sign()`"));
@@ -205,7 +204,7 @@ const tokens = (needle) => {
 		if (sgr) fg = sgr[1].startsWith("38;2;") ? roleOf[sgr[1].slice(5)] ?? `rgb(${sgr[1].slice(5)})` : sgr[1] === "39" || sgr[1] === "0" || sgr[1] === "" ? undefined : fg;
 		else if (part.replace(/\x1b\][^\x07]*\x07/g, "").trim()) out.push({ text: part.replace(/\x1b\][^\x07]*\x07/g, ""), fg });
 	}
-	return out.filter((t, i) => !(i === 0 && t.text.includes("│")) && !t.text.includes("│"));
+	return out.filter((t, i) => !(i === 0 && t.text.includes("┊")) && !t.text.includes("┊"));
 };
 for (const needle of ["const exp", "pnpm test", '"ttl"', "plain block"]) {
 	const toks = tokens(needle);

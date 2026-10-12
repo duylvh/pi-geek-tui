@@ -34,6 +34,7 @@ if (build.status !== 0) throw new Error(`tsc failed\n${build.stdout}\n${build.st
 
 const load = (path) => import(pathToFileURL(join(buildDir, path)).href);
 const { GeekEditor } = await load("editor/geek-editor.js");
+const { GEEK_PREFIX_WIDTH: P } = await load("presentation/geek-rows.js");
 const { setLiveState } = await load("editor/live-state.js");
 const { renderStartupHeader } = await load("startup-ui.js");
 const { createGeekTheme } = await load("theme/geek-theme.js");
@@ -89,9 +90,9 @@ for (const width of [60, 92, 120]) {
 const width = 92;
 const idle = editor.render(width).map(strip);
 expect("idle head row has no state word", !/thinking|working|answering|running/.test(idle[0]));
-expect("head row carries user@project, path and branch (no time)", /^ {6}• \S+@kpi-api ~\/code\/kpi-api \(fix\/refresh-ttl\)/.test(idle[0]));
-expect("input row is `› text` on a blank rail", /^ {8}› run tests again then commit/.test(idle[1]));
-expect("footer is one statusline row: HIGH badge in the prefix, provider · model, metrics", idle.some((r) => /^  HIGH  anthropic · claude-opus-5-5 +63k\/200k 31% · CH 82%\s*$/.test(r)) && !idle.some((r) => /^\s+(ctx|tok)\s/.test(r)));
+expect("head row carries user@project, path and branch (no time)", new RegExp(`^ {${P - 2}}• \\S+@kpi-api ~/code/kpi-api \\(fix/refresh-ttl\\)`).test(idle[0]));
+expect("input row is `› text` on a blank rail", new RegExp(`^ {${P}}› run tests again then commit`).test(idle[1]));
+expect("footer is one statusline row: HIGH badge at the line start, provider · model, metrics", idle.some((r) => /^ HIGH  anthropic · claude-opus-5-5 +63k\/200k 31% · CH 82%\s*$/.test(r)) && !idle.some((r) => /^\s+(ctx|tok)\s/.test(r)));
 setLiveState("thinking");
 editor.render(width); // starts the decode-in of the word; once it settled the plain word shows
 const realNow = Date.now;

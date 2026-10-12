@@ -50,7 +50,7 @@ export function installBuiltinToolRenderers(ToolExecutionComponentClass: any): v
 		proto[SHELL_PATCHED] = true;
 		const baseGetRenderShell = proto.getRenderShell;
 		proto.getRenderShell = function patchedBuiltinToolRenderShell(this: any, ...args: any[]) {
-			// "self": no Box padding/background; the render patch adds the gutter + rail.
+			// "self": no Box padding/background; the render patch adds the rail.
 			if (BUILTIN_TOOL_RENDERERS[this.toolName]) return "self";
 			return baseGetRenderShell.apply(this, args);
 		};

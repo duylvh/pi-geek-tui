@@ -1,5 +1,5 @@
 // Assistant rows (spec §2/§5): the first assistant message of a turn opens with the head row
-// `HH:MM • pi@agent ~/path (branch)`; every body row sits on the `│` rail. Thinking runs collapse to
+// `• pi@agent ~/path (branch)`; every body row sits on the `┊` rail. Thinking runs collapse to
 // one `thinking ▸ tail` row (config `collapsedThinking`).
 import { AssistantMessageComponent } from "@earendil-works/pi-coding-agent";
 

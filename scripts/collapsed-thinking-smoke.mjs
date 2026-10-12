@@ -300,11 +300,11 @@ check("P4 wide graphemes are dropped whole", () => {
 });
 
 check("P4 whitespace right after the ellipsis is trimmed", () => {
-	// At width 46 (body 37, label "thinking" = 8) the tail budget is 25 → the last 24 columns are kept;
+	// At width 41 (body 37, label "thinking" = 8) the tail budget is 25 → the last 24 columns are kept;
 	// 23 y's plus the space before them land the cut exactly on that space.
 	const text = `${"z".repeat(50)} ${"y".repeat(23)}`;
 	const message = hiddenOnly(text);
-	const raw = withActiveStream(message, () => new AssistantMessageComponent(message, true).render(46));
+	const raw = withActiveStream(message, () => new AssistantMessageComponent(message, true).render(41));
 	const row = stripAnsi(rowWith(raw, "thinking")).trimEnd();
 	const tail = row.slice(row.indexOf("…") + 1);
 	assert(tail === "y".repeat(23), `cut on whitespace must drop the space after the ellipsis: ${JSON.stringify(tail)}`);
@@ -376,11 +376,11 @@ check("P11 interleaved runs settle independently", () => {
 	const second = stripAnsi(raw.find((line) => stripAnsi(line).includes("secondthought")));
 	assert(first.includes("·") && !first.includes("▸"), `first run should be settled: ${JSON.stringify(first)}`);
 	assert(second.includes("▸"), `the trailing run has nothing after it, so it stays live: ${JSON.stringify(second)}`);
-	assert(raw.every((line) => stripAnsi(line).includes("│") || stripAnsi(line).includes("•")), "every row stays on the rail");
+	assert(raw.every((line) => stripAnsi(line).includes("┊") || stripAnsi(line).includes("•")), "every row stays on the rail");
 });
 
 check("P5 narrow widths fall back to the label row", () => {
-		// label "thinking" = 8 cols → the tail needs body ≥ 28, i.e. width ≥ 31 under reasonix; everything below is label-only.
+		// label "thinking" = 8 cols → the tail needs body ≥ 28, i.e. width ≥ 32; everything below is label-only.
 	for (const width of [20, 26, 28, 30]) {
 		setConfig({ collapsedThinking: "label" });
 		const label = renderFixture({ name: "n", content: [{ type: "thinking", thinking: "alpha" }] }, true, width);

@@ -31,7 +31,7 @@ function commandName(item: SlashMenuItem, withSlash: boolean): string {
 }
 
 /**
- * Rows exactly `width` cells wide: 8 blank prefix cells (gutter + rail stay empty), then a panel
+ * Rows exactly `width` cells wide: the blank rail prefix (stays empty), then a panel
  * with its own background on every row.
  * `hints` (optional) appends live info to a command's description: `{ "/model": "now opus-5-5" }`.
  */

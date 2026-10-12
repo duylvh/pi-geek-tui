@@ -3,7 +3,6 @@ import { Markdown } from "@earendil-works/pi-tui";
 import { geekNumber } from "../presentation/geek-rows.js";
 import { geekFg } from "../theme/geek-palette.js";
 import { markRailed } from "./chat-frame.js";
-import { getMessageTimestamp } from "./message-meta.js";
 import { renderRailMessageBlock } from "./rail-message-block.js";
 
 const PATCH_FLAG = "__geekCoreMessageBlocksPatched__";
@@ -77,7 +76,6 @@ function patchBoxBlock(ctor: ComponentCtor | undefined, describe: (component: an
 				kind: info.kind,
 				title: info.title,
 				right: expanded ? undefined : EXPAND_HINT,
-				timestamp: getMessageTimestamp(this) ?? this.message?.timestamp,
 				body: expanded ? markdownBody(info.text, this.markdownTheme) : () => [],
 			}),
 		);
@@ -105,14 +103,13 @@ function patchCustomMessage(ctor?: ComponentCtor): void {
 		this.children = this.children.filter((child: any) => child?.constructor?.name !== "Spacer");
 
 		const kind = this.message?.customType || "custom";
-		const timestamp = getMessageTimestamp(this) ?? this.message?.timestamp;
 
 		// Extension renderers keep their own content; the rail block supplies the shell.
 		if (this.customRenderer && cachedTheme) {
 			try {
 				const component = this.customRenderer(this.message, { expanded: this._expanded }, cachedTheme);
 				if (component && typeof component.render === "function") {
-					this.customComponent = renderRailMessageBlock({ kind, timestamp, body: (bodyWidth) => component.render(bodyWidth) });
+					this.customComponent = renderRailMessageBlock({ kind, body: (bodyWidth) => component.render(bodyWidth) });
 					this.addChild(this.customComponent);
 					return;
 				}
@@ -124,6 +121,6 @@ function patchCustomMessage(ctor?: ComponentCtor): void {
 		flattenBox(this.box);
 		this.addChild(this.box);
 		this.box.clear();
-		this.box.addChild(renderRailMessageBlock({ kind, timestamp, body: markdownBody(messageText(this.message), this.markdownTheme) }));
+		this.box.addChild(renderRailMessageBlock({ kind, body: markdownBody(messageText(this.message), this.markdownTheme) }));
 	};
 }

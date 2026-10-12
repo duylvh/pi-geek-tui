@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Footer (spec §9): under the rule exactly ONE statusline row on the chat grid (thinking badge in the prefix,
+ * Footer (spec §9): under the rule exactly ONE statusline row on the chat grid (thinking badge at the line start,
  * provider · model, ctx metrics + extension statuses right-aligned); no ctx/tok labels, no bar, no cost.
  * The statusline's own ladder/badge details are covered by statusline-smoke; this checks the editor wiring.
  */
@@ -11,6 +11,7 @@ import { buildSmoke } from "./smoke-build.mjs";
 
 const built = buildSmoke("geek-footer-smoke", ["editor/geek-editor.ts", "editor/live-state.ts"]);
 const { GeekEditor } = await built.importBuilt("editor/geek-editor.js");
+const { GEEK_PREFIX_WIDTH } = await built.importBuilt("presentation/geek-rows.js");
 const strip = (text) => String(text).replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
 const failures = [];
 const expect = (name, condition, detail = "") => { if (!condition) failures.push(`${name}${detail ? `: ${detail}` : ""}`); };
@@ -48,7 +49,7 @@ for (const width of [120, 80, 50]) {
 	}
 	expect(`@${width}: every row exactly ${width} cells`, all.every((row) => visibleWidth(row) === width || row === ""), all.map(visibleWidth).join(","));
 	expect(`@${width}: no ctx/tok labels, bar, token arrows or cost`, !/\b(ctx|tok)\b|[█░↑↓$]/.test(footer.join("\n")), JSON.stringify(footer));
-	expect(`@${width}: HIGH badge in the prefix, model at body col 8`, footer[0].startsWith("  HIGH  ") && /^\S/.test(footer[0].slice(8)), JSON.stringify(footer[0]));
+	expect(`@${width}: HIGH badge at the line start, then the model`, footer[0].startsWith(" HIGH  ") && /^\S/.test(footer[0].slice(7)), JSON.stringify(footer[0]));
 	if (width === 120) {
 		expect("@120: provider · model, metrics and the whole status, ending at the right edge", footer[0].includes("anthropic · claude-opus-5-5") && footer[0].includes("63k/200k 31% · CH 82%") && footer[0].trimEnd().endsWith("62% 7d 31%") && visibleWidth(footer[0]) === 120, JSON.stringify(footer[0]));
 	} else {
@@ -56,8 +57,8 @@ for (const width of [120, 80, 50]) {
 	}
 }
 
-expect("bash mode (`!` prefix) swaps the badge", footerOf(editorFor({ text: "!ls" }), 120).footer[0].startsWith("  BASH  "));
-expect("model without thinking: blank prefix", footerOf(editorFor({ reasoning: false }), 120).footer[0].startsWith(" ".repeat(8) + "anthropic"));
+expect("bash mode (`!` prefix) swaps the badge", footerOf(editorFor({ text: "!ls" }), 120).footer[0].startsWith(" BASH  "));
+expect("model without thinking: model on the body column", footerOf(editorFor({ reasoning: false }), 120).footer[0].startsWith(" ".repeat(GEEK_PREFIX_WIDTH) + "anthropic"));
 expect("no statuses: nothing after the metrics", /CH 82%\s*$/.test(footerOf(editorFor(), 120).footer[0]));
 expect("no usage yet: metrics read — and CH is absent", /—\s*$/.test(footerOf(editorFor({ context: false, usage: false }), 120).footer[0]) && !footerOf(editorFor({ context: false, usage: false }), 120).footer[0].includes("CH"));
 

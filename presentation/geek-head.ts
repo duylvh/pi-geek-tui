@@ -61,14 +61,7 @@ function safeLogin(): string {
 	}
 }
 
-/** `HH:MM` from a message timestamp (epoch ms or ISO string); falls back to now. */
-export function formatGeekClock(timestamp?: number | string): string {
-	const parsed = timestamp === undefined ? new Date() : new Date(timestamp);
-	const date = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
-	return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
-export function geekHeadRow(role: GeekRole, width: number, timestamp?: number | string): string {
+export function geekHeadRow(role: GeekRole, width: number): string {
 	const rail: GeekRail = role === "agent" ? "head-agent" : "head-user";
-	return geekRow(rail, geekHeadBody(getGeekHeadInfo(role)), width, formatGeekClock(timestamp));
+	return geekRow(rail, geekHeadBody(getGeekHeadInfo(role)), width);
 }

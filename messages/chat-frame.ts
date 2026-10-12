@@ -1,4 +1,4 @@
-// Seam for the rail-grammar invariant: EVERY chat row is gutter(5) + rail(3) + body. Our own components
+// Seam for the rail-grammar invariant: EVERY chat row is rail(3) + body. Our own components
 // (user/assistant/core messages, tool rows) already emit grammar rows and are marked; anything else Pi
 // puts in the chat container (showStatus/showWarning/showError/notify Text, Markdown, borders, bash
 // output, announcements…) renders at body width here and gets the prefix.
@@ -29,7 +29,7 @@ const isSpacer = (child: any): boolean => child?.constructor?.name === "Spacer";
 /**
  * Rows for one chat child. `next`/`prev` are its siblings. A Spacer right before a user message separates
  * turns and stays un-railed; every other spacer inside a turn keeps the rail continuous, but adds nothing
- * after a grammar block (which already ends in a railed blank row) or another spacer: exactly one `│`
+ * after a grammar block (which already ends in a railed blank row) or another spacer: exactly one `┊`
  * separator between blocks.
  */
 export function frameChatChild(child: any, width: number, next?: any, prev?: any): string[] {
@@ -46,7 +46,7 @@ export function frameChatChild(child: any, width: number, next?: any, prev?: any
 	return child.render(bodyWidth).map((row: string) => geekRow(rail, stripAnsi(row).startsWith(" ") ? dropLeadingColumns(row, 1) : row, width));
 }
 
-/** A dim one-line notice on a blank rail (body at col 8), for rows the extension itself injects between chat children. */
+/** A dim one-line notice on a blank rail (body at col 3), for rows the extension itself injects between chat children. */
 export function frameNoticeRow(text: string, width: number): string {
 	return geekRow("blank", geekFg("dim", text), width);
 }

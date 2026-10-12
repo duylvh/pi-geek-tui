@@ -1,10 +1,9 @@
-// One-row footer statusline (nvim style), on the chat grid. Pure: `renderStatusline(input, width)`.
+// One-row footer statusline (nvim style). Pure: `renderStatusline(input, width)`.
 //
-//   [prefix: 8 cells]  [body: width - 8 cells]
-//     HIGH   zai · glm-5.3 .......................... 41k/1.0M 4% · CH 82%  ○ 🐴 ponytail: ⚡ FULL
+//    HIGH  zai · glm-5.3 .......................... 41k/1.0M 4% · CH 82%  ○ 🐴 ponytail: ⚡ FULL
 //
-// The thinking badge sits IN the prefix (reverse-video accent block ending on the rail column), the model
-// starts at body col 8 like every chat row, the metrics + extension statuses are right-aligned to the edge.
+// The thinking badge (reverse-video accent block) starts the line, one gap cell, then the model. Without a badge
+// the model starts on the chat body column. Metrics + extension statuses are right-aligned to the edge.
 // Fixed sacrifice order as the width shrinks: provider → CH% → tokens → extension statuses (cut with `…`, hidden
 // under 6 cells) → the model id (truncated last). ctx% is never dropped while the badge + model fit; nothing wraps.
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
@@ -32,7 +31,6 @@ const MODEL_CAP = 40;
 const MODEL_MIN = 8; // below this the model id is not clipped further: the metrics rung is skipped instead
 const MIN_STATUS_CELLS = 6; // below this a truncated status is just noise: show none
 const GAP = 2;
-const BADGE_END = 6; // 0-based column of the rail glyph = the badge's last cell
 const LEVEL_LABELS: Record<string, string> = { off: "OFF", minimal: "MIN", low: "LOW", medium: "MED", high: "HIGH", xhigh: "XHIGH" };
 
 function compact(count: number): string {
@@ -50,13 +48,12 @@ function badgeLabel(input: StatuslineInput): { text: string; role: "accent" | "n
 	return { text: LEVEL_LABELS[level] ?? level.toUpperCase().slice(0, 5), role: "accent" };
 }
 
-/** 8 cells: the badge right-aligned to end on the rail column plus one gap cell, or blank. */
-function prefix(input: StatuslineInput): string {
+/** The line start: the badge block + one gap cell, or blank up to the chat body column. */
+function lead(input: StatuslineInput): { text: string; width: number } {
 	const badge = badgeLabel(input);
-	if (!badge) return " ".repeat(GEEK_PREFIX_WIDTH);
+	if (!badge) return { text: " ".repeat(GEEK_PREFIX_WIDTH), width: GEEK_PREFIX_WIDTH };
 	const block = ` ${badge.text} `;
-	const lead = Math.max(0, BADGE_END + 1 - block.length);
-	return `${" ".repeat(lead)}${geekBg(badge.role, geekFg("bg", block))}${" ".repeat(GEEK_PREFIX_WIDTH - lead - block.length)}`;
+	return { text: `${geekBg(badge.role, geekFg("bg", block))} `, width: block.length + 1 };
 }
 
 /** Context metrics from richest to leanest (plain text); the ctx% rung is the leanest real one, "" is the last resort. */
@@ -99,8 +96,9 @@ function fitStatus(status: string, budget: number): string {
 /** One row, exactly `width` cells. */
 export function renderStatusline(input: StatuslineInput, width: number): string {
 	const total = Math.max(0, Math.floor(width));
-	if (total <= GEEK_PREFIX_WIDTH) return truncateToWidth(prefix(input), total, "", true);
-	const bodyWidth = total - GEEK_PREFIX_WIDTH;
+	const start = lead(input);
+	if (total <= start.width) return truncateToWidth(start.text, total, "", true);
+	const bodyWidth = total - start.width;
 	const status = (input.status ?? "").replace(/[\r\n]+/g, " ").trim();
 	const rungs = metricRungs(input);
 
@@ -124,5 +122,5 @@ export function renderStatusline(input: StatuslineInput, width: number): string 
 	const rightPlain = [chosen.metrics, chosen.shown].filter(Boolean).join("  ");
 	const rightStyled = [chosen.metrics, chosen.shown].filter(Boolean).map((part) => geekFg("dim", part)).join("  ");
 	const gap = Math.max(rightPlain ? GAP : 0, bodyWidth - visibleWidth(chosen.left.plain) - visibleWidth(rightPlain));
-	return truncateToWidth(`${prefix(input)}${chosen.left.styled}${" ".repeat(gap)}${rightStyled}`, total, "", true);
+	return truncateToWidth(`${start.text}${chosen.left.styled}${" ".repeat(gap)}${rightStyled}`, total, "", true);
 }

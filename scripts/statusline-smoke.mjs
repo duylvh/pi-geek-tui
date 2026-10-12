@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Statusline smoke (editor/statusline.ts): exact width, badge in the prefix ending on the rail column,
- * model at body col 8, right edge aligned, sacrifice order, status truncation, model cap.
+ * Statusline smoke (editor/statusline.ts): exact width, badge at the line start then one gap cell then the model
+ * (no badge: model on the chat body column), right edge aligned, sacrifice order, status truncation, model cap.
  */
 import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -23,6 +23,7 @@ const build = spawnSync(process.execPath, [
 ], { cwd: repoRoot, encoding: "utf8" });
 if (build.status !== 0) throw new Error(`tsc failed\n${build.stdout}\n${build.stderr}`);
 const { renderStatusline } = await import(pathToFileURL(join(buildDir, "editor", "statusline.js")).href);
+const { GEEK_PREFIX_WIDTH } = await import(pathToFileURL(join(buildDir, "presentation", "geek-rows.js")).href);
 
 const strip = (text) => String(text).replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
 const failures = [];
@@ -37,7 +38,7 @@ const row = (input, width) => strip(renderStatusline({ ...base, ...input }, widt
 
 // Full layout at 120.
 const full = row({}, 120);
-expect("full row: badge ends at the rail column, model starts at body col 8", full.slice(0, 8) === "  HIGH  " && full.slice(8).startsWith("zai · glm-5.3"), JSON.stringify(full.slice(0, 30)));
+expect("full row: badge starts the line, one gap cell, then the model", full.startsWith(" HIGH  zai · glm-5.3"), JSON.stringify(full.slice(0, 30)));
 expect("right side: tokens/window ctx% · CH, then statuses, ends at the edge", /41k\/1\.0M 4% · CH 82%  ○ 🐴 ponytail: ⚡ FULL$/.test(full), full);
 
 for (const width of [120, 100, 80, 70, 60, 50, 40, 30, 20, 12, 9, 8]) {
@@ -47,16 +48,15 @@ for (const width of [120, 100, 80, 70, 60, 50, 40, 30, 20, 12, 9, 8]) {
 	}
 }
 
-// Badge: reverse-video block ending on the rail column; labels abbreviated to <= 7 cells.
+// Badge: reverse-video block at the line start; labels abbreviated to <= 7 cells.
 for (const [level, label] of [["off", "OFF"], ["minimal", "MIN"], ["low", "LOW"], ["medium", "MED"], ["high", "HIGH"], ["xhigh", "XHIGH"]]) {
 	const out = renderStatusline({ ...base, thinkingLevel: level }, 120);
 	const plain = strip(out);
 	const block = ` ${label} `;
-	expect(`${level}: block ends at col 6 and is accent`, plain.indexOf(block) + block.length === 7 && plain[7] === " " && out.includes(`${ACCENT_BG}`), JSON.stringify(plain.slice(0, 12)));
-	expect(`${level}: model still starts at col 8`, plain.slice(8).startsWith("zai · glm-5.3"));
+	expect(`${level}: accent block at col 0, one gap cell, then the model`, plain.startsWith(`${block} zai · glm-5.3`) && out.includes(ACCENT_BG), JSON.stringify(plain.slice(0, 14)));
 }
-expect("bash mode shows a BASH block in the num colour", (() => { const out = renderStatusline({ ...base, bashMode: true }, 120); return strip(out).startsWith("  BASH  ") && out.includes(NUM_BG) && !strip(out).includes("HIGH"); })());
-expect("no thinking support: prefix blank, no accent block", (() => { const out = renderStatusline({ ...base, reasoning: false }, 120); return strip(out).startsWith(" ".repeat(8) + "zai") && !out.includes(ACCENT_BG); })());
+expect("bash mode shows a BASH block in the num colour", (() => { const out = renderStatusline({ ...base, bashMode: true }, 120); return strip(out).startsWith(" BASH  zai") && out.includes(NUM_BG) && !strip(out).includes("HIGH"); })());
+expect("no thinking support: model on the body column, no accent block", (() => { const out = renderStatusline({ ...base, reasoning: false }, 120); return strip(out).startsWith(" ".repeat(GEEK_PREFIX_WIDTH) + "zai") && !out.includes(ACCENT_BG); })());
 
 // Sacrifice order as the width shrinks: provider → CH% → tokens → statuses (cut, then hidden) → model id. ctx% stays.
 const sweep = [];

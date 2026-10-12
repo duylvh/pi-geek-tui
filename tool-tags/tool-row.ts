@@ -12,7 +12,7 @@ import { secondsText } from "./tool-summary.js";
 /**
  * Standalone tool rows (docs/design/geek-ui-spec.md §6): `E Edit(Path: …)` on the left and a dim
  * `// meta` on the right. Widths here are body widths: the render patch in compact-tool-spacing
- * adds the gutter + rail and hands renderers `width - prefix`.
+ * adds the rail and hands renderers `width - prefix`.
  */
 
 const META_KEY = "__geekRowMeta";

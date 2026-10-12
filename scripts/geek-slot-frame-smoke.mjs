@@ -2,7 +2,7 @@
 /**
  * Editor slot frame: every selector/dialog Pi puts in the editor slot (real Pi components, swapped in by
  * Pi's real InteractiveMode.setCustomEditorComponent) is shown as the slash-style panel: exactly `width`
- * cells behind an 8-cell blank prefix, header + capped/windowed body + hint, our head row underneath,
+ * cells behind the blank rail prefix, header + capped/windowed body + hint, our head row underneath,
  * the selected row always visible, breadcrumb on submenu push/pop. Our own editor passes through.
  */
 import { rmSync } from "node:fs";
@@ -11,6 +11,7 @@ import { buildSmoke } from "./smoke-build.mjs";
 
 const built = buildSmoke("geek-slot-frame-smoke", ["editor/slot-frame.ts"]);
 const { installEditorSlotFrame, OWN_EDITOR_ROWS } = await built.importBuilt("editor/slot-frame.js");
+const { GEEK_PREFIX_WIDTH: P } = await built.importBuilt("presentation/geek-rows.js");
 const core = await import("@earendil-works/pi-coding-agent");
 core.initTheme("dark");
 const corePiTui = new URL("../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/dist/index.js", import.meta.url).href;
@@ -56,8 +57,8 @@ for (const width of [112, 62, 30]) {
 		const all = render(width);
 		const rows = all.slice(0, -3); // the panel; the last 3 rows are our head + footer chrome
 		expect(`${name}@${width}: every panel row exactly ${width} cells`, rows.every((row) => visibleWidth(row) === width), JSON.stringify(rows.map(visibleWidth)));
-		expect(`${name}@${width}: 8 blank prefix cells`, rows.every((row) => strip(row).slice(0, 8).trim() === ""));
-		expect(`${name}@${width}: first and last panel cell of every row is a bg-only space`, rows.every((row) => row.slice(8).startsWith("\x1b[48;2;") && strip(row)[8] === " " && strip(row).at(-1) === " "), JSON.stringify(rows.map((row) => [strip(row)[8], strip(row).at(-1)])));
+		expect(`${name}@${width}: blank prefix cells`, rows.every((row) => strip(row).slice(0, P).trim() === ""));
+		expect(`${name}@${width}: first and last panel cell of every row is a bg-only space`, rows.every((row) => row.slice(P).startsWith("\x1b[48;2;") && strip(row)[P] === " " && strip(row).at(-1) === " "), JSON.stringify(rows.map((row) => [strip(row)[P], strip(row).at(-1)])));
 		expect(`${name}@${width}: no stock border strokes`, !rows.some((row) => /─{3,}/.test(strip(row))));
 		expect(`${name}@${width}: head + footer stay under the panel`, strip(all[all.length - 3]).startsWith("      • bean@proj") && strip(all[all.length - 1]).includes("statusline"), JSON.stringify(all.slice(-3).map(strip)));
 		expect(`${name}@${width}: panel within the cap (24 rows → ≤ 40%)`, rows.length <= 1 + 8 + 1 + 1 + 1, String(rows.length));
@@ -71,7 +72,7 @@ for (const step of [0, 1, 7, 15, 29, 12, 0]) {
 	while ((list.selectedIndex ?? 0) < step) list.handleInput("\x1b[B");
 	while ((list.selectedIndex ?? 0) > step) list.handleInput("\x1b[A");
 	const rows = render(80).map(strip);
-	expect(`selected option ${step + 1} stays visible and marked`, rows.some((row) => row.slice(8).trimStart().startsWith(`› option ${step + 1}`)), JSON.stringify(rows));
+	expect(`selected option ${step + 1} stays visible and marked`, rows.some((row) => row.slice(P).trimStart().startsWith(`› option ${step + 1}`)), JSON.stringify(rows));
 	expect(`window cap holds at option ${step + 1}`, rows.length - 5 <= 1 + 8 + 1 + 1 + 1, String(rows.length));
 }
 const tall = render(80, 60).length;
@@ -82,7 +83,7 @@ expect("selected row sits on the panelSel surface", render(80).some((row) => row
 // --- header: crumb from the component, i/N counter, Pi's hint row kept, default hint otherwise
 swapIn(selectors.thinking());
 const thinkingRows = render(80).map(strip);
-expect("header shows the component's name", /^ {8} thinking/.test(thinkingRows[0]), thinkingRows[0]);
+expect("header shows the component's name", new RegExp(`^ {${P}} thinking`).test(thinkingRows[0]), thinkingRows[0]);
 const thinkingPanel = thinkingRows.slice(0, -3);
 expect("a hint row closes the panel", /esc|enter|select/i.test(thinkingPanel[thinkingPanel.length - 1]), thinkingPanel[thinkingPanel.length - 1]);
 
@@ -102,7 +103,7 @@ settings.render = () => [
 ];
 swapIn(settings);
 const headerOf = () => strip(render(80)[0]).trimEnd();
-expect("depth 1 header = component name", /^ {8} fake settings/.test(headerOf()), headerOf());
+expect("depth 1 header = component name", new RegExp(`^ {${P}} fake settings`).test(headerOf()), headerOf());
 state.title = "Per-Model Thinking Level";
 expect("depth 2 pushes a crumb", headerOf().includes("fake settings › Per-Model Thinking Level"), headerOf());
 state.title = "Select thinking level";
@@ -116,7 +117,7 @@ const narrow = strip(render(40)[0]).trimEnd();
 expect("long crumbs truncate from the LEFT with an ellipsis", narrow.includes("…") && narrow.includes("keeps going") && visibleWidth(render(40)[0]) === 40, narrow);
 state.title = undefined;
 expect("counter `1/2` goes to the right of the header", /1\/2 *$/.test(headerOf()), headerOf());
-expect("search input row kept, detail/blank rows dropped", render(80).map(strip).some((row) => row.slice(8).trim().startsWith(">")));
+expect("search input row kept, detail/blank rows dropped", render(80).map(strip).some((row) => row.slice(P).trim().startsWith(">")));
 
 // --- Esc path: back to our editor, rows unframed again
 swapIn(new OwnEditor());

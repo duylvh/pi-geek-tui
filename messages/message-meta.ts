@@ -1,4 +1,4 @@
-// Chat-level bookkeeping Pi's components don't keep: the message timestamp (head row time), which
+// Chat-level bookkeeping Pi's components don't keep: which
 // assistant component opens a turn (only that one prints the `pi@agent` head row), and the railed
 // spacer between chat and input zone.
 //
@@ -12,11 +12,9 @@ import { geekRow } from "../presentation/geek-rows.js";
 
 const PATCHED = Symbol.for("pi-geek-tui.message-meta.patched");
 const STATE = Symbol.for("pi-geek-tui.message-meta.state");
-const TIMESTAMP = Symbol.for("pi-geek-tui.message-meta.timestamp");
 const TURN_HEAD = Symbol.for("pi-geek-tui.message-meta.turn-head");
 
-type Timestamp = number | string | undefined;
-type Stamped = { [TIMESTAMP]?: Timestamp; [TURN_HEAD]?: boolean };
+type Stamped = { [TURN_HEAD]?: boolean };
 type TurnState = { turn: number; headedTurn: number };
 
 function state(): TurnState {
@@ -27,10 +25,6 @@ function state(): TurnState {
 /** True once any user message reached the chat: later rows belong to a turn and sit on the rail. */
 export function hasTurnStarted(): boolean {
 	return state().turn > 0;
-}
-
-export function getMessageTimestamp(component: object): Timestamp {
-	return (component as Stamped)[TIMESTAMP];
 }
 
 /** The first assistant component of a turn owns the head row; decided once, at its first update. */
@@ -44,17 +38,14 @@ export function claimTurnHead(component: object): boolean {
 	return stamped[TURN_HEAD];
 }
 
-const FIRST_SEEN = Symbol.for("pi-geek-tui.message-meta.first-seen");
-
 /**
- * `HH:MM • pi@agent …` row for an assistant component that opens its turn, else []. Read-only: safe to
+ * `• pi@agent …` row for an assistant component that opens its turn, else []. Read-only: safe to
  * call from anything that renders on the component's behalf (tool groups fold tool-only assistant
  * messages and never render them).
  */
 export function turnHeadRows(component: any, width: number): string[] {
 	if (width <= 0 || !(component as Stamped)[TURN_HEAD]) return [];
-	const stamp = component.lastMessage?.timestamp ?? getMessageTimestamp(component) ?? (component[FIRST_SEEN] ??= Date.now());
-	return [geekHeadRow("agent", width, stamp)];
+	return [geekHeadRow("agent", width)];
 }
 
 // Pi always keeps a Spacer(1) in widgetContainerAbove (between the chat and the input zone). Left alone it
@@ -88,14 +79,8 @@ export function installMessageMeta(InteractiveModeClass: any): void {
 			this[RAILED] = true;
 			this.renderWidgets();
 		}
-		const children: any[] | undefined = this.chatContainer?.children;
-		const before = children?.length ?? 0;
 		if (message?.role === "user") state().turn++;
-		const result = base.call(this, message, ...rest);
-		if (children && message?.timestamp !== undefined) {
-			for (let i = before; i < children.length; i++) (children[i] as Stamped)[TIMESTAMP] = message.timestamp;
-		}
-		return result;
+		return base.call(this, message, ...rest);
 	};
 }
 

@@ -3,7 +3,7 @@
 //   header   ` settings › thinking level`  (dim, `›` faint)                       `i/N` (faint)
 //   body     at most a few rows, windowed to keep the SELECTED row visible (panelSel bg, `› ` marker)
 //   hint     Pi's own hint row, or a default one (faint)
-// plus our head row and footer below it (the input row stays hidden while a selector is open), 8 blank prefix cells,
+// plus our head row and footer below it (the input row stays hidden while a selector is open), 3 blank prefix cells,
 // and never wider or taller than the slash panel — the footer always stays on screen.
 //
 // One seam: InteractiveMode swaps `editorContainer`'s children for every selector, so the container's render is

@@ -32,7 +32,7 @@ for (const thoughts of [["alpha"], ["alpha", "beta"], ["alpha", "beta", "gamma"]
 		const finalRow = rowWith(raw, "FINALANSWER");
 		assert(finalRow !== undefined, `${label}: final response row should render`);
 		assert(!isItalic(finalRow), `${label}: final response must not inherit thinking italics`);
-		assert(stripAnsi(finalRow).indexOf("FINALANSWER") === 8, `${label}: final response should sit right after the 8-cell gutter+rail`);
+		assert(stripAnsi(finalRow).indexOf("FINALANSWER") === 3, `${label}: final response should sit right after the 3-cell rail`);
 		if (hideThinking) {
 			// The collapsed row is `thinking ▸/· …tail`; it must be the thinking child, not the answer.
 			const hiddenRow = rowWith(raw, "thinking");

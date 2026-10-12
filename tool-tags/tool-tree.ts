@@ -1,4 +1,4 @@
-import { geekRow } from "../presentation/geek-rows.js";
+import { GEEK_PREFIX_WIDTH, geekRow } from "../presentation/geek-rows.js";
 import type { GeekRail } from "../presentation/geek-rows.js";
 import { safeTruncateToWidth } from "../render-budget.js";
 import { geekFg } from "../theme/geek-palette.js";
@@ -57,18 +57,18 @@ export function entryLine(entry: TreeEntry, column: number): string {
 	return callLine(tool.toolName, callParams(tool.toolName, tool.args), column, Boolean(tool.result?.isError));
 }
 
-/** Output rows of an entry, each already prefixed with gutter + rail and `indent`. */
+/** Output rows of an entry, each already prefixed with the rail and `indent`. */
 export function entryBodyRows(entry: TreeEntry, width: number, rail: GeekRail, indent: string): string[] {
 	const body = expandedBody(entry);
 	if (!body) return [];
-	const bodyWidth = Math.max(1, width - 8 - indent.length);
+	const bodyWidth = Math.max(1, width - GEEK_PREFIX_WIDTH - indent.length);
 	return body.render(bodyWidth).map((line) => geekRow(rail, `${geekFg("faint", indent)}${line}`, width));
 }
 
 /** One row per entry under `├─`/`└─` guides; every row is clipped with `…`, never wrapped. */
 export function renderToolTree(entries: TreeEntry[], width: number, rail: GeekRail, expanded: boolean, column: number): string[] {
 	const rows: string[] = [];
-	const lineWidth = Math.max(1, width - 8 - GUIDE_WIDTH);
+	const lineWidth = Math.max(1, width - GEEK_PREFIX_WIDTH - GUIDE_WIDTH);
 	entries.forEach((entry, index) => {
 		const last = index === entries.length - 1;
 		const line = safeTruncateToWidth(entryLine(entry, column), lineWidth, "…");

@@ -26,7 +26,7 @@ editor/
 
 messages/
   Conversation rows for Pi's user/assistant/core message components, all in the rail grammar
-  (see presentation/): head row `HH:MM • name@host ~/path (branch)`, then body rows on the `│` rail
+  (see presentation/): head row `• name@host ~/path (branch)`, then body rows on the `┊` rail
   - user-prefix.ts / assistant-prefix.ts replace each component's `render`; the assistant head row
     is printed only by the first assistant message of a turn
   - message-meta.ts patches InteractiveMode.addMessageToChat to stamp message timestamps and delimit
@@ -42,8 +42,8 @@ messages/
     partials always carry stopReason "stop"
 
 presentation/
-  Row grammar shared by every scope: geek-rows.ts (gutter(5) + rail(3) + body, split rows, number
-  grouping) and geek-head.ts (head-row data: login/cwd/branch/clock). One look; no presets.
+  Row grammar shared by every scope: geek-rows.ts (rail(3) + body, split rows, number
+  grouping) and geek-head.ts (head-row data: login/cwd/branch). One look; no presets.
 
 tool-tags/
   Tool rows in the rail grammar (docs/design/geek-ui-spec.md §4/§6/§7)
@@ -59,7 +59,7 @@ tool-tags/
   - edit.ts / write.ts / quick-edit.ts feed split-diff.ts (DiffRowsComponent: del/add row backgrounds,
     numbered rows, folded `··· N unchanged lines ···`)
   - compact-tool-spacing.ts wraps ToolExecutionComponent.render once; reloads only swap its runtime
-    hook. Bodies render at width minus the 8-cell prefix, then get gutter + rail (`┃` while running);
+    hook. Bodies render at width minus the 3-cell prefix, then get the rail (`┃` while running);
     terminal image lines pass through untouched. builtin-tool-renderers.ts picks the renderers by tool
     name with shell "self"
   - elapsed.ts timing, default-badge.ts result timing/context patches, resume-tool-refresh.ts
@@ -95,7 +95,7 @@ index.ts
 
 editor/messages/tool-tags/root UI modules
   -> theme helpers when they need color or ANSI behavior
-  -> presentation/geek-rows.ts for the gutter + rail row grammar
+  -> presentation/geek-rows.ts for the rail row grammar
 
 core
   -> Node/Pi primitives only; avoid depending on UI render components

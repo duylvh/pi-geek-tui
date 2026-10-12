@@ -37,7 +37,7 @@ function splitImageTail(lines: string[]): { content: string[]; tail: string[] } 
 
 /**
  * A standalone tool block as chat rows: renderers draw into `width - prefix` body cells, then
- * every row gets the gutter + rail (`┃` accent while the call runs) and one blank rail row follows.
+ * every row gets the rail (`┃` accent while the call runs) and one blank rail row follows.
  */
 function renderToolRows(tool: any, baseRender: RenderFn, width: number): string[] {
 	if (width <= GEEK_PREFIX_WIDTH) return baseRender.call(tool, width);

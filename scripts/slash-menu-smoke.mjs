@@ -24,6 +24,7 @@ const build = spawnSync(process.execPath, [
 ], { cwd: repoRoot, encoding: "utf8" });
 if (build.status !== 0) throw new Error(`tsc failed\n${build.stdout}\n${build.stderr}`);
 const { renderSlashMenu } = await import(pathToFileURL(join(buildDir, "editor", "slash-menu.js")).href);
+const { GEEK_PREFIX_WIDTH: P } = await import(pathToFileURL(join(buildDir, "presentation", "geek-rows.js")).href);
 
 const strip = (text) => String(text).replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
 const failures = [];
@@ -42,7 +43,7 @@ for (const width of [120, 80, 50]) {
 	const rows = renderSlashMenu(model(2), width);
 	expect(`rows = header + 6 items + hint @${width}`, rows.length === 8);
 	expect(`every row exactly ${width} cells`, rows.every((r) => visibleWidth(r) === width));
-	expect(`prefix stays blank @${width}`, rows.every((r) => strip(r).startsWith(" ".repeat(8))));
+	expect(`prefix stays blank @${width}`, rows.every((r) => strip(r).startsWith(" ".repeat(P))));
 	expect(`panel bg fills every non-selected row @${width}`, rows.every((r) => r.includes(PANEL_BG) || r.includes(SEL_BG)));
 	const selectedRows = rows.filter((r) => r.includes(SEL_BG));
 	expect(`exactly one selected row with the selected surface @${width}`, selectedRows.length === 1 && strip(selectedRows[0]).includes("› /tree"));
@@ -55,9 +56,9 @@ for (const width of [120, 80, 50]) {
 // Inset parity with the editor-slot panel: header, hint and item rows all start one cell in (marker at col 1).
 {
 	const rows = renderSlashMenu(model(2), 100).map(strip);
-	expect("header and hint are inset 1", rows[0].slice(8, 10) === " c" && rows.at(-1).slice(8, 10) === " ↑");
-	expect("selected marker at panel col 1, other items blank there", rows[3].slice(8, 11) === " › " && rows.filter((r, i) => i > 0 && i < rows.length - 1 && i !== 3).every((r) => r.slice(8, 11) === "   "), JSON.stringify(rows.map((r) => r.slice(8, 12))));
-	expect("commands start at panel col 3", rows[3].slice(11, 16) === "/tree" && rows[1].slice(11, 17) === "/model");
+	expect("header and hint are inset 1", rows[0].slice(P, P + 2) === " c" && rows.at(-1).slice(P, P + 2) === " ↑");
+	expect("selected marker at panel col 1, other items blank there", rows[3].slice(P, P + 3) === " › " && rows.filter((r, i) => i > 0 && i < rows.length - 1 && i !== 3).every((r) => r.slice(P, P + 3) === "   "), JSON.stringify(rows.map((r) => r.slice(P, P + 4))));
+	expect("commands start at panel col 3", rows[3].slice(P + 3, P + 8) === "/tree" && rows[1].slice(P + 3, P + 9) === "/model");
 }
 
 // Truncation: long description and long command both end in … and never exceed the width.

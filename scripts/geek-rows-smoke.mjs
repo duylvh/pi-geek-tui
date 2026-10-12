@@ -32,17 +32,16 @@ const expect = (name, condition) => { if (!condition) failures.push(name); };
 for (const width of [20, 40, 80]) {
 	const head = rows.geekHeadBody({ name: "bean", host: "kpi-api", cwd: "~/code/kpi-api", branch: "fix/refresh-ttl" });
 	for (const rail of ["head-user", "head-agent", "line", "active", "blank"]) {
-		const row = rows.geekRow(rail, head, width, rail.startsWith("head") ? "14:52" : undefined);
+		const row = rows.geekRow(rail, head, width);
 		expect(`geekRow ${rail} @${width} is exactly ${width} cells`, visibleWidth(row) === width);
 	}
 	const split = rows.geekSplitRow(`› read session.ts token.ts · grep REFRESH_TTL`, "^o  // 3 call · 1 thought · 1.9s", width);
 	expect(`geekSplitRow @${width} is exactly ${width} cells`, visibleWidth(split) === width);
 }
-expect("prefix is 8 cells", visibleWidth(rows.geekRowPrefix("line")) === rows.GEEK_PREFIX_WIDTH);
-expect("time is right-aligned in the gutter", strip(rows.geekRowPrefix("head-user", "9:05")) === " 9:05 • ");
+expect("prefix is the glyph centered in 3 cells", visibleWidth(rows.geekRowPrefix("line")) === rows.GEEK_PREFIX_WIDTH && strip(rows.geekRowPrefix("head-user")) === " • ");
 expect("geekNumber groups with '", rows.geekNumber(1204) === "1'204" && rows.geekNumber(41) === "41" && rows.geekNumber(1234567) === "1'234'567");
 
-console.log(rows.geekRow("head-user", rows.geekHeadBody({ name: "bean", host: "kpi-api", cwd: "~/code/kpi-api", branch: "fix/refresh-ttl" }), 80, "14:52"));
+console.log(rows.geekRow("head-user", rows.geekHeadBody({ name: "bean", host: "kpi-api", cwd: "~/code/kpi-api", branch: "fix/refresh-ttl" }), 80));
 console.log(rows.geekRow("line", "› refresh token expires after 5 minutes, fix it", 80));
 console.log(rows.geekRow("active", rows.geekSplitRow("› pnpm test auth · read refresh.test.ts", "// 2 call · running · 4.1s", 72), 80));
 

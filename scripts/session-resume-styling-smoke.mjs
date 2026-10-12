@@ -107,7 +107,7 @@ try {
 	// Ownership moved to runtime B without stacking: the base tool's 3 rows + 1 separator, each wrapped once.
 	const plainRow = (line) => line.replace(/\x1b\[[0-9;]*m/g, "");
 	assert(resumedLines.length === 4 && plainRow(resumedLines[0]).includes("┌box"), "runtime B should keep the tool title and add one separator row: " + JSON.stringify(resumedLines));
-	assert(resumedLines.every((line) => (plainRow(line).match(/[┃│]/g) ?? []).length === (line === resumedLines[1] ? 2 : 1)), "runtime B must wrap each row once, not stack on runtime A's wrapper");
+	assert(resumedLines.every((line) => (plainRow(line).match(/[┃┊│]/g) ?? []).length === (line === resumedLines[1] ? 2 : 1)), "runtime B must wrap each row once, not stack on runtime A's wrapper");
 
 	const restoredTool = {
 		toolName: "read",
