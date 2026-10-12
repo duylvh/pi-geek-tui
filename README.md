@@ -1,6 +1,6 @@
 # pi-geek-tui
 
-Hancore-inspired geek terminal UI for Pi: a timestamp gutter and continuous rail, collapsed tool groups, a box-less input zone with a live state, a two-row stats footer, and reload-safe render patches. One fixed look; design spec in [`docs/design/geek-ui-spec.md`](docs/design/geek-ui-spec.md).
+Hancore-inspired geek terminal UI for Pi: a continuous rail down the chat, one-row tool calls in collapsible groups, a box-less input zone with a live state, a one-row statusline footer, and reload-safe render patches. One fixed look; design spec in [`docs/design/geek-ui-spec.md`](docs/design/geek-ui-spec.md).
 
 ## Install
 
@@ -24,9 +24,12 @@ The palette is fixed (page background `#0c0c0c`) and does not depend on the sele
 
 ### Look and feel
 
-- **Startup header.** `π pi` with the session name and turn count instead of a logo and resource list.
-- **Input zone without a box.** A head row (time, `user@host`, path, git branch) with the live agent state on the right (`▂▄▆▄ thinking · 2.3s`), then a `› ` prompt row with an ink block cursor.
-- **Two-row footer under a rule.** `ctx` bar with percent/window and model + thinking level; `tok` with ↑ input, ↓ output, R/W cache, cache-hit % and session cost. Extension statuses appear on a third row when present.
+- **Startup header.** One title line, `── π pi ── ~/path ── session · turn 2 ──`, instead of a logo and resource list.
+- **Chat rail.** Every row sits behind a 3-cell rail: `•` starts a message (`user@host path (branch)`), a dashed `┊` continues it, `┃` marks tool rows. No timestamps.
+- **One row per tool call.** A 1-cell badge plus the call's main argument (`R path`, `$ command`, `E path   // +2 -2 · 0.1s`, `G "pattern" in src`); other tools show their name and `key value` arguments. Consecutive calls fold under `Running(…)` / `Done(3 tool calls · 1 thought)`; `Ctrl+O` shows each call's output.
+- **Input zone without a box.** A head row (`user@host`, path, git branch and working-tree diff `+12 -3 ~4`) with the live agent state on the right (`thinking · 2.3s`), then a `› ` prompt row with an ink block cursor.
+- **Slash menu and selectors in one style.** Typing `/` opens a command panel above the input head (keyboard or mouse); settings, model, session and extension dialogs use the same panel.
+- **One-row statusline under a rule.** Thinking-level badge, provider · model, then context `41k/1.0M 4%`, cache-hit `CH 82%` and extension statuses on the right. As the terminal narrows, provider, `CH` and tokens drop first; the context % always stays.
 
 ### Built for the terminal
 
