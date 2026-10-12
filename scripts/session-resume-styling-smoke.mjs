@@ -71,7 +71,6 @@ function prepareBuild() {
 		join(repoRoot, "performance", "profiler.ts"),
 		join(repoRoot, "render-budget.ts"),
 		join(repoRoot, "theme", "ansi.ts"),
-		join(repoRoot, "theme", "theme-extras.ts"),
 		join(repoRoot, "tool-tags", "compact-tool-spacing.ts"),
 		join(repoRoot, "tool-tags", "resume-tool-refresh.ts"),
 	], { cwd: repoRoot, encoding: "utf8" });
@@ -87,11 +86,6 @@ async function importRuntime(runtimeDir, relativePath) {
 	return import(pathToFileURL(join(runtimeDir, relativePath)).href);
 }
 
-const theme = {
-	fg: (_color, text) => text,
-	bg: (_color, text) => text,
-	bold: (text) => text,
-};
 const proto = ToolExecutionComponent.prototype;
 const originalRender = proto.render;
 const globalPatchFlag = "__compactToolSpacingPatched__";
@@ -105,11 +99,9 @@ try {
 	delete globalThis[globalPatchFlag];
 
 	const runtimeACompact = await importRuntime(runtimeADir, "tool-tags/compact-tool-spacing.js");
-	runtimeACompact.setToolSpacingTheme(theme);
 	runtimeACompact.installCompactToolSpacing(ToolExecutionComponent);
 
 	const runtimeBCompact = await importRuntime(runtimeBDir, "tool-tags/compact-tool-spacing.js");
-	runtimeBCompact.setToolSpacingTheme(theme);
 	runtimeBCompact.installCompactToolSpacing(ToolExecutionComponent);
 	const resumedLines = proto.render.call({ expanded: false }, 40);
 	// Ownership moved to runtime B without stacking: the base tool's 3 rows + 1 separator, each wrapped once.
