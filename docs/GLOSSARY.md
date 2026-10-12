@@ -78,3 +78,19 @@ documentation.
 A structured record of what an agent did during a task: actions taken, files
 read, files changed, decisions made, errors encountered, outcome, and any
 harness friction discovered.
+
+## Rail Grammar
+
+The row layout of the conversation UI: every row is `gutter(5, right-aligned time) +
+rail(3, centered glyph) + body`. Rail glyphs: `•` head, `│` continuation, `┃` active tool
+group. Implemented in `presentation/geek-rows.ts`.
+
+## Head Row
+
+The first row of a message block: `HH:MM • name@host ~/path (branch)`. Users always print one;
+the assistant prints one only for the first message of a turn (see Turn).
+
+## Turn
+
+One user message plus everything the agent does until the next user message. Delimited by
+`messages/message-meta.ts`.

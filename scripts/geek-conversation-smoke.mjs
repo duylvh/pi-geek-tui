@@ -61,6 +61,10 @@ const markdownAnswer = [
 	"",
 	"- fix `session.ts` line 20",
 	"- rerun the 14 tests",
+	"",
+	"```ts",
+	"const exp = now + REFRESH_TTL * 1000;",
+	"```",
 ].join("\n");
 
 const mode = new FakeInteractiveMode();

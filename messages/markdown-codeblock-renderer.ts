@@ -1,6 +1,6 @@
 // Markdown look (spec §5), applied to every pi-tui Markdown instance:
-//   `## heading` accent · inline code = faint backticks + mono text · list `-` accent · numbers num
-//   · code blocks = 2-col indent, `// lang` label. Done by patching Markdown.prototype once.
+//   `## ` marks kept on h1/h2 · inline code = faint backticks + mono text · ordered markers + numbers num
+//   · code blocks = 2-col indent, `// lang` label, ink base. Done by patching Markdown.prototype once.
 import { Markdown, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { geekFg } from "../theme/geek-palette.js";
 
@@ -22,18 +22,13 @@ export function geekTextColor(text: string): string {
 	return text.split(NUMBER).map((part, i) => (part ? geekFg(i % 2 ? "num" : "ink", part) : "")).join("");
 }
 
+// Pi's host theme (theme/geek-theme.ts) already colors headings, bullets, quotes, links and syntax;
+// only what it cannot express is overridden here.
 function geekTheme(base: Record<string, any>): Record<string, any> {
 	return {
 		...base,
-		heading: (text: string) => geekFg("accent", text),
 		code: (text: string) => `${geekFg("faint", "`")}${geekFg("mono", text)}${geekFg("faint", "`")}`,
-		codeBlock: (text: string) => geekFg("mono", text),
-		codeBlockBorder: (text: string) => geekFg("faint", text),
-		listBullet: (text: string) => geekFg(/^\d/.test(text) ? "num" : "accent", text),
-		quote: (text: string) => geekFg("dim", text),
-		quoteBorder: (text: string) => geekFg("faint", text),
-		hr: (text: string) => geekFg("faint", text),
-		linkUrl: (text: string) => geekFg("faint", text),
+		listBullet: (text: string) => (/^\d/.test(text) ? geekFg("num", text) : base.listBullet(text)),
 	};
 }
 
@@ -42,6 +37,13 @@ function ensureGeekLook(component: MarkdownLike): void {
 	component[THEMED] = true;
 	if (component.theme) component.theme = geekTheme(component.theme);
 	component.defaultTextStyle ??= { color: geekTextColor };
+}
+
+// hljs leaves identifiers/operators uncolored (terminal default fg): restore ink after every fg reset.
+const INK_START = geekFg("ink", "\0").split("\0")[0]!;
+const FG_RESET = "\x1b[39m";
+function inkBase(line: string): string {
+	return `${INK_START}${line.replaceAll(FG_RESET, FG_RESET + INK_START)}${FG_RESET}`;
 }
 
 function renderCodeLine(line: string, width: number): string[] {
@@ -55,12 +57,12 @@ function renderCodeBlock(component: MarkdownLike, token: { text?: string; lang?:
 	const code = typeof token.text === "string" ? token.text : "";
 	if (language) lines.push(...renderCodeLine(geekFg("faint", `// ${language}`), width));
 
-	let codeLines = code.split("\n").map((line) => geekFg("mono", line));
+	let codeLines = code.split("\n").map((line) => geekFg("ink", line));
 	const highlightCode = component.theme?.highlightCode;
 	if (typeof highlightCode === "function") {
 		try {
 			const highlighted = highlightCode(code, language || undefined);
-			if (Array.isArray(highlighted)) codeLines = highlighted;
+			if (Array.isArray(highlighted)) codeLines = highlighted.map(inkBase);
 		} catch {
 			// Fall back to the mono color above.
 		}
@@ -88,9 +90,11 @@ export function installMarkdownCodeBlockRenderer(MarkdownClass: any = Markdown):
 	proto.renderToken = function patchedMarkdownRenderToken(this: MarkdownLike, token: any, width: number, nextTokenType?: string, styleContext?: any): string[] {
 		if (token?.type === "code") return renderCodeBlock(this, token, width, nextTokenType);
 		const lines: string[] = baseRenderToken.call(this, token, width, nextTokenType, styleContext);
-		// Pi omits the `#` marks for h1/h2; the geek heading keeps them (`## cause`).
-		if (token?.type === "heading" && token.depth < 3 && lines.length > 0) {
-			lines[0] = `${geekFg("accent", `${"#".repeat(token.depth)} `)}${lines[0]}`;
+		if (token?.type === "heading" && lines.length > 0) {
+			// Pi omits the `#` marks for h1/h2; the geek heading keeps them (`## cause`)...
+			if (token.depth < 3) lines[0] = `${geekFg("accent", `${"#".repeat(token.depth)} `)}${lines[0]}`;
+			// ...and sits directly on its text (no blank row after it).
+			if (lines.length > 1 && lines[lines.length - 1] === "") lines.pop();
 		}
 		return lines;
 	};

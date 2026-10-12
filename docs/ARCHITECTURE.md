@@ -1,6 +1,6 @@
 # Architecture
 
-`pi-geek-tui` is a TypeScript ESM extension for Pi. It customizes the Pi terminal UI by installing reload-safe patches, custom renderers, message prefixes, a boxed editor, theme helpers, and lightweight runtime status providers.
+`pi-geek-tui` is a TypeScript ESM extension for Pi. It customizes the Pi terminal UI by installing reload-safe patches, custom renderers, a rail-grammar conversation layout, a boxed editor, theme helpers, and lightweight runtime status providers.
 
 ## Runtime Surface
 
@@ -25,7 +25,16 @@ editor/
   BoxEditor component and editor-specific rendering
 
 messages/
-  Assistant/user message prefix patches and boxed Pi core special message block styling
+  Conversation rows for Pi's user/assistant/core message components, all in the rail grammar
+  (see presentation/): head row `HH:MM • name@host ~/path (branch)`, then body rows on the `│` rail
+  - user-prefix.ts / assistant-prefix.ts replace each component's `render`; the assistant head row
+    is printed only by the first assistant message of a turn
+  - message-meta.ts patches InteractiveMode.addMessageToChat to stamp message timestamps and delimit
+    turns (counter on globalThis, answers stamped on components so reloads stay consistent)
+  - markdown-codeblock-renderer.ts patches Markdown.prototype once: geek theme (`## ` headings,
+    faint-backtick inline code, accent/num list markers, num numbers) and `// lang` code blocks
+  - core-message-blocks.ts + rail-message-block.ts render compaction/skill/branch/custom messages
+    as a head row plus rail body (no Box background)
   - assistant-prefix.ts owns the collapsed-thinking row (`<label> <marker> <tail>`) on top of the
     rendered-run model from assistant-content-runs.ts and the width-safe tail helper in render-budget.ts
   - assistant-streaming-state.ts owns the extension-tracked assistant stream token (tagged onto the
@@ -33,7 +42,8 @@ messages/
     partials always carry stopReason "stop"
 
 presentation/
-  Presentation preset registry, process-global active presentation state, and Reasonix layout constants
+  Row grammar shared by every scope: geek-rows.ts (gutter(5) + rail(3) + body, split rows, number
+  grouping) and geek-head.ts (head-row data: login/cwd/branch/clock). One look; no presets.
 
 tool-tags/
   Tool call renderers, badges, elapsed metrics, and tool-output formatting
@@ -69,13 +79,13 @@ index.ts
 
 editor/messages/tool-tags/root UI modules
   -> theme helpers when they need color or ANSI behavior
-  -> presentation state/designs when choosing conversation layout presets
+  -> presentation/geek-rows.ts for the gutter + rail row grammar
 
 core
   -> Node/Pi primitives only; avoid depending on UI render components
 
 presentation/
-  -> pure preset constants/state only; avoid depending on Pi UI component classes
+  -> theme/geek-palette.ts and pi-tui width helpers only; avoid depending on Pi UI component classes
 ```
 
 Avoid adding dependencies from `core/` back into UI components. If a core helper needs host behavior, pass it in as a provider instead of importing UI classes.
