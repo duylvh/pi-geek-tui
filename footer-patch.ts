@@ -7,7 +7,7 @@ const PATCH_VERSION = 7;
 
 const ANSI_PATTERN = /\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b\[[0-9;?]*[ -/]*[@-~]/g;
 
-/** Last assistant message usage plus session-wide cost, for the footer `tok` row. */
+/** Last assistant message usage, for the footer `tok` row. */
 export type FooterTokenUsage = {
 	input: number;
 	output: number;
@@ -15,7 +15,6 @@ export type FooterTokenUsage = {
 	cacheWrite: number;
 	/** Cache read share of prompt tokens, 0-100. */
 	cacheHitPercent: number;
-	cost: number;
 };
 
 type FooterState = {
@@ -59,15 +58,13 @@ function computeTokenUsage(session: any): FooterTokenUsage | null {
 	if (!session?.sessionManager?.getEntries) return null;
 	const entries = session.sessionManager.getEntries();
 	let latest: any = null;
-	let cost = 0;
 	for (let i = entries.length - 1; i >= 0; i--) {
 		const entry = entries[i];
 		if (entry?.type !== "message" || entry?.message?.role !== "assistant") continue;
 		const u = entry.message.usage;
-		if (!u) continue;
-		cost += Number(u.cost?.total) || 0;
-		if (latest || entry.message.stopReason === "aborted" || entry.message.stopReason === "error") continue;
+		if (!u || entry.message.stopReason === "aborted" || entry.message.stopReason === "error") continue;
 		latest = u;
+		break;
 	}
 	if (!latest) return null;
 	const input = latest.input ?? 0;
@@ -80,7 +77,6 @@ function computeTokenUsage(session: any): FooterTokenUsage | null {
 		cacheRead,
 		cacheWrite,
 		cacheHitPercent: promptTokens > 0 ? (cacheRead / promptTokens) * 100 : 0,
-		cost,
 	};
 }
 

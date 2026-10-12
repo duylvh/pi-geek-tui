@@ -48,7 +48,7 @@ const providers = {
 	getModelInfo: () => ({ provider: "anthropic", id: "claude-opus-5-5", reasoning: true, thinkingLevel: "high" }),
 	getBranch: () => ({ branch: "fix/refresh-ttl" }),
 	getFooterStatus: () => null,
-	getTokenUsage: () => ({ input: 41000, output: 6900, cacheRead: 212000, cacheWrite: 18000, cacheHitPercent: 82.4, cost: 0.412 }),
+	getTokenUsage: () => ({ input: 41000, output: 6900, cacheRead: 212000, cacheWrite: 18000, cacheHitPercent: 82.4 }),
 };
 const editorTheme = { borderColor: (s) => s, selectList: { selectedPrefix: (s) => s, selectedText: (s) => s, description: (s) => s, scrollInfo: (s) => s, noMatch: (s) => s } };
 const keybindings = { matches: () => false, getKeys: () => [] };
