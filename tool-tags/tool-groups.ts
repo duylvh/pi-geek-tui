@@ -1,3 +1,4 @@
+import { frameChatChild } from "../messages/chat-frame.js";
 import { turnHeadRows } from "../messages/message-meta.js";
 import { GEEK_PREFIX_WIDTH, geekRow, geekSplitRow } from "../presentation/geek-rows.js";
 import { geekFg } from "../theme/geek-palette.js";
@@ -104,7 +105,7 @@ export function renderChatChildren(children: any[], width: number): string[] {
 		let end = index;
 		while (end < children.length && isGroupMember(children[end])) end++;
 		if (end === index) {
-			pushLines(lines, children[index].render(width));
+			pushLines(lines, frameChatChild(children[index], width, children[index + 1]));
 			index++;
 			continue;
 		}
