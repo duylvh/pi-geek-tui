@@ -17,6 +17,8 @@ const built = buildSmoke("geek-conversation-smoke", [
 	"messages/chat-frame.ts",
 	"messages/markdown-codeblock-renderer.ts",
 	"tool-tags/tool-groups.ts",
+	"theme/geek-theme.ts",
+	"theme/geek-palette.ts",
 ]);
 
 const failures = [];
@@ -36,6 +38,8 @@ const { installAssistantMessagePrefix } = await built.importBuilt("messages/assi
 const { installCoreMessageBlockStyling, setCoreMessageBlockTheme } = await built.importBuilt("messages/core-message-blocks.js");
 const { installMessageMeta } = await built.importBuilt("messages/message-meta.js");
 const { installMarkdownCodeBlockRenderer } = await built.importBuilt("messages/markdown-codeblock-renderer.js");
+const { createGeekTheme } = await built.importBuilt("theme/geek-theme.js");
+const { GEEK_PALETTE } = await built.importBuilt("theme/geek-palette.js");
 const { frameChatChild } = await built.importBuilt("messages/chat-frame.js");
 const { renderChatChildren } = await built.importBuilt("tool-tags/tool-groups.js");
 
@@ -180,6 +184,37 @@ expect("collapsed thinking row", answer.includes("thinking ·"), answer);
 expect("compaction collapsed: grouped tokens + expand hint", rows(blocks[0]).some((row) => row.includes("compaction") && row.includes("12'345 tokens") && row.includes("^o")));
 expect("compaction expanded: summary body", rows(expanded).some((row) => row.includes("## Goal")) && !rows(expanded).some((row) => row.includes("^o")));
 expect("skill/branch/custom heads", rows(blocks[1]).some((r) => r.includes("branch")) && rows(blocks[2]).some((r) => r.includes("skill") && r.includes("review")) && rows(blocks[3]).some((r) => r.includes("note")) && rows(blocks[3]).some((r) => r.includes("plain custom text")));
+
+// Code blocks: base `dim`, syntax tokens in palette colors, never the terminal default fg. Highlighting must
+// come from the geek host theme (Pi resolves it from the global theme at call time).
+const THEME_KEY = Symbol.for("@earendil-works/pi-coding-agent:theme");
+const previousTheme = globalThis[THEME_KEY];
+globalThis[THEME_KEY] = createGeekTheme();
+const rgbOf = (hex) => `${parseInt(hex.slice(1, 3), 16)};${parseInt(hex.slice(3, 5), 16)};${parseInt(hex.slice(5, 7), 16)}`;
+const roleOf = {};
+for (const [role, hex] of Object.entries(GEEK_PALETTE)) roleOf[rgbOf(hex)] ??= role; // first role wins (dim before badgeBg)
+const codeAnswer = new core.AssistantMessageComponent({ role: "assistant", stopReason: "stop", content: [{ type: "text", text: [
+	"```ts", "const exp: number = now + 1000; // ms", "```", "```bash", "pnpm test auth && echo \"done\" # run", "```", "```json", "{ \"ttl\": 300, \"ok\": true }", "```", "```", "plain block with 42 things", "```",
+].join("\n") }] }, true);
+const tokens = (needle) => {
+	const row = codeAnswer.render(100).find((r) => plain(r).includes(needle));
+	const out = [];
+	let fg;
+	for (const part of String(row).split(/(\x1b\[[0-9;]*m)/)) {
+		const sgr = /^\x1b\[([0-9;]*)m$/.exec(part);
+		if (sgr) fg = sgr[1].startsWith("38;2;") ? roleOf[sgr[1].slice(5)] ?? `rgb(${sgr[1].slice(5)})` : sgr[1] === "39" || sgr[1] === "0" || sgr[1] === "" ? undefined : fg;
+		else if (part.replace(/\x1b\][^\x07]*\x07/g, "").trim()) out.push({ text: part.replace(/\x1b\][^\x07]*\x07/g, ""), fg });
+	}
+	return out.filter((t, i) => !(i === 0 && t.text.includes("│")) && !t.text.includes("│"));
+};
+for (const needle of ["const exp", "pnpm test", '"ttl"', "plain block"]) {
+	const toks = tokens(needle);
+	expect(`code row "${needle}": every token has a palette fg (no terminal-default runs)`, toks.length > 0 && toks.every((t) => ["dim", "faint", "num", "kw", "mono", "punct"].includes(t.fg)), JSON.stringify(toks));
+}
+expect("ts: keyword kw, number num, comment faint, plain code dim", (() => { const t = tokens("const exp"); const by = (s) => t.find((x) => x.text.includes(s))?.fg; return by("const") === "kw" && by("1000") === "num" && by("// ms") === "faint" && by("exp:") === "dim"; })(), JSON.stringify(tokens("const exp")));
+expect("json: number num, string mono", (() => { const t = tokens('"ttl"'); const by = (s) => t.find((x) => x.text.includes(s))?.fg; return by("300") === "num"; })(), JSON.stringify(tokens('"ttl"')));
+expect("unlabeled block is plain dim", tokens("plain block").every((t) => t.fg === "dim" || t.fg === "num"), JSON.stringify(tokens("plain block")));
+globalThis[THEME_KEY] = previousTheme;
 
 console.log(["userA", "agentTools", "agentText", "userB", "agentB"].flatMap((name) => all[name].render(72).map((row) => row)).join("\n"));
 console.log([...blocks, expanded].flatMap((block) => block.render(72)).join("\n"));

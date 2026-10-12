@@ -1,6 +1,6 @@
 // Markdown look (spec §5), applied to every pi-tui Markdown instance:
 //   `## ` marks kept on h1/h2 · inline code = faint backticks + mono text · ordered markers + numbers num
-//   · code blocks = 2-col indent, `// lang` label, ink base. Done by patching Markdown.prototype once.
+//   · code blocks = 2-col indent, `// lang` label, dim base. Done by patching Markdown.prototype once.
 import { Markdown, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { geekFg } from "../theme/geek-palette.js";
 
@@ -39,11 +39,15 @@ function ensureGeekLook(component: MarkdownLike): void {
 	component.defaultTextStyle ??= { color: geekTextColor };
 }
 
-// hljs leaves identifiers/operators uncolored (terminal default fg): restore ink after every fg reset.
+// Code sits one step below prose: plain code is `dim`, syntax tokens keep their palette colors. hljs leaves
+// identifiers/operators uncolored (terminal default fg), so the base is restored after every fg reset.
+// The host theme maps identifiers/variables to `ink` (prose color); in code those read `dim` too.
+const CODE_BASE_START = geekFg("dim", "\0").split("\0")[0]!;
 const INK_START = geekFg("ink", "\0").split("\0")[0]!;
 const FG_RESET = "\x1b[39m";
-function inkBase(line: string): string {
-	return `${INK_START}${line.replaceAll(FG_RESET, FG_RESET + INK_START)}${FG_RESET}`;
+function codeBase(line: string): string {
+	const dimmed = line.replaceAll(INK_START, CODE_BASE_START);
+	return `${CODE_BASE_START}${dimmed.replaceAll(FG_RESET, FG_RESET + CODE_BASE_START)}${FG_RESET}`;
 }
 
 function renderCodeLine(line: string, width: number): string[] {
@@ -57,12 +61,12 @@ function renderCodeBlock(component: MarkdownLike, token: { text?: string; lang?:
 	const code = typeof token.text === "string" ? token.text : "";
 	if (language) lines.push(...renderCodeLine(geekFg("faint", `// ${language}`), width));
 
-	let codeLines = code.split("\n").map((line) => geekFg("ink", line));
+	let codeLines = code.split("\n").map((line) => geekFg("dim", line));
 	const highlightCode = component.theme?.highlightCode;
 	if (typeof highlightCode === "function") {
 		try {
 			const highlighted = highlightCode(code, language || undefined);
-			if (Array.isArray(highlighted)) codeLines = highlighted.map(inkBase);
+			if (Array.isArray(highlighted)) codeLines = highlighted.map(codeBase);
 		} catch {
 			// Fall back to the mono color above.
 		}
