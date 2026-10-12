@@ -211,10 +211,15 @@ async function runBuiltinToolRenderersSmoke() {
 	const strip = (text) => String(text).replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
 	const WIDTH = 90;
 	const editBlock = (args, result, isError = false) => {
-		const context = { args, isError, cwd: "/repo", state: {}, toolCallId: "edit-1", isPartial: false };
+		const context = { args, isError, cwd: "/repo", state: { __geekElapsedMs: 100 }, toolCallId: "edit-1", isPartial: false };
 		const body = toolModules.edit.renderEditResult(result, { expanded: false, isPartial: false }, theme, context).render(WIDTH);
 		const call = toolModules.edit.renderEditCall(args, theme, context).render(WIDTH);
 		return { body: body.map(strip), call: call.map(strip) };
+	};
+	const editBlockRaw = (args, result) => {
+		const context = { args, isError: false, cwd: "/repo", state: { __geekElapsedMs: 100 }, toolCallId: "edit-2", isPartial: false };
+		const body = toolModules.edit.renderEditResult(result, { expanded: false, isPartial: false }, theme, context);
+		return { body, call: toolModules.edit.renderEditCall(args, theme, context) };
 	};
 	const scriptArgs = { paths: ["src/a.ts", "b.md"], code: "x" };
 
@@ -281,12 +286,43 @@ async function runBuiltinToolRenderersSmoke() {
 	const editTool = tool("edit", { path: "src/a.ts" });
 	const mixed = groups.renderChatChildren([tool("read", { path: "a.ts" }), editTool, tool("bash", { command: "ls" })], 100).map(strip);
 	assert(mixed.filter((row) => row.includes("RAW edit")).length === 1 && mixed.filter((row) => row.includes("call")).length === 2, `edit must break the run and render itself: ${JSON.stringify(mixed)}`);
-	const ctrlO = groups.renderChatChildren([tool("read", { path: "a.ts" }, { expanded: true })], 100).map(strip);
-	assert(ctrlO.some((row) => row.includes("RAW read")), "an expanded member should render itself, not the summary");
 
-	console.log(groups.renderChatChildren(finished, 100).join("\n"));
-	console.log(groups.renderChatChildren(runningGroup, 100).join("\n"));
-	console.log(twoHunks.call.concat(twoHunks.body).join("\n"));
+	// --- 6. Running / expanded group renders a tree; expanded bodies stay capped ---
+	const readOutput = Array.from({ length: 120 }, (_, i) => `${i + 1}| line ${i + 1}`).join("\n");
+	const treeChildren = [
+		assistant("3 remaining tests all call rotate() before signing the token and the quick brown fox jumps over the lazy dog"),
+		tool("bash", { command: "pnpm test auth" }, { result: { content: [{ type: "text", text: "running\n[11/14]" }] }, isPartial: true, rendererState: { __geekStartedAt: performance.now() - 4100 } }),
+		tool("read", { path: "refresh.test.ts" }, { result: { content: [{ type: "text", text: readOutput }], details: {} } }),
+	];
+	const tree = groups.renderChatChildren(treeChildren, 100).map(strip);
+	assert(tree.every((row) => visibleWidth(row) === 100), "tree rows must be exactly the chat width");
+	assert(tree[0].includes("┃") && tree[0].includes("// 2 call · 1 thought · running"), `tree head: ${tree[0]}`);
+	assert(tree[1].includes("├── T thinking") && tree[1].includes('"3 remaining') && tree[1].includes("…"), `thought node: ${tree[1]}`);
+	assert(tree[2].includes("├── $ pnpm test auth") && tree[2].includes("11/14") && tree[2].includes("█") && tree[2].includes("░"), `bash node with progress bar: ${tree[2]}`);
+	assert(tree[3].includes("└── R refresh.test.ts") && tree[3].includes("120"), `last node closes the tree with a count: ${tree[3]}`);
+	assert(tree.length === 5, "collapsed tree is head + nodes + one blank row");
+
+	const expandedChildren = treeChildren.map((c) => (c.toolName ? { ...c, expanded: true, isPartial: false } : c));
+	const expandedTree = groups.renderChatChildren(expandedChildren, 100).map(strip);
+	const readBody = expandedTree.filter((row) => /line \d+/.test(row));
+	assert(readBody.length === 50 && expandedTree.some((row) => row.includes("… 70 more lines")), `expanded read body must honor maxExpandedLines (50): got ${readBody.length}`);
+	assert(!expandedTree[0].includes("^o"), "expanded head must not advertise ^o");
+
+	// --- 7. Standalone block as the chat renders it: gutter + rail, diff rows indented under the call ---
+	const spacing = await import(buildToolTags("compact-tool-spacing.js"));
+	const edited = editBlockRaw({ path: "src/auth/session.ts" }, { content: [{ type: "text", text: "x" }], details: { diff: ["  19 const now = Date.now();", "-20 const exp = now + REFRESH_TTL;", "+20 const exp = now + REFRESH_TTL * 1000;", "  21 return exp;", "    ...", " 37 if (a)", "-38 old", "+38 new"].join("\n") } });
+	class FakeToolExecution {
+		constructor() { Object.assign(this, { toolName: "edit", result: {}, isPartial: false }); }
+		render(width) { return ["", ...edited.call.render(width), ...edited.body.render(width)]; }
+	}
+	spacing.installCompactToolSpacing(FakeToolExecution);
+	const block = new FakeToolExecution().render(WIDTH).map(strip);
+	assert(block.every((row) => visibleWidth(row) === WIDTH), "standalone rows must be exactly the chat width");
+	assert(block[0].startsWith("      │ › edit src/auth/session.ts") && block[0].includes("// +2 -2 · 0.1s"), `edit call row: ${block[0]}`);
+	assert(block[1].startsWith("      │   ") && block[1].includes("20 - const exp"), `diff rows sit under the call, indented 2: ${block[1]}`);
+	assert(block.at(-1).trim() === "│", "block must end with one blank rail row");
+
+	for (const out of [groups.renderChatChildren(finished, 100), groups.renderChatChildren(treeChildren, 100), groups.renderChatChildren(expandedChildren, 100).slice(0, 8), new FakeToolExecution().render(WIDTH)]) console.log(out.join("\n"));
 	console.log("builtin tool renderers smoke ok (7-name resolution, timing precedence, edit-only registration, edit diff rows + meta, group summary)");
 }
 

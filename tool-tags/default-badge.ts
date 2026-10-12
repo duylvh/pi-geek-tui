@@ -17,9 +17,6 @@ function tightenContainer(thisArg: any): void {
 	if (typeof container.invalidateCache === "function") container.invalidateCache();
 }
 
-/** Kept for index.ts wiring; nothing here is colored from the Pi theme any more. */
-export function setDefaultBadgeTheme(_theme: unknown): void {}
-
 export function installDefaultBadge(): void {
 	const globalState = globalThis as Record<string, unknown>;
 	if (globalState[PATCH_FLAG]) return;

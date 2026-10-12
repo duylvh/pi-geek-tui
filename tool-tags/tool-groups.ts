@@ -1,5 +1,6 @@
 import { GEEK_PREFIX_WIDTH, geekRow, geekSplitRow } from "../presentation/geek-rows.js";
 import { geekFg } from "../theme/geek-palette.js";
+import { renderToolTree, type TreeEntry } from "./tool-tree.js";
 import {
 	describeCall,
 	isEditClassTool,
@@ -17,9 +18,6 @@ import {
  * because they show their own diff rows; a run without any groupable call renders as before.
  */
 
-/** Kept for index.ts wiring; the group is colored from the fixed geek palette, not the Pi theme. */
-export function setToolGroupTheme(_theme: unknown): void {}
-
 /** Assistant turns with no visible answer text that issued tool calls belong to the tool run. */
 function toolOnlyAssistantContent(component: any): any[] | null {
 	const message = component?.lastMessage;
@@ -34,9 +32,13 @@ function isGroupMember(component: any): boolean {
 	return isToolComponent(component) ? !isEditClassTool(component.toolName) : toolOnlyAssistantContent(component) !== null;
 }
 
-function hasThought(component: any): boolean {
-	const content = toolOnlyAssistantContent(component);
-	return Boolean(content?.some((block) => block?.type === "thinking" && typeof block.thinking === "string" && block.thinking.trim()));
+function thoughtText(component: any): string {
+	const content = toolOnlyAssistantContent(component) ?? [];
+	return content
+		.filter((block) => block?.type === "thinking" && typeof block.thinking === "string")
+		.map((block) => block.thinking.trim())
+		.filter(Boolean)
+		.join(" ");
 }
 
 function metaParts(callCount: number, thoughts: number, failed: number, running: boolean, elapsedMs: number | undefined): string {
@@ -49,11 +51,24 @@ function metaParts(callCount: number, thoughts: number, failed: number, running:
 	return `${dim("// ")}${parts.join(dim(" · "))}`;
 }
 
-export function renderToolGroupSummary(members: any[], width: number): string[] {
+function messageTime(members: any[]): string | undefined {
+	const stamp = members.map((member) => member?.lastMessage?.timestamp).find((value) => typeof value === "number");
+	if (stamp === undefined) return undefined;
+	const date = new Date(stamp);
+	return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+/**
+ * One block for a run of tool calls. Finished and collapsed: a single summary row (spec §4).
+ * Running or expanded (Ctrl+O): the summary head plus a tree of calls (spec §7), with each
+ * call's output under its node when expanded.
+ */
+export function renderToolGroup(members: any[], width: number): string[] {
 	const tools = members.filter(isToolComponent);
 	const running = tools.some(isToolRunning);
+	const expanded = tools.some((tool) => tool.expanded);
 	const failed = tools.filter((tool) => Boolean(tool.result?.isError)).length;
-	const thoughts = members.filter(hasThought).length;
+	const thoughts = members.filter((member) => thoughtText(member)).length;
 	let elapsedMs: number | undefined;
 	for (const tool of tools) {
 		const ms = toolElapsedMs(tool);
@@ -63,9 +78,20 @@ export function renderToolGroupSummary(members: any[], width: number): string[] 
 	const calls = summarizeCalls(tools.map((tool) => describeCall(tool.toolName, tool.args)));
 	const left = `${geekFg(running ? "accent" : "ink", "› ")}${calls}`;
 	const meta = metaParts(tools.length, thoughts, failed, running, elapsedMs);
-	const right = running ? meta : `${geekFg("faint", "^o  ")}${meta}`;
-	const row = geekRow(running ? "active" : "line", geekSplitRow(left, right, Math.max(1, width - GEEK_PREFIX_WIDTH)), width);
-	return [row, geekRow("line", "", width)];
+	const tree = running || expanded;
+	const right = tree ? meta : `${geekFg("faint", "^o  ")}${meta}`;
+	const rail = running ? "active" : "line";
+	const rows = [geekRow(rail, geekSplitRow(left, right, Math.max(1, width - GEEK_PREFIX_WIDTH)), width, tree ? messageTime(members) : undefined)];
+	if (tree) {
+		const entries: TreeEntry[] = [];
+		for (const member of members) {
+			if (isToolComponent(member)) entries.push({ kind: "tool", tool: member });
+			else if (thoughtText(member)) entries.push({ kind: "thought", text: thoughtText(member) });
+		}
+		rows.push(...renderToolTree(entries, width, rail, expanded));
+	}
+	rows.push(geekRow("line", "", width));
+	return rows;
 }
 
 function pushLines(target: string[], lines: string[]): void {
@@ -86,10 +112,10 @@ export function renderChatChildren(children: any[], width: number): string[] {
 		}
 		const members = children.slice(index, end);
 		const tools = members.filter(isToolComponent);
-		if (tools.length === 0 || tools.some((tool) => tool.expanded)) {
+		if (tools.length === 0) {
 			for (const member of members) pushLines(lines, member.render(width));
 		} else {
-			pushLines(lines, renderToolGroupSummary(members, width));
+			pushLines(lines, renderToolGroup(members, width));
 		}
 		index = end;
 	}

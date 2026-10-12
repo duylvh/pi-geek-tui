@@ -10,9 +10,6 @@ const RUNTIME = Symbol.for("pi-geek-tui.tool-spacing.runtime");
 
 type RenderFn = (this: any, width: number) => string[];
 
-/** Kept for index.ts wiring; tool rows are colored from the fixed geek palette, not the Pi theme. */
-export function setToolSpacingTheme(_theme: unknown): void {}
-
 function isBlank(line: string | undefined): boolean {
 	return stripAnsi(line ?? "").trim() === "";
 }
