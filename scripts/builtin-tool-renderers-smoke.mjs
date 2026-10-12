@@ -380,6 +380,9 @@ async function runBuiltinToolRenderersSmoke() {
 	], 100).map(strip).filter((row) => row.includes("── "));
 	assert(passRows[0].includes("failed") && passRows[0].includes("11/14") && passRows[0].includes("█"), `failing run should show failed + n/m bar: ${passRows[0]}`);
 	assert(passRows[1].includes("passed") && passRows[1].includes("14/14"), `passing run should show passed + full bar: ${passRows[1]}`);
+	// Live bug: "exit 3" on one line and "failing" on the next read as "3 failing" (0/3 bar).
+	const exitRow = groups.renderChatChildren([bash("./fail.sh", "exit 3\nbg-1 · ./fail.sh · failed · exit 3\nfailing", { isError: true })], 100).map(strip).find((row) => row.includes("── ")) ?? "";
+	assert(exitRow.includes("failed") && !exitRow.includes("░") && !exitRow.includes("0/3"), `an exit code plus a stray word is not a test summary: ${exitRow}`);
 	assert(passRows[2].includes("lines") && !passRows[2].includes("/"), `no summary falls back to the line count: ${passRows[2]}`);
 
 	// --- 8. Terminal image lines survive the render patch; reload re-installs without stacking ---

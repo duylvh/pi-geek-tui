@@ -103,12 +103,12 @@ function firstCount(text: string, ...patterns: RegExp[]): number | undefined {
 /** Cheap runner-summary heuristic (jest/vitest/pytest/node:test): `11 passed`, `2 failed`, `14 total`. */
 function testSummary(text: string): Stats | undefined {
 	const tail = text.slice(-2000);
-	const passed = firstCount(tail, /\b(\d+)\s+pass(?:ed|ing)?\b/i, /#\s*pass\s+(\d+)/i);
-	const failed = firstCount(tail, /\b(\d+)\s+fail(?:ed|ing|ures?)?\b/i, /#\s*fail\s+(\d+)/i);
+	const passed = firstCount(tail, /(?<!exit )\b(\d+)[ \t]+pass(?:ed|ing)?\b/i, /#\s*pass\s+(\d+)/i);
+	const failed = firstCount(tail, /(?<!exit )\b(\d+)[ \t]+fail(?:ed|ing|ures?)?\b/i, /#\s*fail\s+(\d+)/i);
 	if (passed === undefined && failed === undefined) return undefined;
 	const done = passed ?? 0;
 	const bad = failed ?? 0;
-	const total = Math.max(firstCount(tail, /\b(\d+)\s+total\b/i, /\bTests?\b[^\n]*\((\d+)\)/) ?? 0, done + bad);
+	const total = Math.max(firstCount(tail, /\b(\d+)[ \t]+total\b/i, /\bTests?\b[^\n]*\((\d+)\)/) ?? 0, done + bad);
 	const progress = total > 0 ? { done, total } : undefined;
 	return bad > 0
 		? { label: "failed", labelRole: "delMark", value: plainValue(geekNumber(bad)), progress }
