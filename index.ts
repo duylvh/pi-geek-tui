@@ -276,6 +276,7 @@ export default function (pi: ExtensionAPI) {
 
 		modules.installAssistantStreamingMarkdownCache(AssistantMessageComponent);
 		modules.installMessageMeta(InteractiveMode);
+		modules.installEditorSlotFrame(InteractiveMode);
 		modules.installAssistantMessagePrefix(sessionUi.theme);
 		modules.installUserMessagePrefix(sessionUi.theme);
 		modules.installAssistantUpdateDebounce(AssistantMessageComponent);

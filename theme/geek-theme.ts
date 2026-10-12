@@ -60,7 +60,7 @@ function geekForeground(): Record<ThemeColor, string> {
 }
 
 const BACKGROUNDS: Record<string, string> = {
-	selectedBg: P.rail,
+	selectedBg: P.panelSel, // same surface as the selected slash-menu row
 	userMessageBg: P.bg,
 	customMessageBg: P.bg,
 	toolPendingBg: P.bg,

@@ -3,6 +3,7 @@ export { createAssistantSpeedTracker } from "./core/assistant-speed.js";
 export { createGitBranchFetcher } from "./core/git-status.js";
 export { loadConfig } from "./config.js";
 export { installMessageMeta } from "./messages/message-meta.js";
+export { installEditorSlotFrame } from "./editor/slot-frame.js";
 export { installAssistantMessagePrefix } from "./messages/assistant-prefix.js";
 export { installMarkdownCodeBlockRenderer } from "./messages/markdown-codeblock-renderer.js";
 export { installAssistantStreamingMarkdownCache } from "./messages/streaming-markdown-cache.js";
