@@ -312,6 +312,15 @@ async function runBuiltinToolRenderersSmoke() {
 	const longCall = groups.renderChatChildren([tool("bash", { command: "rg -n REFRESH_TTL src/auth/session.ts src/auth/token.ts" }, { expanded: true })], 100).map(strip).find((row) => row.includes("── "));
 	assert(/…\s+\S/.test(longCall) && !/…\S/.test(longCall), `truncated call cell must keep a gap before the state label: ${longCall}`);
 
+	// A tool-only first assistant message is folded into the group; its turn head row must survive above it.
+	const meta = await import(pathToFileURL(join(buildDir, "messages", "message-meta.js")).href);
+	const opener = assistant("plan");
+	opener.lastMessage.timestamp = Date.UTC(2026, 0, 1, 14, 52);
+	meta.claimTurnHead(opener);
+	const headed = groups.renderChatChildren([opener, tool("read", { path: "a.ts" })], 100).map(strip);
+	assert(headed.length === 3 && headed[0].includes("•") && headed[0].includes("@") && headed[1].includes("› read a.ts"), `turn head row must sit above the folded group: ${JSON.stringify(headed)}`);
+	assert(groups.renderChatChildren([assistant(), tool("read", { path: "a.ts" })], 100).length === 2, "an assistant member that did not open the turn adds no head row");
+
 	const expandedChildren = treeChildren.map((c) => (c.toolName ? { ...c, expanded: true, isPartial: false } : c));
 	const expandedTree = groups.renderChatChildren(expandedChildren, 100).map(strip);
 	const readBody = expandedTree.filter((row) => /line \d+/.test(row));

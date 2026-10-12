@@ -1,3 +1,4 @@
+import { turnHeadRows } from "../messages/message-meta.js";
 import { GEEK_PREFIX_WIDTH, geekRow, geekSplitRow } from "../presentation/geek-rows.js";
 import { geekFg } from "../theme/geek-palette.js";
 import { renderToolTree, type TreeEntry } from "./tool-tree.js";
@@ -51,17 +52,11 @@ function metaParts(callCount: number, thoughts: number, failed: number, running:
 	return `${dim("// ")}${parts.join(dim(" · "))}`;
 }
 
-function messageTime(members: any[]): string | undefined {
-	const stamp = members.map((member) => member?.lastMessage?.timestamp).find((value) => typeof value === "number");
-	if (stamp === undefined) return undefined;
-	const date = new Date(stamp);
-	return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
 /**
  * One block for a run of tool calls. Finished and collapsed: a single summary row (spec §4).
  * Running or expanded (Ctrl+O): the summary head plus a tree of calls (spec §7), with each
- * call's output under its node when expanded.
+ * call's output under its node when expanded. Folded assistant members are never rendered, so a
+ * turn-opening one hands over its `pi@agent` head row, printed above the group.
  */
 export function renderToolGroup(members: any[], width: number): string[] {
 	const tools = members.filter(isToolComponent);
@@ -81,7 +76,10 @@ export function renderToolGroup(members: any[], width: number): string[] {
 	const tree = running || expanded;
 	const right = tree ? meta : `${geekFg("faint", "^o  ")}${meta}`;
 	const rail = running ? "active" : "line";
-	const rows = [geekRow(rail, geekSplitRow(left, right, Math.max(1, width - GEEK_PREFIX_WIDTH)), width, tree ? messageTime(members) : undefined)];
+	const rows = [
+		...members.filter((member) => !isToolComponent(member)).flatMap((member) => turnHeadRows(member, width)),
+		geekRow(rail, geekSplitRow(left, right, Math.max(1, width - GEEK_PREFIX_WIDTH)), width),
+	];
 	if (tree) {
 		const entries: TreeEntry[] = [];
 		for (const member of members) {
