@@ -5,8 +5,8 @@
 //
 // The thinking badge sits IN the prefix (reverse-video accent block ending on the rail column), the model
 // starts at body col 8 like every chat row, the metrics + extension statuses are right-aligned to the edge.
-// Degrade ladder as the droid statusline: provider goes first, then CH%, then tokens, then ctx%; the rung
-// that leaves room for the most status text wins (ties keep the richer rung); statuses end in `…`, nothing wraps.
+// Fixed sacrifice order as the width shrinks: provider → CH% → tokens → extension statuses (cut with `…`, hidden
+// under 6 cells) → the model id (truncated last). ctx% is never dropped while the badge + model fit; nothing wraps.
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { GEEK_PREFIX_WIDTH } from "../presentation/geek-rows.js";
 import { geekBg, geekFg } from "../theme/geek-palette.js";
@@ -29,7 +29,7 @@ export type StatuslineInput = {
 };
 
 const MODEL_CAP = 40;
-const MODEL_MIN = 8; // a rung that would cut the model below this is rejected (metrics outrank a clipped id)
+const MODEL_MIN = 8; // below this the model id is not clipped further: the metrics rung is skipped instead
 const MIN_STATUS_CELLS = 6; // below this a truncated status is just noise: show none
 const GAP = 2;
 const BADGE_END = 6; // 0-based column of the rail glyph = the badge's last cell
@@ -59,19 +59,19 @@ function prefix(input: StatuslineInput): string {
 	return `${" ".repeat(lead)}${geekBg(badge.role, geekFg("bg", block))}${" ".repeat(GEEK_PREFIX_WIDTH - lead - block.length)}`;
 }
 
-/** Context metrics from richest to leanest (plain text), always ending with "" (nothing). */
+/** Context metrics from richest to leanest (plain text); the ctx% rung is the leanest real one, "" is the last resort. */
 function metricRungs(input: StatuslineInput): string[] {
-	const percent = typeof input.percent === "number" && Number.isFinite(input.percent) ? `${Math.round(input.percent)}%` : "";
+	const percent = typeof input.percent === "number" && Number.isFinite(input.percent) ? `${Math.round(input.percent)}%` : "—";
 	const tokens = typeof input.tokens === "number" && Number.isFinite(input.tokens) && input.contextWindow
 		? `${compact(input.tokens)}/${compact(input.contextWindow)}`
 		: "";
 	const cache = typeof input.cacheHitPercent === "number" && Number.isFinite(input.cacheHitPercent) ? `CH ${Math.round(input.cacheHitPercent)}%` : "";
-	const context = [tokens, percent].filter(Boolean).join(" ") || "—";
+	const context = [tokens, percent].filter(Boolean).join(" ");
 	const rungs = [[context, cache].filter(Boolean).join(" · "), context, percent, ""];
 	return rungs.filter((rung, i) => rung === "" ? i === rungs.length - 1 : rung !== rungs[i - 1]);
 }
 
-type Left = { plain: string; styled: string };
+type Left = { plain: string; styled: string; clipped?: boolean };
 
 /** Model (and provider) fitted to `room` cells, or undefined when even the minimum model id does not fit. */
 function leftCluster(input: StatuslineInput, withProvider: boolean, room: number): Left | undefined {
@@ -87,7 +87,7 @@ function leftCluster(input: StatuslineInput, withProvider: boolean, room: number
 	if (visibleWidth(model) <= room) return { plain: model, styled: geekFg("dim", model) };
 	if (room < Math.min(MODEL_MIN, visibleWidth(model))) return undefined;
 	const cut = truncateToWidth(model, room, "…");
-	return { plain: cut, styled: geekFg("dim", cut) };
+	return { plain: cut, styled: geekFg("dim", cut), clipped: true };
 }
 
 /** Status text that fits `budget` cells: whole, a legible `…`-cut prefix, or nothing. */
@@ -104,22 +104,22 @@ export function renderStatusline(input: StatuslineInput, width: number): string 
 	const status = (input.status ?? "").replace(/[\r\n]+/g, " ").trim();
 	const rungs = metricRungs(input);
 
-	// Provider + richest metrics first, then provider dropped, then leaner metrics.
+	// Richest first: provider + all metrics, then provider dropped, then CH%, then tokens. A rung is taken only when
+	// the whole model id and the whole status fit; the ctx%-only rung (and the "" last resort) take what is left.
 	const candidates = [{ withProvider: true, metrics: rungs[0]! }, ...rungs.map((metrics) => ({ withProvider: false, metrics }))];
-	let best: { left: Left; metrics: string; shown: string } | undefined;
-	let bestWidth = -1;
-	for (const { withProvider, metrics } of candidates) {
+	const lean = candidates.length - 2;
+	let chosen: { left: Left; metrics: string; shown: string } | undefined;
+	for (const [i, { withProvider, metrics }] of candidates.entries()) {
 		const metricsCells = visibleWidth(metrics) + (metrics ? GAP : 0);
-		const leftPart = leftCluster(input, withProvider, bodyWidth - metricsCells);
-		if (!leftPart) continue;
-		const shown = fitStatus(status, bodyWidth - metricsCells - visibleWidth(leftPart.plain) - GAP);
-		if (visibleWidth(shown) > bestWidth) {
-			bestWidth = visibleWidth(shown);
-			best = { left: leftPart, metrics, shown };
-		}
+		const left = leftCluster(input, withProvider, bodyWidth - metricsCells);
+		if (!left) continue;
+		const shown = fitStatus(status, bodyWidth - metricsCells - visibleWidth(left.plain) - GAP);
+		if (i < lean && (left.clipped || shown !== status)) continue;
+		chosen = { left, metrics, shown };
+		break;
 	}
 	// Even the bare model id does not fit (tiny widths): clip it to the body and show nothing else.
-	const chosen = best ?? { left: leftCluster(input, false, Math.max(1, bodyWidth)) ?? { plain: "", styled: "" }, metrics: "", shown: "" };
+	chosen ??= { left: leftCluster(input, false, Math.max(1, bodyWidth)) ?? { plain: "", styled: "" }, metrics: "", shown: "" };
 
 	const rightPlain = [chosen.metrics, chosen.shown].filter(Boolean).join("  ");
 	const rightStyled = [chosen.metrics, chosen.shown].filter(Boolean).map((part) => geekFg("dim", part)).join("  ");

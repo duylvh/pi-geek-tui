@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Statusline smoke (editor/statusline.ts): exact width, badge in the prefix ending on the rail column,
- * model at body col 8, right edge aligned, degrade ladder order, status truncation, model cap.
+ * model at body col 8, right edge aligned, sacrifice order, status truncation, model cap.
  */
 import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -58,17 +58,21 @@ for (const [level, label] of [["off", "OFF"], ["minimal", "MIN"], ["low", "LOW"]
 expect("bash mode shows a BASH block in the num colour", (() => { const out = renderStatusline({ ...base, bashMode: true }, 120); return strip(out).startsWith("  BASH  ") && out.includes(NUM_BG) && !strip(out).includes("HIGH"); })());
 expect("no thinking support: prefix blank, no accent block", (() => { const out = renderStatusline({ ...base, reasoning: false }, 120); return strip(out).startsWith(" ".repeat(8) + "zai") && !out.includes(ACCENT_BG); })());
 
-// Degrade ladder: provider → CH% → tokens → ctx%, statuses get the remainder.
-const ladder = [];
-for (let width = 110; width >= 9; width--) ladder.push({ width, text: row({ status: "" }, width) });
-const first = (needle) => ladder.find((r) => !r.text.includes(needle))?.width ?? 0;
-const dropProvider = first("zai"), dropCache = first("CH 82%"), dropTokens = first("41k/1.0M"), dropPercent = first("4%");
-expect("ladder order (widths at which each part disappears): provider > CH > tokens > ctx%", dropProvider > dropCache && dropCache > dropTokens && dropTokens > dropPercent, JSON.stringify({ dropProvider, dropCache, dropTokens, dropPercent }));
-expect("ctx% is the last metric standing", ladder.some((r) => r.text.includes("4%") && !r.text.includes("41k") && !r.text.includes("CH")));
+// Sacrifice order as the width shrinks: provider → CH% → tokens → statuses (cut, then hidden) → model id. ctx% stays.
+const sweep = [];
+for (let width = 110; width >= 20; width--) sweep.push({ width, text: row({}, width) });
+const firstMissing = (needle) => sweep.find((r) => !r.text.includes(needle))?.width ?? 0;
+const dropProvider = firstMissing("zai"), dropCache = firstMissing("CH 82%"), dropTokens = firstMissing("41k/1.0M");
+const cutStatus = firstMissing("ponytail: ⚡ FULL"), hideStatus = sweep.find((r) => !r.text.includes("🐴"))?.width ?? 0;
+expect("order: provider > CH > tokens > status cut > status hidden", dropProvider > dropCache && dropCache > dropTokens && dropTokens > cutStatus && cutStatus > hideStatus, JSON.stringify({ dropProvider, dropCache, dropTokens, cutStatus, hideStatus }));
+expect("ctx% and the whole model id survive every width from 110 to 20", sweep.every((r) => r.text.includes("4%") && r.text.includes("glm-5.3")), sweep.find((r) => !r.text.includes("4%") || !r.text.includes("glm-5.3"))?.text);
+expect("a row that cuts or hides the status has already lost tokens and CH", sweep.filter((r) => r.width <= cutStatus).every((r) => !r.text.includes("41k") && !r.text.includes("CH")));
+const clipped = Array.from({ length: 91 }, (_, i) => row({ modelId: "claude-sonnet-long-model" }, 110 - i)).filter((text) => !text.includes("claude-sonnet-long-model"));
+expect("model id is clipped only after status and tokens are gone", clipped.length > 0 && clipped.every((text) => !text.includes("🐴") && !text.includes("41k")), clipped[0]);
 
 // Statuses: whole when they fit, `…`-cut when tight, absent when under 6 cells; never wrap.
 expect("status shown whole when room", row({}, 120).endsWith("ponytail: ⚡ FULL"));
-const tight = ladder.map((r) => row({}, r.width)).find((text) => text.includes("…") && text.includes("🐴"));
+const tight = sweep.map((r) => r.text).find((text) => text.includes("…") && text.includes("🐴"));
 expect("status is cut with … when tight", Boolean(tight), String(tight));
 expect("long status is cut with … and the row keeps its width", row({ status: "y".repeat(300) }, 100).endsWith("…") && visibleWidth(row({ status: "y".repeat(300) }, 100)) === 100);
 
