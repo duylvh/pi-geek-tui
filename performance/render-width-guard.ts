@@ -6,8 +6,6 @@ import { profileCount, profileSample } from "./profiler.js";
 
 const PATCHED = Symbol.for("pi-geek-tui.render-width-guard.patched");
 
-type RenderFunction = (width: number) => string[];
-
 function normalizeWidth(width: number): number {
 	const normalized = Math.floor(width);
 	return Number.isFinite(normalized) && normalized > 0 ? normalized : 0;
@@ -34,7 +32,7 @@ function clampLineWithCursorMarker(line: string, width: number): string {
 	return `${beforeMarker}${CURSOR_MARKER}${safeTruncateToWidth(afterMarker, width - beforeWidth, "")}`;
 }
 
-export function clampRenderLineToWidth(line: string, width: number): string {
+function clampRenderLineToWidth(line: string, width: number): string {
 	if (width <= 0 || line.length === 0 || isImageRenderLine(line)) return line;
 	if (line.includes(CURSOR_MARKER)) return clampLineWithCursorMarker(line, width);
 
@@ -46,7 +44,7 @@ export function clampRenderLineToWidth(line: string, width: number): string {
 	return safeTruncateToWidth(line, width, "");
 }
 
-export function clampRenderLinesToWidth(lines: readonly string[], width: number): string[] {
+function clampRenderLinesToWidth(lines: readonly string[], width: number): string[] {
 	const renderWidth = normalizeWidth(width);
 	if (renderWidth <= 0) return [...lines];
 	return lines.map((line) => clampRenderLineToWidth(line, renderWidth));

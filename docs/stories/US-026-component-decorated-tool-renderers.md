@@ -1,5 +1,7 @@
 # US-026 Decorate builtin tool renderers at the component layer
 
+> Superseded in part (2026-10): the pi-ctx-kit `edit` bridge was removed — pi-ctx-kit dropped `edit-core` in 2.1.0. `edit` is now decorated like every other builtin.
+
 ## Status
 
 done (backfilled — implemented before this packet was written; see ADR 0006)

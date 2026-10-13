@@ -1,9 +1,5 @@
-import { existsSync } from "node:fs";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
-
-import type { ExtensionAPI, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
-import { getAgentDir, getLanguageFromPath } from "@earendil-works/pi-coding-agent";
+import type { ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
+import { getLanguageFromPath } from "@earendil-works/pi-coding-agent";
 import type { Component } from "@earendil-works/pi-tui";
 
 import { safeTruncateToWidth } from "../render-budget.js";
@@ -17,45 +13,12 @@ import {
 	firstText,
 } from "../split-diff.js";
 import { getTextOutput, isExpanded, resolveRelativePath } from "./common.js";
-import { markToolCallExecutionStarted, resolveToolCallElapsedMs, wrapExecuteWithTiming } from "./elapsed.js";
+import { markToolCallExecutionStarted, resolveToolCallElapsedMs } from "./elapsed.js";
 import { paramText, soloLine } from "./tool-call-line.js";
 import { metaText, renderCallRow, renderOutputBody, setRowMeta } from "./tool-row.js";
 import { secondsText } from "./tool-summary.js";
 
 const MAX_HIGHLIGHT_DIFF_ROWS = 120;
-
-type EditCoreModule = {
-	EDIT_TOOL_DESCRIPTION: string;
-	EditArgsSchema: unknown;
-	executeEnhancedEdit: (...args: any[]) => any;
-};
-
-async function importEditCore(specifier: string): Promise<EditCoreModule | undefined> {
-	try {
-		return await import(specifier) as EditCoreModule;
-	} catch {
-		return undefined;
-	}
-}
-
-async function loadEditCore(): Promise<EditCoreModule | undefined> {
-	const packageImport = await importEditCore("pi-ctx-kit/edit-core");
-	if (packageImport) return packageImport;
-
-	const installedPaths = [
-		join(getAgentDir(), "git", "github.com", "sting8k", "pi-ctx-kit", "edit-core.ts"),
-		join(process.cwd(), ".pi", "git", "github.com", "sting8k", "pi-ctx-kit", "edit-core.ts"),
-		join(process.cwd(), "..", "pi-ctx-kit", "edit-core.ts"),
-	];
-
-	for (const path of installedPaths) {
-		if (!existsSync(path)) continue;
-		const editCore = await importEditCore(pathToFileURL(path).href);
-		if (editCore) return editCore;
-	}
-
-	return undefined;
-}
 
 /** Script-mode edit (pi-utils US-003): args.paths is the declared file list. */
 function scriptModePaths(args: any): string[] | null {
@@ -198,25 +161,4 @@ export function renderEditResult(result: any, options: ToolRenderResultOptions, 
 	const { additions, removals } = scriptMode ? countRowStats(parts.flatMap((part) => part.rows)) : countDiffStats(diff);
 	publishEditMeta(context, result, additions, removals);
 	return diffSectionsBody(parts, isExpanded(options) ? 160 : 36);
-}
-
-/**
- * Registers `edit` only when pi-ctx-kit supplies the enhanced edit core. Without
- * it the builtin tool stays registered (keeping its builtin source) and gets the
- * droid renderers from installBuiltinToolRenderers.
- */
-export async function registerEditTool(pi: ExtensionAPI): Promise<void> {
-	const editCore = await loadEditCore();
-	if (!editCore) return;
-
-	pi.registerTool({
-		name: "edit",
-		label: "edit",
-		description: editCore.EDIT_TOOL_DESCRIPTION,
-		parameters: editCore.EditArgsSchema as any,
-		execute: wrapExecuteWithTiming(async (toolCallId, params, signal, onUpdate, ctx) =>
-			editCore.executeEnhancedEdit(toolCallId, params, signal, onUpdate, ctx)),
-		renderCall: renderEditCall,
-		renderResult: renderEditResult,
-	});
 }

@@ -1,5 +1,4 @@
 import type { AgentToolResult, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
-import { homedir } from "node:os";
 import { relative, resolve } from "node:path";
 
 
@@ -7,13 +6,7 @@ export function isExpanded(options: ToolRenderResultOptions): boolean {
 	return typeof options?.expanded === "boolean" ? options.expanded : false;
 }
 
-export function shortenPath(path: string): string {
-	const home = homedir();
-	if (path.startsWith(home)) return `~${path.slice(home.length)}`;
-	return path;
-}
-
-export function resolveAbsolutePath(rawPath: string, cwd: string): string {
+function resolveAbsolutePath(rawPath: string, cwd: string): string {
 	const path = rawPath.trim();
 	if (!path) return "";
 
@@ -62,10 +55,4 @@ export function extractTrailingNotice(text: string): string | null {
 		return normalized.slice(noticeStart + 2).trimEnd();
 	}
 	return null;
-}
-
-export function countLines(text: string): number {
-	const normalized = (text ?? "").replace(/\r/g, "").replace(/\n+$/g, "");
-	if (!normalized) return 0;
-	return normalized.split("\n").length;
 }

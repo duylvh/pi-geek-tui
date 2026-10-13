@@ -12,7 +12,6 @@ import { profileCount, profileDuration, profileNow, profileSample } from "./prof
 import { getOriginalTuiMethod, rememberTuiMethodWrapper } from "./tui-proxy-original.js";
 
 const PATCHED = Symbol.for("pi-geek-tui.render-throttle.patched");
-const REQUEST_WITH_FRAME_MS = Symbol.for("pi-geek-tui.render-throttle.request-with-frame-ms");
 
 /** Default frame interval in ms (29ms ~ 35fps) */
 const DEFAULT_FRAME_MS = 29;
@@ -22,22 +21,8 @@ function normalizeFrameMs(value: number, fallback: number): number {
 	return Math.floor(value);
 }
 
-export function requestRenderWithFrameMs(tui: any, frameMs: number, force = false): void {
-	const requester = tui?.[REQUEST_WITH_FRAME_MS];
-	if (typeof requester === "function") {
-		requester(frameMs, force);
-		return;
-	}
-	if (typeof tui?.requestRender === "function") tui.requestRender(force);
-}
-
 export function installRenderThrottle(tui: any, frameMs: number = DEFAULT_FRAME_MS): void {
-	if (tui[PATCHED]) {
-		if (typeof tui[REQUEST_WITH_FRAME_MS] !== "function") {
-			tui[REQUEST_WITH_FRAME_MS] = (requestedFrameMs: number, force = false) => tui.requestRender(force);
-		}
-		return;
-	}
+	if (tui[PATCHED]) return;
 	tui[PATCHED] = true;
 
 	const origRequestRender = getOriginalTuiMethod(tui, "requestRender");
@@ -77,18 +62,17 @@ export function installRenderThrottle(tui: any, frameMs: number = DEFAULT_FRAME_
 		}, delay);
 	}
 
-	function requestRenderAtFrame(force = false, requestedFrameMs = defaultFrameMs): void {
+	function requestRenderAtFrame(force = false): void {
 		profileCount("render.request.calls");
 		if (force) {
 			pendingForce = true;
 			profileCount("render.request.force");
 		}
 
-		const effectiveFrameMs = normalizeFrameMs(requestedFrameMs, defaultFrameMs);
 		const now = Date.now();
 		const elapsed = now - lastRenderTime;
 
-		if (elapsed >= effectiveFrameMs) {
+		if (elapsed >= defaultFrameMs) {
 			// Enough time passed — render immediately
 			profileCount("render.request.dispatch.immediate");
 			profileSample("render.request.latency.ms", 0);
@@ -96,7 +80,7 @@ export function installRenderThrottle(tui: any, frameMs: number = DEFAULT_FRAME_
 			return;
 		}
 
-		const delay = effectiveFrameMs - elapsed;
+		const delay = defaultFrameMs - elapsed;
 		const dueAt = now + delay;
 		if (timer !== null) {
 			if (dueAt < timerDueAt) {
@@ -116,10 +100,9 @@ export function installRenderThrottle(tui: any, frameMs: number = DEFAULT_FRAME_
 		scheduleRender(delay);
 	}
 
-	tui[REQUEST_WITH_FRAME_MS] = (requestedFrameMs: number, force = false) => requestRenderAtFrame(force, requestedFrameMs);
 	const throttledRequestRender = function throttledRequestRender(this: any, force = false) {
 		if (this != null) currentTui = this;
-		requestRenderAtFrame(force, defaultFrameMs);
+		requestRenderAtFrame(force);
 	};
 	tui.requestRender = throttledRequestRender;
 	rememberTuiMethodWrapper(tui, "requestRender", throttledRequestRender);

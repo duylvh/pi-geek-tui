@@ -104,7 +104,7 @@ function applyBackgroundToVisibleRange(
  * Highlighted code leaves identifiers/operators without a color, so they would fall back to the
  * terminal default. Make ink the base: set it first and re-set it after every fg/full reset.
  */
-export function inkBase(text: string): string {
+function inkBase(text: string): string {
 	const ink = geekFg("ink", "").slice(0, -"\x1b[39m".length);
 	return ink + text.replace(/\x1b\[(?:39|0)m/g, (reset) => reset + ink);
 }

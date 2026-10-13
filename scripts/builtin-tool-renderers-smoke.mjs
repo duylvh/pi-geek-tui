@@ -78,7 +78,6 @@ function compileBuiltinToolRenderers() {
 		"tool-tags/builtin-tool-renderers.ts",
 		"tool-tags/elapsed.ts",
 		"tool-tags/common.ts",
-		"tool-tags/register-tool-call-tags.ts",
 		"tool-tags/tool-groups.ts",
 		"tool-tags/compact-tool-spacing.ts",
 	], { cwd: repoRoot, encoding: "utf8" });
@@ -185,28 +184,6 @@ async function runBuiltinToolRenderersSmoke() {
 	// result.details.__elapsedMs fallback when no record exists.
 	assert(elapsed.resolveToolCallElapsedMs({ toolCallId: "t3" }, { details: { __elapsedMs: 1234 } }) === 1234, "details.__elapsedMs fallback did not resolve");
 
-
-	// --- 3. registerToolCallTags registers edit only when pi-ctx-kit is present (issue #26) ---
-	const { registerToolCallTags } = await import(buildToolTags("register-tool-call-tags.js"));
-	const registerWith = async () => {
-		const registered = [];
-		const previousCwd = process.cwd();
-		process.chdir(buildDir); // keep the cwd-relative pi-ctx-kit probes off the developer checkout
-		try {
-			await registerToolCallTags({ registerTool(definition) { registered.push(definition); } });
-		} finally {
-			process.chdir(previousCwd);
-		}
-		return registered;
-	};
-	const withoutKit = await registerWith();
-	assert(withoutKit.length === 0, `without pi-ctx-kit nothing may override builtin edit, got ${JSON.stringify(withoutKit.map((d) => d?.name))}`);
-	const kitDir = join(buildDir, "node_modules", "pi-ctx-kit");
-	mkdirSync(kitDir, { recursive: true });
-	writeFileSync(join(kitDir, "package.json"), "{\"name\":\"pi-ctx-kit\",\"type\":\"module\",\"exports\":{\"./edit-core\":\"./edit-core.js\"}}\n", "utf8");
-	writeFileSync(join(kitDir, "edit-core.js"), "export const EDIT_TOOL_DESCRIPTION = \"kit edit\";\nexport const EditArgsSchema = {};\nexport const executeEnhancedEdit = async () => ({ content: [] });\n", "utf8");
-	const withKit = await registerWith();
-	assert(withKit.length === 1 && withKit[0].name === "edit" && withKit[0].description === "kit edit", `with pi-ctx-kit only the enhanced edit should register, got ${JSON.stringify(withKit.map((d) => d?.name))}`);
 
 	// --- 4. Edit results: meta on the call row, diff rows below, per file ---
 	const strip = (text) => String(text).replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");

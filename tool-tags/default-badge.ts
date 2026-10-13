@@ -1,6 +1,6 @@
 import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 
-import { annotateToolResultMetrics } from "./elapsed.js";
+import { annotateToolResultElapsed } from "./elapsed.js";
 import { isEditClassTool } from "./tool-summary.js";
 
 const PATCH_FLAG = "__defaultBadgePatched__";
@@ -25,14 +25,6 @@ export function installDefaultBadge(): void {
 	const proto = ToolExecutionComponent.prototype as any;
 	if (!proto || typeof proto.updateDisplay !== "function") return;
 
-	const baseGetRenderContext = proto.getRenderContext;
-	if (typeof baseGetRenderContext === "function") {
-		proto.getRenderContext = function patchedBoxedRenderContext(this: any, ...args: any[]) {
-			const context = baseGetRenderContext.apply(this, args);
-			return { ...context, hasResult: Boolean(this.result) };
-		};
-	}
-
 	const baseMarkExecutionStarted = proto.markExecutionStarted;
 	if (typeof baseMarkExecutionStarted === "function") {
 		proto.markExecutionStarted = function patchedDefaultBadgeMarkExecutionStarted(this: any, ...args: any[]) {
@@ -47,7 +39,7 @@ export function installDefaultBadge(): void {
 			if (!isPartial && result && typeof result === "object") {
 				const startedAt = typeof this[EXECUTION_STARTED_AT_FLAG] === "number" ? this[EXECUTION_STARTED_AT_FLAG] : undefined;
 				const elapsedMs = startedAt === undefined ? undefined : Math.max(0, performance.now() - startedAt);
-				annotateToolResultMetrics(result, elapsedMs);
+				annotateToolResultElapsed(result, elapsedMs);
 			}
 			return baseUpdateResult.call(this, result, isPartial, ...rest);
 		};

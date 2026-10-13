@@ -32,7 +32,7 @@ export function toolElapsedMs(tool: any, now = performance.now()): number | unde
 }
 
 /** `1.9` for the num-colored seconds; the unit is styled separately. */
-export function formatSeconds(ms: number): string {
+function formatSeconds(ms: number): string {
 	return (Math.max(0, ms) / 1000).toFixed(1);
 }
 

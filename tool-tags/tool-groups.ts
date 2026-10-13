@@ -69,7 +69,7 @@ function thoughtText(component: any): string {
  * thoughts) under its guide. Folded assistant members are never rendered, so a turn-opening one hands
  * over its `pi@agent` head row, printed above the block.
  */
-export function renderToolGroup(members: any[], width: number): string[] {
+function renderToolGroup(members: any[], width: number): string[] {
 	const tools = members.filter(isToolComponent);
 	const running = tools.some(isToolRunning);
 	const expanded = tools.some((tool) => tool.expanded);

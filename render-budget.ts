@@ -2,7 +2,7 @@ import { truncateToWidth as tuiTruncateToWidth, visibleWidth as tuiVisibleWidth,
 
 import { profileCount } from "./performance/profiler.js";
 
-export const MAX_RENDER_LINE_CHARS = 2000;
+const MAX_RENDER_LINE_CHARS = 2000;
 
 const RENDER_TRUNCATION_SUFFIX = "… (truncated)";
 const TRUNCATE_ELLIPSIS = "…";

@@ -31,7 +31,6 @@ type QuickEditRenderContext = {
 	args?: any;
 	isError?: boolean;
 	isPartial?: boolean;
-	hasResult?: boolean;
 	state?: Record<string, any>;
 	executionStarted?: boolean;
 	cwd?: string;

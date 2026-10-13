@@ -1,5 +1,7 @@
 # 0006 Decorate builtin tool renderers instead of re-registering builtin tools
 
+> Superseded in part (2026-10): the pi-ctx-kit `edit` bridge was removed — pi-ctx-kit dropped `edit-core` in 2.1.0. `edit` is now decorated like every other builtin.
+
 Date: 2026-09-15
 
 ## Status

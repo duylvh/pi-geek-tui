@@ -10,7 +10,6 @@ import {
 } from "@earendil-works/pi-coding-agent";
 
 import { getConfigIssue, loadConfig } from "./config.js";
-import { registerToolCallTags } from "./tool-tags/register-tool-call-tags.js";
 import { recordToolCallTimingEnd, recordToolCallTimingStart } from "./tool-tags/elapsed.js";
 import { installStartupUiPatch, setStartupHeader, suppressStartupModelScopeLog } from "./startup-ui.js";
 import { installInteractiveChatVirtualization } from "./performance/virtualize-chat.js";
@@ -81,14 +80,6 @@ export default function (pi: ExtensionAPI) {
 	let currentVisibleChatTail = 30;
 	installInteractiveChatVirtualization(InteractiveMode, () => currentVisibleChatTail);
 	let sessionRunSerial = 0;
-	let toolCallTagsRegistration: Promise<void> | undefined;
-	const ensureToolCallTagsRegistered = () => {
-		toolCallTagsRegistration ??= registerToolCallTags(pi).catch((error) => {
-			toolCallTagsRegistration = undefined;
-			throw error;
-		});
-		return toolCallTagsRegistration;
-	};
 
 	let currentThinkingLevel: string | undefined;
 	let assistantSpeedTracker: AssistantSpeedTracker | undefined;
@@ -254,8 +245,6 @@ export default function (pi: ExtensionAPI) {
 		// Session-only (a Theme instance is never written to the user's settings).
 		sessionUi.setTheme(createGeekTheme(sessionUi.theme.getColorMode?.() === "256color" ? "256color" : "truecolor"));
 		currentVisibleChatTail = config.visibleChatTail;
-		await ensureToolCallTagsRegistered();
-		if (!isCurrentSessionRun()) return;
 		const renderFrameDebugModule = process.env.PI_GEEK_RENDER_DEBUG === "1"
 			? await loadRenderFrameDebugModule()
 			: undefined;

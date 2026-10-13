@@ -46,10 +46,10 @@ function normalizeVisibleTail(value: number): number {
 	return Math.max(0, Math.floor(value));
 }
 
-export const VIRTUALIZED_CHAT_PATCHED = Symbol.for("pi-geek-tui.virtualized-chat.patched");
-export const VIRTUALIZED_CHAT_STATE = Symbol.for("pi-geek-tui.virtualized-chat.state");
+const VIRTUALIZED_CHAT_PATCHED = Symbol.for("pi-geek-tui.virtualized-chat.patched");
+const VIRTUALIZED_CHAT_STATE = Symbol.for("pi-geek-tui.virtualized-chat.state");
 /** Marks the TUI root → chat container relationship so findChatContainer resolves the same container after layout shifts. */
-export const VIRTUALIZED_CHAT_HOST = Symbol.for("pi-geek-tui.virtualized-chat.host-chat");
+const VIRTUALIZED_CHAT_HOST = Symbol.for("pi-geek-tui.virtualized-chat.host-chat");
 
 function isContainerLike(value: unknown): value is AnyContainer {
 	if (typeof value !== "object" || value === null) return false;
@@ -100,14 +100,14 @@ function getState(value: unknown): VirtualizedChatState | undefined {
 	return (value as any)[VIRTUALIZED_CHAT_STATE] as VirtualizedChatState | undefined;
 }
 
-export function getVirtualizedChatTail(value: unknown): number | undefined {
+function getVirtualizedChatTail(value: unknown): number | undefined {
 	if (!isPatchedVirtualizedChatContainer(value)) return undefined;
 	const state = getState(value);
 	if (!state || !Number.isFinite(state.visibleTail)) return undefined;
 	return normalizeVisibleTail(state.visibleTail);
 }
 
-export function isPatchedVirtualizedChatContainer(value: unknown): boolean {
+function isPatchedVirtualizedChatContainer(value: unknown): boolean {
 	return typeof value === "object" && value !== null && Boolean((value as any)[VIRTUALIZED_CHAT_PATCHED]);
 }
 

@@ -179,10 +179,6 @@ function writeRecord(record: ProfileRecord): void {
 	}
 }
 
-export function isProfilingEnabled(): boolean {
-	return state.enabled;
-}
-
 export function profileNow(): number {
 	return state.enabled ? nowMs() : 0;
 }

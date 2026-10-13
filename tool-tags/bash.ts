@@ -1,4 +1,3 @@
-import { stripAnsi } from "../theme/ansi.js";
 import { markToolCallExecutionStarted } from "./elapsed.js";
 import { callParams, soloLine } from "./tool-call-line.js";
 import { renderCallRow, renderOutputBody } from "./tool-row.js";

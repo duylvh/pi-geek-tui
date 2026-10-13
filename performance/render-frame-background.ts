@@ -10,7 +10,7 @@ type ApplyLineResetsFunction = (lines: string[]) => string[];
 type TuiLike = {
 	applyLineResets?: ApplyLineResetsFunction;
 	terminal?: TerminalLike;
-	[PATCHED]?: FrameBackgroundApplyLineResetsPatch | ApplyLineResetsFunction | boolean;
+	[PATCHED]?: FrameBackgroundApplyLineResetsPatch;
 };
 
 type TerminalWriteFunction = (data: string) => unknown;
@@ -69,17 +69,15 @@ export function installRenderFrameBackground(tui: TuiLike, theme: any): void {
 	if (!tui || typeof tui.applyLineResets !== "function") return;
 	installFrameBackgroundClearWriter(tui, theme);
 	const existingPatch = tui[PATCHED];
-	if (existingPatch && typeof existingPatch === "object" && tui.applyLineResets === existingPatch.wrapper) {
+	if (existingPatch && tui.applyLineResets === existingPatch.wrapper) {
 		existingPatch.theme = theme;
 		return;
 	}
-	if (typeof existingPatch === "function" && tui.applyLineResets === existingPatch) return;
-	if (existingPatch === true && tui.applyLineResets.name === "droidFrameBackgroundApplyLineResets") return;
 
 	const originalApplyLineResets = getOriginalTuiMethod(tui, "applyLineResets");
 	const patch: FrameBackgroundApplyLineResetsPatch = {
 		theme,
-		wrapper: function droidFrameBackgroundApplyLineResets(this: TuiLike, lines: string[]): string[] {
+		wrapper: function geekFrameBackgroundApplyLineResets(this: TuiLike, lines: string[]): string[] {
 			const bgAnsi = resolveFrameBackgroundAnsi(patch.theme);
 			if (!bgAnsi) return originalApplyLineResets.call(this, lines) as string[];
 			const frameLines = padFrameRows(lines, readRows(this));

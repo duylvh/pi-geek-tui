@@ -24,12 +24,12 @@ const BADGES: Record<string, { letter: string; bg: GeekColorRole }> = {
 	thinking: { letter: "T", bg: "accent" },
 };
 
-export function isCommonTool(toolName: string): boolean {
+function isCommonTool(toolName: string): boolean {
 	return Object.prototype.hasOwnProperty.call(BADGES, toolName);
 }
 
 /** 1-cell colored badge; `·` for tools without a dedicated one; del marker background when failed. */
-export function badge(toolName: string, failed = false): string {
+function badge(toolName: string, failed = false): string {
 	const known = isCommonTool(toolName) ? BADGES[toolName] : undefined;
 	return geekBg(failed ? "delMark" : (known?.bg ?? "badgeBg"), geekFg("badgeFg", known?.letter ?? "·"));
 }
@@ -42,7 +42,7 @@ function opsSummary(items: unknown[]): string | undefined {
 }
 
 /** Single-line display value for one param. */
-export function formatParamValue(value: unknown): string {
+function formatParamValue(value: unknown): string {
 	if (value === null) return "null";
 	if (typeof value === "string") {
 		const flat = value.replace(/\s+/g, " ").trim();
@@ -63,7 +63,7 @@ export function formatParamValue(value: unknown): string {
 const LEADING_CD = /^\s*cd\s+(?:"[^"]*"|'[^']*'|\S+)\s*(?:&&|;)\s*/;
 
 /** `cd /long/project/path && git log` names the command, not the directory every call shares. */
-export function stripLeadingCd(command: string): string {
+function stripLeadingCd(command: string): string {
 	let rest = command;
 	while (LEADING_CD.test(rest)) rest = rest.replace(LEADING_CD, "");
 	return rest.trim() ? rest : command;
@@ -92,7 +92,7 @@ function field(args: any, ...keys: string[]): string {
 }
 
 /** Primary arg not streamed in yet. */
-export const MISSING = faint("…");
+const MISSING = faint("…");
 
 function readTarget(args: any): string {
 	const path = field(args, "path", "file_path");
