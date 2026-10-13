@@ -2,6 +2,8 @@
 
 Geek terminal UI for Pi: a continuous rail down the chat, one-row tool calls in collapsible groups, a box-less input zone with a live state, a one-row statusline footer, and reload-safe render patches. One fixed look; design spec in [`docs/design/geek-ui-spec.md`](docs/design/geek-ui-spec.md).
 
+![pi-geek-tui: a finished turn with a tool group and an edit diff, the next prompt running](screenshots/geek.svg)
+
 ## Install
 
 Requires Pi 1.x (`@earendil-works/pi-coding-agent` and `pi-tui` `>=1.0.0 <2.0.0`); Pi 0.x is not supported.
