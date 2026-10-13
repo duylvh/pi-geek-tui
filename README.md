@@ -1,6 +1,6 @@
 # pi-geek-tui
 
-Hancore-inspired geek terminal UI for Pi: a continuous rail down the chat, one-row tool calls in collapsible groups, a box-less input zone with a live state, a one-row statusline footer, and reload-safe render patches. One fixed look; design spec in [`docs/design/geek-ui-spec.md`](docs/design/geek-ui-spec.md).
+Geek terminal UI for Pi: a continuous rail down the chat, one-row tool calls in collapsible groups, a box-less input zone with a live state, a one-row statusline footer, and reload-safe render patches. One fixed look; design spec in [`docs/design/geek-ui-spec.md`](docs/design/geek-ui-spec.md).
 
 ## Install
 

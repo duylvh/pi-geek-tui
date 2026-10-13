@@ -1,7 +1,7 @@
 {
   "name": "@sting8k/pi-geek-tui",
   "version": "0.1.0",
-  "description": "Hancore-inspired geek terminal UI for Pi: gutter timestamps, rail, tool trees, two-line stats footer.",
+  "description": "Geek terminal UI for Pi: continuous rail, one-row tool calls in collapsible groups, box-less input zone, one-row statusline.",
   "type": "module",
   "main": "index.ts",
   "files": [
