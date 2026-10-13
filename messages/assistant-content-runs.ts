@@ -5,7 +5,7 @@
  * child lookup/patch must address rendered runs, not raw content blocks.
  */
 
-export type AssistantContentRunKind = "text" | "thinking";
+type AssistantContentRunKind = "text" | "thinking";
 
 export interface AssistantContentRun {
 	kind: AssistantContentRunKind;
@@ -33,10 +33,6 @@ function isVisibleThinkingBlock(contentBlock: any): boolean {
 		typeof contentBlock.thinking === "string" &&
 		contentBlock.thinking.trim().length > 0
 	);
-}
-
-export function hasVisibleAssistantContent(contentBlocks: any[]): boolean {
-	return contentBlocks.some((contentBlock) => isVisibleTextBlock(contentBlock) || isVisibleThinkingBlock(contentBlock));
 }
 
 function buildRuns(contentBlocks: any[]): AssistantContentRun[] {

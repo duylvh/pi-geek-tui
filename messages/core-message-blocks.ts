@@ -92,7 +92,6 @@ function patchCustomMessage(ctor?: ComponentCtor): void {
 	const proto = ctor?.prototype;
 	if (!proto || typeof proto.rebuild !== "function") return;
 
-	const base = proto.rebuild;
 	proto.rebuild = function patchedCustomMessageRebuild(this: any) {
 		if (this.customComponent) {
 			this.removeChild(this.customComponent);

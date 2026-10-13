@@ -63,9 +63,8 @@ async function importBuilt(relativePath) {
 
 compileSources();
 
-const [profiler, gitStatus, renderThrottle, assistantDebounce, toolDebounce, streamingMarkdownCache, finishedRenderCache] = await Promise.all([
+const [profiler, renderThrottle, assistantDebounce, toolDebounce, streamingMarkdownCache, finishedRenderCache] = await Promise.all([
 	importBuilt("performance/profiler.js"),
-	importBuilt("core/git-status.js"),
 	importBuilt("performance/render-throttle.js"),
 	importBuilt("performance/debounce-update.js"),
 	importBuilt("performance/debounce-tool-updates.js"),
@@ -74,7 +73,6 @@ const [profiler, gitStatus, renderThrottle, assistantDebounce, toolDebounce, str
 ]);
 
 const { flushProfile, profileCount, profileSample } = profiler;
-const { createGitBranchFetcher } = gitStatus;
 const { installRenderThrottle } = renderThrottle;
 const { installAssistantUpdateDebounce, setAssistantUpdateRenderRequester } = assistantDebounce;
 const { installToolExecutionUpdateDebounce } = toolDebounce;
@@ -192,11 +190,6 @@ for (let i = 0; i < 40; i++) toolComponent.updateResult({ output: `partial ${i}\
 await sleep(100);
 toolComponent.updateResult({ output: "final" }, false);
 profileSample("bench.toolActualUpdates", toolComponent.updates);
-
-const fetchBranch = createGitBranchFetcher(repoRoot, () => profileCount("bench.git.onUpdate"));
-fetchBranch();
-await sleep(1200);
-for (let i = 0; i < 20; i++) fetchBranch();
 
 profileCount("bench.done");
 flushProfile("bench");

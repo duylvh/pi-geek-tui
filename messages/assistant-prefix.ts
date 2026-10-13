@@ -155,16 +155,11 @@ export function installAssistantMessagePrefix(_theme?: unknown, componentClass: 
 		if (width <= 0) return baseRender.call(this, width);
 		const raw: string[] = baseRender.call(this, getAssistantBodyWidth(width));
 		const body = revealBody(this, trimBlankEdges(raw));
-		const rows = assistantHeadRows(this, width);
+		const rows = turnHeadRows(this, width);
 		if (body.length > 0) {
 			for (const line of body) rows.push(geekRow("line", dropLeadingColumns(line, 1), width));
 			rows.push(geekRow("line", "", width));
 		}
 		return keepPromptZone(raw, rows);
 	};
-}
-
-/** Head row(s) for the component that opens its turn (tool groups call this for the assistant messages they fold). */
-export function assistantHeadRows(component: any, width: number): string[] {
-	return turnHeadRows(component, width);
 }

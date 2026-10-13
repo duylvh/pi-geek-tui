@@ -148,7 +148,7 @@ function isSafeStablePrefix(prefix: string): boolean {
 	return !isAmbiguousStableBlock(getLastMarkdownBlock(prefix));
 }
 
-export function findStableMarkdownBoundary(text: string): number {
+function findStableMarkdownBoundary(text: string): number {
 	let boundary = -1;
 	let searchFrom = 0;
 	while (true) {

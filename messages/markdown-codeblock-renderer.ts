@@ -17,7 +17,7 @@ interface MarkdownLike {
 const NUMBER = /((?<![A-Za-z0-9_])\d+(?:[.,':]\d+)*%?(?![A-Za-z0-9_]))/;
 
 /** Ink text with numbers picked out in the `num` color. */
-export function geekTextColor(text: string): string {
+function geekTextColor(text: string): string {
 	if (!text) return geekFg("ink", text); // Markdown probes the color fn with a sentinel for its style prefix
 	return text.split(NUMBER).map((part, i) => (part ? geekFg(i % 2 ? "num" : "ink", part) : "")).join("");
 }

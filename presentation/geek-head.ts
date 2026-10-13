@@ -25,7 +25,7 @@ function findGitDir(cwd: string): string | undefined {
 }
 
 /** Current branch (or short sha when detached) read straight from `.git/HEAD`; cached briefly. */
-export function readGitBranch(cwd = process.cwd()): string | undefined {
+function readGitBranch(cwd = process.cwd()): string | undefined {
 	const now = Date.now();
 	if (branchCache && branchCache.cwd === cwd && now - branchCache.at < BRANCH_TTL_MS) return branchCache.branch;
 	let branch: string | undefined;
@@ -40,6 +40,14 @@ export function readGitBranch(cwd = process.cwd()): string | undefined {
 	return branch;
 }
 
+/** Branch provider for the input head: the same `.git/HEAD` read as the transcript heads, current at render time. */
+export function createGitBranchFetcher(cwd: string): () => { branch: string } | null {
+	return () => {
+		const branch = readGitBranch(cwd);
+		return branch ? { branch } : null;
+	};
+}
+
 function tildePath(cwd: string): string {
 	const home = homedir();
 	return cwd === home ? "~" : cwd.startsWith(`${home}/`) ? `~${cwd.slice(home.length)}` : cwd;
@@ -48,7 +56,7 @@ function tildePath(cwd: string): string {
 export type GeekRole = "user" | "agent";
 
 /** user → `<login>@<project dir>`; agent → `pi@agent`. */
-export function getGeekHeadInfo(role: GeekRole, cwd = process.cwd()): GeekHeadInfo {
+function getGeekHeadInfo(role: GeekRole, cwd = process.cwd()): GeekHeadInfo {
 	const name = role === "agent" ? "pi" : safeLogin();
 	return { name, host: role === "agent" ? "agent" : basename(cwd) || "~", cwd: tildePath(cwd), branch: readGitBranch(cwd) };
 }

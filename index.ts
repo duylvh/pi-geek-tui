@@ -301,7 +301,7 @@ export default function (pi: ExtensionAPI) {
 			modules.virtualizeChatContainer(tui as any, config.visibleChatTail);
 			modules.installTuiPadding(tui as any);
 			modules.installRenderAutowrapGuard(tui as any);
-			const fetchBranch = modules.createGitBranchFetcher(sessionCwd, () => tui.requestRender());
+			const fetchBranch = modules.createGitBranchFetcher(sessionCwd);
 			modules.installRenderWidthGuard(tui as any);
 			modules.installRenderFrameBackground(tui as any, uiTheme);
 			modules.installRenderPhysicalSync(tui as any);

@@ -4,15 +4,17 @@
  * gives way first while the stat (and the live state) stay whole; clean repo / null → nothing extra.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { buildSmoke } from "./smoke-build.mjs";
 
-const built = buildSmoke("geek-head-diff-smoke", ["editor/geek-editor.ts", "editor/live-state.ts", "presentation/git-diff-stat.ts"]);
+const built = buildSmoke("geek-head-diff-smoke", ["editor/geek-editor.ts", "editor/live-state.ts", "presentation/git-diff-stat.ts", "presentation/geek-head.ts"]);
 const { GeekEditor } = await built.importBuilt("editor/geek-editor.js");
 const { setLiveState } = await built.importBuilt("editor/live-state.js");
 const { refreshGitDiffStat, getGitDiffStat } = await built.importBuilt("presentation/git-diff-stat.js");
+const { createGitBranchFetcher } = await built.importBuilt("presentation/geek-head.js");
 const strip = (text) => String(text).replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
 const failures = [];
 const expect = (name, condition, detail = "") => { if (!condition) failures.push(`${name}${detail ? `: ${detail}` : ""}`); };
@@ -77,6 +79,24 @@ setLiveState(undefined);
 
 const cleanRow = strip(head(editorFor(clean), 120));
 expect("clean repo: nothing after the branch", /\(main\)\s*$/.test(cleanRow), JSON.stringify(cleanRow));
+
+// Branch provider (the same `.git/HEAD` read as the transcript heads): branch, worktree, detached, non-repo.
+expect("branch: main in a normal repo", createGitBranchFetcher(repo)()?.branch === "main", JSON.stringify(createGitBranchFetcher(repo)()));
+const worktree = join(built.workDir, "wt-feature");
+git(repo, "worktree", "add", "-q", "-b", "feat/x", worktree);
+expect("branch: a worktree (`.git` is a `gitdir:` file) shows its own branch", createGitBranchFetcher(worktree)()?.branch === "feat/x", JSON.stringify(createGitBranchFetcher(worktree)()));
+const detached = join(built.workDir, "wt-detached");
+git(repo, "worktree", "add", "-q", "--detach", detached);
+const sha = git(repo, "rev-parse", "HEAD").toString().trim().slice(0, 7);
+const detachedEditor = new GeekEditor({ requestRender() {}, terminal: { rows: 40, columns: 120 } }, editorTheme, { matches: () => false, getKeys: () => [] }, {
+	cwd: detached, getContextUsage: () => undefined, getModelInfo: () => undefined, getBranch: createGitBranchFetcher(detached), getFooterStatus: () => null, getTokenUsage: () => null,
+});
+const detachedRow = strip(head(detachedEditor, 120));
+expect("detached HEAD: the input head shows the short sha", detachedRow.includes(`(${sha})`), JSON.stringify(detachedRow));
+const outside = mkdtempSync(join(tmpdir(), "geek-no-repo-"));
+let noRepo;
+expect("non-repo: no branch, no throw", (() => { noRepo = createGitBranchFetcher(outside)(); return noRepo === null; })(), JSON.stringify(noRepo));
+rmSync(outside, { recursive: true, force: true });
 
 console.log(strip(head(dirty, 120)));
 console.log(strip(head(dirty, 60)));

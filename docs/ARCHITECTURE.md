@@ -19,7 +19,6 @@ index.ts
 core/
   Pure-ish runtime helpers that do not own UI rendering
   - assistant speed tracking
-  - cached git branch status provider
 
 editor/
   BoxEditor component and editor-specific rendering
@@ -43,7 +42,7 @@ messages/
 
 presentation/
   Row grammar shared by every scope: geek-rows.ts (rail(3) + body, split rows, number
-  grouping) and geek-head.ts (head-row data: login/cwd/branch). One look; no presets.
+  grouping) and geek-head.ts (head-row data: login/cwd/branch, and the input head's branch provider, read from `.git/HEAD`). One look; no presets.
 
 tool-tags/
   Tool rows in the rail grammar (docs/design/geek-ui-spec.md §4/§6/§7)

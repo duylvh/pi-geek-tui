@@ -1,6 +1,6 @@
 export { GeekEditor } from "./editor/geek-editor.js";
 export { createAssistantSpeedTracker } from "./core/assistant-speed.js";
-export { createGitBranchFetcher } from "./core/git-status.js";
+export { createGitBranchFetcher } from "./presentation/geek-head.js";
 export { loadConfig } from "./config.js";
 export { installMessageMeta } from "./messages/message-meta.js";
 export { installEditorSlotFrame } from "./editor/slot-frame.js";
