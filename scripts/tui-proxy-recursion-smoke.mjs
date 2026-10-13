@@ -164,7 +164,7 @@ process.env.PI_GEEK_RENDER_DEBUG_DIR = join(buildDir, "debug");
 
 function installAllWrappers(tui) {
 	installRenderThrottle(tui, 29);
-	installTuiPadding(tui, 4);
+	installTuiPadding(tui);
 	installRenderAutowrapGuard(tui);
 	installRenderWidthGuard(tui);
 	installRenderFrameBackground(tui, {});
@@ -258,25 +258,26 @@ console.log("Fullscreen layout padding path:");
 	renderer.setLayoutRoot = (nextRoot) => { renderer.layoutRoot = nextRoot; };
 	const tui = createInteractiveTuiReference(() => renderer);
 
-	installTuiPadding(tui, 4);
+	installTuiPadding(tui);
 	const paddedNode = root[layoutNode]();
 	assert(paddedNode.type === "vstack" && paddedNode.entries.length === 2, "fullscreen padding should keep the root stack and wrap each row");
 	const rows = paddedNode.entries.map((entry) => entry.component[layoutNode]());
 	assert(rows.every((row) => row.type === "hstack" && row.entries.length === 3), "each row should be [left gutter | row | right gutter]");
 	assert(rows[0].entries[1].component === scrollView && rows[1].entries[1].component === dock, "rows should keep the original components");
-	assert(rows[1].entries[0].basis === 4 && rows[1].entries[2].basis === 4, "dock row keeps the 4-cell gutters");
+	assert(rows[1].entries[0].basis === 4 && rows[1].entries[2].basis === 4, "dock row keeps the 4-cell spec gutters");
 	assert(rows[0].entries[0].basis === 4 && rows[0].entries[2].basis === 3, "transcript row gives one right-gutter cell to the scrollbar lane");
 	assert(scrollView.getContentWidth(100) === 99, "ScrollView must always reserve the lane cell (Pi only does for scrollbar:always)");
 	assert(paddedNode.entries[0].grow === 1 && paddedNode.entries[1].basis === "auto", "stack entry sizing must be preserved");
 
 	const installedLayoutNode = root[layoutNode];
-	installTuiPadding(tui, 4);
+	installTuiPadding(tui);
 	assert(root[layoutNode] === installedLayoutNode, "fullscreen padding reinstall should not stack wrappers");
 
 	installTuiPadding(tui, 0);
 	const zeroRows = root[layoutNode]().entries.map((entry) => entry.component[layoutNode]());
 	assert(zeroRows.every((row) => row.entries[0].basis === 0 && row.entries[2].basis === 0), "reinstall with horizontalPadding 0 should remove the gutters");
-	ok("fullscreen layout: 4-cell gutters, scrollbar lane in the right margin, no double wrapping, padding follows config");
+	installTuiPadding(tui);
+	ok("fullscreen layout: 4-cell gutters, scrollbar lane in the right margin, no double wrapping");
 }
 
 // ---------------------------------------------------------------------------
@@ -287,7 +288,7 @@ console.log("Chain preservation (padding -> widthGuard, Pi proxy):");
 {
 	const renderer = new LongRenderer();
 	const tui = createInteractiveTuiReference(() => renderer);
-	installTuiPadding(tui, 4);
+	installTuiPadding(tui);
 	installRenderWidthGuard(tui);
 	const line = renderer.render(10)[0];
 	assert(typeof line === "string" && line.length === 10, `padding+widthGuard should yield exactly 10 visible chars, got ${JSON.stringify(line)}`);
@@ -309,7 +310,7 @@ console.log("Chain preservation (physicalSync -> frameDebug, Pi proxy):");
 	const writes = [];
 	renderer.terminal.write = (data) => { writes.push(String(data)); };
 	const tui = createInteractiveTuiReference(() => renderer);
-	installTuiPadding(tui, 4);
+	installTuiPadding(tui);
 	installRenderWidthGuard(tui);
 	installRenderPhysicalSync(tui);
 	installRenderFrameDebug(tui);
