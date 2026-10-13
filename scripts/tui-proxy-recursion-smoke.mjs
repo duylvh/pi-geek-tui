@@ -273,9 +273,11 @@ console.log("Fullscreen layout padding path:");
 	installTuiPadding(tui);
 	assert(root[layoutNode] === installedLayoutNode, "fullscreen padding reinstall should not stack wrappers");
 
-	installTuiPadding(tui, 0);
+	// /reload imports a fresh copy of the module; the wrappers the first copy installed must follow its config.
+	const reloaded = await import(`${pathToFileURL(join(buildDir, "tui-padding.js")).href}?reload`);
+	reloaded.installTuiPadding(tui, 0);
 	const zeroRows = root[layoutNode]().entries.map((entry) => entry.component[layoutNode]());
-	assert(zeroRows.every((row) => row.entries[0].basis === 0 && row.entries[2].basis === 0), "reinstall with horizontalPadding 0 should remove the gutters");
+	assert(zeroRows.every((row) => row.entries[0].basis === 0 && row.entries[2].basis === 0), "horizontalPadding 0 from a reloaded module copy should remove the gutters");
 	installTuiPadding(tui);
 	ok("fullscreen layout: 4-cell gutters, scrollbar lane in the right margin, no double wrapping");
 }
