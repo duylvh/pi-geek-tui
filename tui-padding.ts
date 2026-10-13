@@ -2,7 +2,7 @@ import { safeTruncateToWidth, safeVisibleWidth } from "./render-budget.js";
 import { getOriginalTuiMethod, rememberTuiMethodWrapper } from "./performance/tui-proxy-original.js";
 
 /**
- * Add one-column horizontal padding to the entire TUI output.
+ * Add configurable horizontal padding (`horizontalPadding` cells each side) to the entire TUI output.
  * Regular mode (`--tui-mode regular`) wraps TUI.render; fullscreen mode wraps the layout root.
  */
 
@@ -11,10 +11,9 @@ interface AnyComponent {
 	render(width: number): string[];
 }
 
-// Margin: none.
-const PAD_LEFT = 0;
-const PAD_RIGHT = 0;
-const PADDING_PREFIX = " ".repeat(PAD_LEFT);
+let padLeft = 0;
+let padRight = 0;
+let paddingPrefix = "";
 const KITTY_IMAGE_PREFIX = "\x1b_G";
 const ITERM_IMAGE_PREFIX = "\x1b]1337;File=";
 
@@ -28,11 +27,11 @@ function isTerminalImageLine(line: string): boolean {
 }
 
 function getTuiContentInnerWidth(width: number): number {
-	return Math.max(1, width - PAD_LEFT - PAD_RIGHT);
+	return Math.max(1, width - padLeft - padRight);
 }
 
 function padTuiContentLine(line: string, width: number): string {
-	const padded = `${PADDING_PREFIX}${line}`;
+	const padded = `${paddingPrefix}${line}`;
 	if (isTerminalImageLine(line)) return padded;
 	const targetWidth = Math.max(0, Math.floor(width));
 	if (targetWidth === 0) return padded;
@@ -79,13 +78,13 @@ function marginRow(component: LayoutComponent): LayoutComponent {
 	if (wrapper) return wrapper;
 	const scroll = isScrollView(component);
 	if (scroll) component.getContentWidth = (width) => (width > 1 ? width - 1 : width);
-	const rightGutter = scroll ? Math.max(0, PAD_RIGHT - 1) : PAD_RIGHT;
+	const rightGutter = () => (scroll ? Math.max(0, padRight - 1) : padRight);
 	wrapper = {
-		render: (width) => component.render(Math.max(1, width - PAD_LEFT - rightGutter)).map((line) => `${PADDING_PREFIX}${line}`),
+		render: (width) => component.render(Math.max(1, width - padLeft - rightGutter())).map((line) => `${paddingPrefix}${line}`),
 		invalidate: () => component.invalidate?.(),
 		[LAYOUT_NODE]: () => ({
 			type: "hstack",
-			entries: [gutterEntry(PAD_LEFT), { component, basis: 0, grow: 1, shrink: 1, minSize: 1 }, gutterEntry(rightGutter)],
+			entries: [gutterEntry(padLeft), { component, basis: 0, grow: 1, shrink: 1, minSize: 1 }, gutterEntry(rightGutter())],
 			gap: 0,
 			align: "stretch",
 		}),
@@ -116,7 +115,7 @@ function installFullscreenTuiPadding(tui: any): boolean {
 		// Unknown root shape: inset the whole root (scrollbar lane then stays inside the content).
 		return {
 			type: "hstack",
-			entries: [gutterEntry(PAD_LEFT), { component: content, basis: 0, grow: 1, shrink: 1, minSize: 1 }, gutterEntry(PAD_RIGHT)],
+			entries: [gutterEntry(padLeft), { component: content, basis: 0, grow: 1, shrink: 1, minSize: 1 }, gutterEntry(padRight)],
 			gap: 0,
 			align: "stretch",
 		};
@@ -126,7 +125,9 @@ function installFullscreenTuiPadding(tui: any): boolean {
 	return true;
 }
 
-export function installTuiPadding(tui: AnyComponent): void {
+export function installTuiPadding(tui: AnyComponent, horizontalPadding: number): void {
+	padLeft = padRight = horizontalPadding;
+	paddingPrefix = " ".repeat(padLeft);
 	if (installFullscreenTuiPadding(tui)) return;
 	const state = tui as any;
 	if (state[PATCHED]) return;

@@ -537,6 +537,7 @@ async function runConfigSmoke() {
 	let config = loadConfig();
 	assert(config.tasksWidgetStyle === "compact", `default should be compact, got ${config.tasksWidgetStyle}`);
 	assert(config.visibleChatTail === 30, `default visibleChatTail should be 30, got ${config.visibleChatTail}`);
+	assert(config.horizontalPadding === 4, `default horizontalPadding should be 4, got ${config.horizontalPadding}`);
 
 	// invalid value normalizes to compact
 	writeFileSync(join(homeDir, ".pi", "agent", "pi-geek-tui.json"), JSON.stringify({ tasksWidgetStyle: "bogus" }) + "\n", "utf8");
@@ -561,6 +562,16 @@ async function runConfigSmoke() {
 	loadConfig = await loadFresh(homeDir);
 	config = loadConfig();
 	assert(config.visibleChatTail === 30, `invalid visibleChatTail should default to 30, got ${config.visibleChatTail}`);
+
+	// horizontalPadding accepts 0 and falls back to 4 when invalid
+	writeFileSync(join(homeDir, ".pi", "agent", "pi-geek-tui.json"), JSON.stringify({ horizontalPadding: 0 }) + "\n", "utf8");
+	loadConfig = await loadFresh(homeDir);
+	config = loadConfig();
+	assert(config.horizontalPadding === 0, `horizontalPadding=0 should be preserved, got ${config.horizontalPadding}`);
+	writeFileSync(join(homeDir, ".pi", "agent", "pi-geek-tui.json"), JSON.stringify({ horizontalPadding: -1 }) + "\n", "utf8");
+	loadConfig = await loadFresh(homeDir);
+	config = loadConfig();
+	assert(config.horizontalPadding === 4, `invalid horizontalPadding should default to 4, got ${config.horizontalPadding}`);
 
 	// auto-scaffold on missing config includes tasksWidgetStyle and visibleChatTail
 	const freshHome = join(workDir, "home-fresh");

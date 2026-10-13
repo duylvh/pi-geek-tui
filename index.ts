@@ -287,7 +287,7 @@ export default function (pi: ExtensionAPI) {
 			modules.setAssistantUpdateRenderRequester(() => tui.requestRender());
 			requestRenderForDiffStat = () => tui.requestRender();
 			modules.virtualizeChatContainer(tui as any, config.visibleChatTail);
-			modules.installTuiPadding(tui as any);
+			modules.installTuiPadding(tui as any, config.horizontalPadding);
 			modules.installRenderAutowrapGuard(tui as any);
 			const fetchBranch = modules.createGitBranchFetcher(sessionCwd);
 			modules.installRenderWidthGuard(tui as any);

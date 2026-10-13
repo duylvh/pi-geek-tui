@@ -42,6 +42,8 @@ export interface GeekTuiConfig {
 	forceOSC11: boolean;
 	transparentBackground: boolean;
 	visibleChatTail: number;
+	/** Blank cells added at the left and right edges of the whole TUI. */
+	horizontalPadding: number;
 	/** Smooth character-by-character reveal of streamed answers (tail fade, adaptive pace). Off = chunked drip. */
 	revealAnimation: boolean;
 }
@@ -63,6 +65,7 @@ const DEFAULTS: GeekTuiConfig = {
 	forceOSC11: false,
 	transparentBackground: false,
 	visibleChatTail: 30,
+	horizontalPadding: 4,
 	revealAnimation: true,
 };
 
@@ -103,6 +106,13 @@ function visibleChatTailOrDefault(value: unknown): number {
 	if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULTS.visibleChatTail;
 	const normalized = Math.floor(value);
 	if (normalized < 0) return DEFAULTS.visibleChatTail;
+	return normalized;
+}
+
+function horizontalPaddingOrDefault(value: unknown): number {
+	if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULTS.horizontalPadding;
+	const normalized = Math.floor(value);
+	if (normalized < 0) return DEFAULTS.horizontalPadding;
 	return normalized;
 }
 
@@ -187,6 +197,7 @@ function normalizeConfig(raw: unknown): GeekTuiConfig {
 		forceOSC11: booleanOrDefault(config.forceOSC11, DEFAULTS.forceOSC11),
 		transparentBackground: booleanOrDefault(config.transparentBackground, DEFAULTS.transparentBackground),
 		visibleChatTail: visibleChatTailOrDefault(config.visibleChatTail),
+		horizontalPadding: horizontalPaddingOrDefault(config.horizontalPadding),
 		revealAnimation: booleanOrDefault(config.revealAnimation, DEFAULTS.revealAnimation),
 	};
 }

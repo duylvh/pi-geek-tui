@@ -60,6 +60,7 @@ Config is stored at `~/.pi/agent/pi-geek-tui.json`:
   "forceOSC11": false,
   "transparentBackground": false,
   "visibleChatTail": 30,
+  "horizontalPadding": 4,
   "revealAnimation": true
 }
 ```
@@ -75,6 +76,7 @@ Config is stored at `~/.pi/agent/pi-geek-tui.json`:
 | `forceOSC11` | `true`, `false` | `false` | Force terminal background sync on Windows/WSL. Usually leave this off. |
 | `transparentBackground` | `true`, `false` | `false` | Stop painting the page/frame background and tool rows, and reset OSC 11, so the terminal's own background (wallpaper, blur) shows through. Selections and diff accents stay opaque. Dim/blur is tuned on the terminal side (Ghostty `background-image`, kitty `background_image`, WezTerm `window_background_image`). |
 | `visibleChatTail` | `0` or more | `30` | Render only the newest N chat items for speed. Use `0` to render everything. |
+| `horizontalPadding` | `0` or more | `4` | Blank cells at the left and right edges of the whole UI. Applied when a session starts. |
 | `revealAnimation` | `true`, `false` | `true` | Streamed answers appear character by character with the newest characters fading in (truecolor). Finished and resumed messages always show at once. `false` (or `PI_REDUCED_MOTION=1`) shows streamed text in chunks. |
 
 ## Profiling
