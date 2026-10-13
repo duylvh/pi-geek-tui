@@ -1,7 +1,7 @@
-# pi-geek-tui — UI spec (from mockup V2 "editor hancore")
+# pi-geek-tui — UI spec (from mockup V2)
 
 Source of truth: `design/mockup-v2.zip` (`V2.dc.html`, inline styles + `<style>` block).
-Inspiration: https://hancore.dev/site/#stack. Mockup text is Vietnamese; **all shipped UI text is English**
+Mockup text is Vietnamese; **all shipped UI text is English**
 (translations listed below). Engine (render perf, physical sync, virtualization, patch install/uninstall)
 is forked from pi-droid-styling and must keep working — change visuals, not the engine.
 
@@ -105,7 +105,7 @@ Running groups use the same rows: `Running(2 tool calls · bash)` head with the 
 The footer rule (§9) follows the last input row directly; nothing is left blank between them.
 Head row = same as message head, right side shows live state: the state word
 (`thinking` / `working` / `running` / `answering`) + dim ` · ` + num secs + dim `s`. Idle: right side empty.
-The word is hancore-style matrix text (no spark glyphs, no sweeping band): while live, every 70ms tick ~22-34% of
+The word is matrix-scramble text (no spark glyphs, no sweeping band): while live, every 70ms tick ~22-34% of
 its positions (re-rolled each tick, never frozen) show a random single-width glyph (`▚▞░▒#%/\<>*+=01xz$&`) in bold
 `ink`, the rest are their true letters in `dim`; a glyph that just went back to its letter flashes `ink` for one tick.
 Every 2s nothing flips for ~350ms (resolve beat) so the word reads cleanly. When the word changes (working → thinking

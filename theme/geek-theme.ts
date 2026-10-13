@@ -6,7 +6,7 @@
 import { Theme, type ThemeColor } from "@earendil-works/pi-coding-agent";
 import { GEEK_PALETTE as P, geekColor } from "./geek-palette.js";
 
-const GEEK_THEME_NAME = "geek-hancore";
+const GEEK_THEME_NAME = "pi-geek";
 
 function geekForeground(): Record<ThemeColor, string> {
 	const accent = geekColor("accent");

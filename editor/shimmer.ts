@@ -1,4 +1,4 @@
-// Live-state word of the input head (spec §8): hancore-style matrix text.
+// Live-state word of the input head (spec §8): matrix-scramble text.
 //  - churn: while live, every tick ~22-34% of the word's positions show a random glyph (`ink`, bold) instead
 //    of their letter (`dim`); the flipping set is re-rolled each tick so it never freezes. A glyph that just
 //    went back to its letter flashes `ink` for one tick.

@@ -1,4 +1,4 @@
-// Fixed hancore palette (docs/design/geek-ui-spec.md). Shared seam: every scope colors through this.
+// Fixed geek palette (docs/design/geek-ui-spec.md). Shared seam: every scope colors through this.
 // Owner after split: frame scope (accent config wiring). Values are spec data — do not tweak per call site.
 
 export const GEEK_PALETTE = {

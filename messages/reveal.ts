@@ -1,5 +1,5 @@
 /**
- * Smooth reveal of a streamed assistant answer (hancore-style "text appears progressively").
+ * Smooth reveal of a streamed assistant answer: the text appears progressively, character by character.
  *
  * The streamed message is rendered in full as usual (markdown parsed once per content change by
  * the presentation buffer + streaming cache). `revealBody` then cuts the rendered rows at a reveal
@@ -20,7 +20,7 @@ import { hexToRgb, parseFgAnsiToRgb } from "../theme/ansi.js";
 import { GEEK_PALETTE } from "../theme/geek-palette.js";
 import { isComponentOnActiveStream } from "./assistant-streaming-state.js";
 
-/** Chars per second when caught up (hancore types ~11ms/char). */
+/** Chars per second when caught up (~11ms per char). */
 const BASE_RATE = 90;
 /** A burst drains within this long. */
 const MAX_LAG_S = 0.35;

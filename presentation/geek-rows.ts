@@ -75,7 +75,7 @@ export function geekHeadBody(info: GeekHeadInfo, role: GeekHeadRole): string {
 	return parts.join(" ");
 }
 
-/** `1'204` grouping, as hancore. */
+/** Thousands grouped with an apostrophe: `1'204`. */
 export function geekNumber(value: number): string {
 	const sign = value < 0 ? "-" : "";
 	const digits = String(Math.trunc(Math.abs(value)));
