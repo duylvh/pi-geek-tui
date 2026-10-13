@@ -264,15 +264,15 @@ console.log("Fullscreen layout padding path:");
 	const rows = paddedNode.entries.map((entry) => entry.component[layoutNode]());
 	assert(rows.every((row) => row.type === "hstack" && row.entries.length === 3), "each row should be [left gutter | row | right gutter]");
 	assert(rows[0].entries[1].component === scrollView && rows[1].entries[1].component === dock, "rows should keep the original components");
-	assert(rows[1].entries[0].basis === 2 && rows[1].entries[2].basis === 2, "dock row keeps the 2-cell gutters");
-	assert(rows[0].entries[0].basis === 2 && rows[0].entries[2].basis === 1, "transcript row gives one right-gutter cell to the scrollbar lane");
+	assert(rows[1].entries[0].basis === 1 && rows[1].entries[2].basis === 1, "dock row keeps the 1-cell gutters");
+	assert(rows[0].entries[0].basis === 1 && rows[0].entries[2].basis === 0, "transcript row gives one right-gutter cell to the scrollbar lane");
 	assert(scrollView.getContentWidth(100) === 99, "ScrollView must always reserve the lane cell (Pi only does for scrollbar:always)");
 	assert(paddedNode.entries[0].grow === 1 && paddedNode.entries[1].basis === "auto", "stack entry sizing must be preserved");
 
 	const installedLayoutNode = root[layoutNode];
 	installTuiPadding(tui);
 	assert(root[layoutNode] === installedLayoutNode, "fullscreen padding reinstall should not stack wrappers");
-	ok("fullscreen layout: 2-cell gutters, scrollbar lane in the right margin, no double wrapping");
+	ok("fullscreen layout: 1-cell gutters, scrollbar lane in the right margin, no double wrapping");
 }
 
 // ---------------------------------------------------------------------------
