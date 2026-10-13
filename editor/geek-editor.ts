@@ -14,7 +14,7 @@ import { getLiveState } from "./live-state.js";
 import { renderSlashMenu } from "./slash-menu.js";
 import { renderStatusline } from "./statusline.js";
 import { OWN_EDITOR_ROWS } from "./slot-frame.js";
-import { shimmerWord } from "./shimmer.js";
+import { TICK_MS, shimmerWord } from "./shimmer.js";
 
 type ContextUsage = { tokens: number | null; percent: number | null; contextWindow: number };
 type ModelInfo = { provider?: string; id?: string; reasoning?: boolean; thinkingLevel?: string };
@@ -30,7 +30,6 @@ export interface GeekEditorProviders {
 
 type SlashItem = { value?: string; label?: string; description?: string };
 
-const TICK_MS = 70; // smooth shimmer sweep; the ticker only runs while the agent is live
 const PROMPT = "› ";
 const MIN_CWD_CELLS = 6;
 

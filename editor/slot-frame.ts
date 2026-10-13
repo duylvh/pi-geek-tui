@@ -54,7 +54,7 @@ function panelRow(row: string, panelWidth: number, surface: "panel" | "panelSel"
 	return `${bg}${inkStart()}${pad}${survives}${pad}\x1b[49m\x1b[39m`;
 }
 
-export type Crumbs = { child?: object; trail: string[] };
+type Crumbs = { child?: object; trail: string[] };
 
 /** `SettingsSelectorComponent` → `settings`, `ExtensionSelectorComponent` → `select`. */
 function nameOf(child: object): string {
@@ -147,7 +147,7 @@ function classify(rows: string[]): Classified {
 }
 
 /** Window of at most `size` rows that keeps `selected` visible (centered when it can be). */
-export function windowRows<T>(rows: T[], selected: number, size: number): { start: number; rows: T[] } {
+function windowRows<T>(rows: T[], selected: number, size: number): { start: number; rows: T[] } {
 	if (rows.length <= size) return { start: 0, rows };
 	const anchor = Math.max(0, selected);
 	const start = Math.max(0, Math.min(anchor - Math.floor(size / 2), rows.length - size));
@@ -182,7 +182,7 @@ function shrinkPiList(child: object, overflow: number): boolean {
 }
 
 /** Panel rows for a foreign slot child: exactly `width` cells each, at most `maxRows` tall (excluding the head row). */
-export function frameSlotChild(child: { render(width: number): string[] }, width: number, terminalRows = 40, crumbs: Crumbs = { trail: [] }): string[] {
+function frameSlotChild(child: { render(width: number): string[] }, width: number, terminalRows = 40, crumbs: Crumbs = { trail: [] }): string[] {
 	const total = Math.max(0, Math.floor(width));
 	if (total <= GEEK_PREFIX_WIDTH) return child.render(total).map((row) => truncateToWidth(row, total, "", true));
 	const bodyWidth = total - GEEK_PREFIX_WIDTH;

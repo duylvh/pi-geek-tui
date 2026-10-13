@@ -1,6 +1,6 @@
 # Architecture
 
-`pi-geek-tui` is a TypeScript ESM extension for Pi. It customizes the Pi terminal UI by installing reload-safe patches, custom renderers, a rail-grammar conversation layout, a boxed editor, theme helpers, and lightweight runtime status providers.
+`pi-geek-tui` is a TypeScript ESM extension for Pi. It customizes the Pi terminal UI by installing reload-safe patches, custom renderers, a rail-grammar conversation layout, a box-less input zone, theme helpers, and lightweight runtime status providers.
 
 ## Runtime Surface
 
@@ -21,15 +21,16 @@ core/
   - assistant speed tracking
 
 editor/
-  BoxEditor component and editor-specific rendering
+  GeekEditor (input head row, prompt rows, statusline footer, slash-menu panel, mouse translation),
+  slot-frame.ts (panel look for every other component Pi puts in the editor slot), live-state/shimmer
 
 messages/
   Conversation rows for Pi's user/assistant/core message components, all in the rail grammar
   (see presentation/): head row `• name@host ~/path (branch)`, then body rows on the `┊` rail
   - user-prefix.ts / assistant-prefix.ts replace each component's `render`; the assistant head row
     is printed only by the first assistant message of a turn
-  - message-meta.ts patches InteractiveMode.addMessageToChat to stamp message timestamps and delimit
-    turns (counter on globalThis, answers stamped on components so reloads stay consistent)
+  - message-meta.ts patches InteractiveMode.addMessageToChat to delimit turns (counter on globalThis,
+    answers stamped on components so reloads stay consistent)
   - markdown-codeblock-renderer.ts patches Markdown.prototype once: geek theme (`## ` headings,
     faint-backtick inline code, accent/num list markers, num numbers) and `// lang` code blocks
   - core-message-blocks.ts + rail-message-block.ts render compaction/skill/branch/custom messages
@@ -64,7 +65,7 @@ tool-tags/
   - elapsed.ts timing, default-badge.ts result timing/context patches, resume-tool-refresh.ts
 
 theme/
-  ANSI helpers, theme discovery/extras, shared frame background row painting, and platform-gated OSC 11 terminal background sync
+  Fixed palette (geek-palette.ts) and the host Theme built from it (geek-theme.ts), ANSI helpers, shared frame background row painting, and platform-gated OSC 11 terminal background sync
 
 performance/
   Debounce, throttle, virtualization, root frame background, and physical-sync patches for render hot paths
@@ -152,11 +153,5 @@ Tradeoff: the default shape repaint adds bounded output when visible line conten
 
 ## Validation Ladder
 
-No formal build/test script exists yet. Current available checks are:
-
-- `srcwalk review` for changed-code evidence.
-- `srcwalk overview --scope . --depth 2` for organization sanity.
-- Import-resolution script for relative `.js` specifiers resolving to `.ts` files.
-- Manual smoke test inside Pi for editor, tool tags, prefixes, theme sync, and footer status.
-
-A future `check` script should add TypeScript verification with `tsc --noEmit` once `typescript` is added to dev dependencies.
+- `npm run check`: `tsc --noEmit` typecheck, every smoke script chained in `npm test`, and `npm pack --dry-run`.
+- A live Pi run (tmux capture or screenshot) for user-visible rendering changes.

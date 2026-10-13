@@ -3,11 +3,11 @@ import { dirname, join } from "path";
 import { homedir } from "os";
 import { DEFAULT_GEEK_ACCENT } from "./theme/geek-palette.js";
 
-export type CustomWorkingMessageConfig = Record<"working" | "thinking" | "answering" | "running", string>;
+type CustomWorkingMessageConfig = Record<"working" | "thinking" | "answering" | "running", string>;
 
 export type TasksWidgetStyle = "default" | "compact";
 
-export type CollapsedThinkingStyle = "tail" | "label";
+type CollapsedThinkingStyle = "tail" | "label";
 
 const COLLAPSED_THINKING_STYLE_SET: Record<CollapsedThinkingStyle, true> = { tail: true, label: true };
 

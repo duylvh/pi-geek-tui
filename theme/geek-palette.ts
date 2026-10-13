@@ -25,7 +25,7 @@ export const GEEK_PALETTE = {
 
 export type GeekColorRole = keyof typeof GEEK_PALETTE | "accent";
 
-export const GEEK_ACCENT_OPTIONS = ["#dd5670", "#d8785b", "#88c6a3", "#d8d4b4"] as const;
+const GEEK_ACCENT_OPTIONS = ["#dd5670", "#d8785b", "#88c6a3", "#d8d4b4"] as const;
 export const DEFAULT_GEEK_ACCENT = GEEK_ACCENT_OPTIONS[0];
 
 let accentHex: string = DEFAULT_GEEK_ACCENT;

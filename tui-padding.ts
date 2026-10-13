@@ -27,15 +27,11 @@ function isTerminalImageLine(line: string): boolean {
 	return line.includes(KITTY_IMAGE_PREFIX) || line.includes(ITERM_IMAGE_PREFIX);
 }
 
-export function getTuiContentInnerWidth(width: number): number {
+function getTuiContentInnerWidth(width: number): number {
 	return Math.max(1, width - PAD_LEFT - PAD_RIGHT);
 }
 
-export function getTuiContentCursorColumn(col: number, width: number): number {
-	return Math.max(1, Math.min(width, col + PAD_LEFT));
-}
-
-export function padTuiContentLine(line: string, width: number): string {
+function padTuiContentLine(line: string, width: number): string {
 	const padded = `${PADDING_PREFIX}${line}`;
 	if (isTerminalImageLine(line)) return padded;
 	const targetWidth = Math.max(0, Math.floor(width));

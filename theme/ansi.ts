@@ -1,6 +1,6 @@
 import { safeVisibleWidth } from "../render-budget.js";
 
-// Shared ANSI helpers for the pi-neapple extension
+// Shared ANSI helpers
 
 
 // Strip ANSI escape codes (pre-compiled regexes for performance)
@@ -38,11 +38,6 @@ export function hexToRgb(hex: string): { r: number; g: number; b: number } {
 	const g = Number.parseInt(cleaned.slice(2, 4), 16);
 	const b = Number.parseInt(cleaned.slice(4, 6), 16);
 	return { r, g, b };
-}
-
-export function rgbToHex(rgb: { r: number; g: number; b: number }): string {
-	const channel = (value: number) => Math.max(0, Math.min(255, Math.round(value))).toString(16).padStart(2, "0");
-	return `#${channel(rgb.r)}${channel(rgb.g)}${channel(rgb.b)}`;
 }
 
 const CUBE_VALUES = [0, 95, 135, 175, 215, 255];
@@ -140,25 +135,7 @@ function rgbTo256(r: number, g: number, b: number): number {
 	return cubeIndex;
 }
 
-const fgEscapeCache = new Map<string, string>();
 const bgEscapeCache = new Map<string, string>();
-
-function getFgEscape(theme: any, hex: string): { prefix: string; suffix: string } {
-	const mode = typeof theme?.getColorMode === "function" ? theme.getColorMode() : "truecolor";
-	const cacheKey = `${mode}:${hex}`;
-	let cached = fgEscapeCache.get(cacheKey);
-	if (!cached) {
-		const { r, g, b } = hexToRgb(hex);
-		if (mode === "256color") {
-			const idx = rgbTo256(r, g, b);
-			cached = `\x1b[38;5;${idx}m`;
-		} else {
-			cached = `\x1b[38;2;${r};${g};${b}m`;
-		}
-		fgEscapeCache.set(cacheKey, cached);
-	}
-	return { prefix: cached, suffix: "\x1b[39m" };
-}
 
 function getBgEscape(theme: any, hex: string): { prefix: string; suffix: string } {
 	const mode = typeof theme?.getColorMode === "function" ? theme.getColorMode() : "truecolor";
@@ -178,24 +155,11 @@ function getBgEscape(theme: any, hex: string): { prefix: string; suffix: string 
 }
 
 export const RESET_BACKGROUND = "\x1b[49m";
-export const ERASE_TO_END_OF_LINE = "\x1b[K";
 export const ERASE_LINE = "\x1b[2K";
-
-export function fgHex(theme: any, hex: string, text: string): string {
-	if (!isHexColor(hex)) return text;
-	const { prefix, suffix } = getFgEscape(theme, hex);
-	return `${prefix}${text}${suffix}`;
-}
 
 export function bgHexAnsi(theme: any, hex: string): string {
 	if (!isHexColor(hex)) return "";
 	return getBgEscape(theme, hex).prefix;
-}
-
-export function bgHex(theme: any, hex: string, text: string): string {
-	if (!isHexColor(hex)) return text;
-	const { prefix, suffix } = getBgEscape(theme, hex);
-	return `${prefix}${text}${suffix}`;
 }
 
 function sgrColorParameterEnd(codes: string[], index: number): number {
@@ -262,18 +226,11 @@ export function keepAnsiBackgroundAcrossResets(text: string, bgAnsi: string): st
 	});
 }
 
-export function wrapAnsiBackground(text: string, bgAnsi: string, options: { fillToEnd?: boolean } = {}): string {
-	if (!bgAnsi || bgAnsi === RESET_BACKGROUND) return text;
-	const body = keepAnsiBackgroundAcrossResets(text, bgAnsi);
-	const fill = options.fillToEnd ? `${bgAnsi}${ERASE_TO_END_OF_LINE}` : "";
-	return `${bgAnsi}${body}${fill}${RESET_BACKGROUND}`;
-}
-
 // ------------------------------------------------------------
 // ANSI-aware text manipulation
 // ------------------------------------------------------------
 
-export function readAnsiToken(text: string, index: number): string | undefined {
+function readAnsiToken(text: string, index: number): string | undefined {
 	if (text[index] !== "\x1b") return undefined;
 	const tail = text.slice(index);
 	// CSI sequences: \x1b[...m (colors, cursor, etc.)
@@ -310,23 +267,3 @@ export function dropLeadingColumns(line: string, columns: number): string {
 	return `${leadingAnsi}${line.slice(i)}`;
 }
 
-export function startsWithVisibleSpace(line: string): boolean {
-	if (!line) return false;
-
-	let i = 0;
-	while (i < line.length) {
-		const ansi = readAnsiToken(line, i);
-		if (ansi) {
-			i += ansi.length;
-			continue;
-		}
-
-		const codePoint = line.codePointAt(i);
-		if (codePoint === undefined) return false;
-		const charLen = codePoint > 0xffff ? 2 : 1;
-		const char = line.slice(i, i + charLen);
-		return char === " ";
-	}
-
-	return false;
-}

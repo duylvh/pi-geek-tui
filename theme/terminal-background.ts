@@ -25,16 +25,16 @@ function normalizeOscHexColor(value: string): string {
 	return `#${hex}`;
 }
 
-export function shouldApplyTerminalBackgroundOsc11(options: TerminalBackgroundOscOptions = {}): boolean {
+function shouldApplyTerminalBackgroundOsc11(options: TerminalBackgroundOscOptions = {}): boolean {
 	if (options.force === true) return true;
 	return !isWindowsHost(options.platform ?? process.platform, options.env ?? process.env);
 }
 
-export function terminalBackgroundOsc11(hex: string): string {
+function terminalBackgroundOsc11(hex: string): string {
 	return `${OSC11_SET_BACKGROUND_PREFIX}${normalizeOscHexColor(hex)}\x07`;
 }
 
-export function resetTerminalBackgroundOsc111(): string {
+function resetTerminalBackgroundOsc111(): string {
 	return OSC111_RESET_BACKGROUND;
 }
 

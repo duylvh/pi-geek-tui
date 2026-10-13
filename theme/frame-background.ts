@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import { loadConfig } from "../config.js";
-import { ERASE_LINE, RESET_BACKGROUND, bgHexAnsi, keepAnsiBackgroundAcrossResets, wrapAnsiBackground } from "./ansi.js";
+import { ERASE_LINE, RESET_BACKGROUND, bgHexAnsi, keepAnsiBackgroundAcrossResets } from "./ansi.js";
 import { safeVisibleWidth } from "../render-budget.js";
 import { GEEK_PALETTE } from "./geek-palette.js";
 
@@ -63,17 +63,13 @@ function writeFrameBackgroundDebug(value: unknown): void {
 	}
 }
 
-export function paintFrameBackgroundLine(line: string, bgAnsi: string, targetWidth = 0): string {
+function paintFrameBackgroundLine(line: string, bgAnsi: string, targetWidth = 0): string {
 	const text = String(line);
 	if (!bgAnsi || isImageRenderLine(text)) return text;
 	const body = keepAnsiBackgroundAcrossResets(text, bgAnsi);
 	const width = Number.isFinite(targetWidth) ? Math.max(0, Math.floor(targetWidth)) : 0;
 	const fill = width > 0 ? " ".repeat(Math.max(0, width - safeVisibleWidth(body))) : "";
 	return `${bgAnsi}${ERASE_LINE}${body}${bgAnsi}${fill}${RESET_BACKGROUND}`;
-}
-
-export function paintFrameBackgroundSegment(text: string, bgAnsi: string): string {
-	return bgAnsi ? wrapAnsiBackground(text, bgAnsi) : text;
 }
 
 export function paintFrameBackgroundClears(text: string, bgAnsi: string): string {

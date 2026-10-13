@@ -5,7 +5,7 @@ import { truncateToWidth as safeTruncateToWidth, visibleWidth as safeVisibleWidt
 import { GEEK_PREFIX_WIDTH } from "../presentation/geek-rows.js";
 import { geekBg, geekFg } from "../theme/geek-palette.js";
 
-export type SlashMenuItem = { value?: string; label?: string; description?: string };
+type SlashMenuItem = { value?: string; label?: string; description?: string };
 
 export type SlashMenuModel = {
 	items: SlashMenuItem[];
