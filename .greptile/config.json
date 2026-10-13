@@ -9,7 +9,7 @@
   "excludeAuthors": ["github-actions[bot]"],
   "ignoreKeywords": "release:",
   "ignorePatterns": "**/node_modules/**\n.pi/**\n.memory/**\nharness.db\nharness.db-wal\nharness.db-shm\nscripts/bin/harness-cli\ncoverage/**\ntest-results/**\n**/*.tsbuildinfo",
-  "instructions": "Review pi-droid-styling as a TypeScript ESM Pi extension for terminal UI styling. Prioritize correctness, regressions, runtime reload safety, render hot-path performance, terminal state safety, and validation gaps over style nits. Keep index.ts focused on Pi lifecycle wiring and feature logic in the nearest domain folder. Runtime patches must be idempotent and dispose/restore terminal or TUI state when applicable. When user-visible behavior, architecture constraints, debug workflow, or validation expectations change, check that Harness docs and relevant README/docs files stay current.",
+  "instructions": "Review pi-geek-tui as a TypeScript ESM Pi extension for terminal UI styling. Prioritize correctness, regressions, runtime reload safety, render hot-path performance, terminal state safety, and validation gaps over style nits. Keep index.ts focused on Pi lifecycle wiring and feature logic in the nearest domain folder. Runtime patches must be idempotent and dispose/restore terminal or TUI state when applicable. When user-visible behavior, architecture constraints, debug workflow, or validation expectations change, check that Harness docs and relevant README/docs files stay current.",
   "rules": [
     {
       "id": "harness-docs-current",
@@ -19,13 +19,13 @@
     {
       "id": "reload-safe-patches",
       "rule": "Flag runtime patch installers that are not idempotent, can double-wrap host methods across reloads, or fail to restore terminal/TUI state on dispose when they replace write/render/input behavior.",
-      "scope": ["index.ts", "performance/**", "fixed-zone/**", "tool-tags/**", "messages/**", "editor/**", "*.ts"],
+      "scope": ["index.ts", "performance/**", "presentation/**", "tool-tags/**", "messages/**", "editor/**", "*.ts"],
       "severity": "high"
     },
     {
       "id": "render-hot-path-bounds",
       "rule": "For render, streaming, terminal, or tool-output changes, flag unbounded per-frame work, broad full-viewport repaints by default, synchronous expensive IO on render paths, or terminal control sequences that can leave autowrap, cursor, scroll-region, or sync-update state inconsistent.",
-      "scope": ["performance/**", "fixed-zone/**", "tool-tags/**", "messages/**", "render-budget.ts", "tui-padding.ts", "split-diff.ts"],
+      "scope": ["performance/**", "presentation/**", "tool-tags/**", "messages/**", "render-budget.ts", "tui-padding.ts", "split-diff.ts"],
       "severity": "high"
     },
     {
