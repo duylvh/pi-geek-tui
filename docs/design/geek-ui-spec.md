@@ -3,7 +3,7 @@
 Source of truth: `design/mockup-v2.zip` (`V2.dc.html`, inline styles + `<style>` block).
 Inspiration: https://hancore.dev/site/#stack. Mockup text is Vietnamese; **all shipped UI text is English**
 (translations listed below). Engine (render perf, physical sync, virtualization, patch install/uninstall)
-is forked from pi-geek-tui and must keep working — change visuals, not the engine.
+is forked from pi-droid-styling and must keep working — change visuals, not the engine.
 
 ## Palette (fixed; no pi-themes dependency)
 
@@ -12,14 +12,15 @@ is forked from pi-geek-tui and must keep working — change visuals, not the eng
 | bg | `#0c0c0c` | page background (OSC 11 when enabled) |
 | ink | `#d8d4b4` | normal text, user name, user rail dot, cursor block |
 | dim | `#a8a385` | secondary text (`// meta`, labels) |
-| faint | `#525b54` | head-row context (`@host`, `~/path`, `(branch)`), separators ` · `, backticks, `^o`, line numbers, `░` empty bar, tree glyphs |
+| faint | `#525b54` | head-row context (`@host`, `~/path`, `(branch)`), separators ` · `, backticks, `^o`, line numbers, tree glyphs, statusline provider |
 | num | `#d8785b` | numbers, `$` (bash) badge bg |
-| kw | `#689e80` | keywords, agent name in the head row, thinking level, agent rail dot, finished tool rail `┃`, edit badge bg, ctx bar fill |
+| kw | `#689e80` | keywords, agent name in the head row, agent rail dot, finished tool rail `┃`, edit/write badge bg |
 | str/mono | `#88c6a3` | inline code text, `+N`, `+` diff marker |
 | punct | `#727060` | code punctuation |
 | rail | `#3a3a34` | idle rail `┊` |
 | rule | `#2a2a26` | footer horizontal rule `─` |
-| accent | `#dd5670` default; config options `#dd5670` `#d8785b` `#88c6a3` `#d8d4b4` | `π`, `## heading`, list `-`, active rail `┃`, running state, progress fill |
+| panel | `#141414` (selected row `#201f1b`) | slash menu / editor-slot panel surface, user prompt body |
+| accent | `#dd5670` default; config options `#dd5670` `#d8785b` `#88c6a3` `#d8d4b4` (or any hex) | `π`, `## heading`, list `-`, active rail `┃`, running state, statusline thinking badge, `T` badge |
 | del | marker `#dd5670`, row bg `#251518` | diff removed |
 | add | marker `#88c6a3`, row bg `#1b221e` | diff added |
 | badge default | bg `#a8a385`, fg `#0c0c0c` | 1-cell tool badge (`R`, `T`…) |
@@ -71,7 +72,7 @@ Call row = 1-cell badge + space + params. Built-ins (Pi 1.1.0 `allToolNames`, ex
 that stands for the name and show only their primary arg in ink: `R` read path (`:10-14` / `:10+` with
 offset/limit), `$` bash/powershell command (leading `cd <dir> &&` dropped; num bg), `E` edit path (kw bg),
 `W` write path (kw bg), `G` grep `"pattern"` + dim ` in path` / ` glob g`, `F` find pattern + path, `L` ls path
-(default `.`); `T` thinking is accent bg. Every other tool: `·` badge, raw name dim padded to a shared column
+(default `.`); `T` thinking is accent bg. Every other tool: `·` badge, raw name in `punct` padded to a shared column
 (longest generic name + 2, clamped 4..16), then `key value` pairs (faint key, ink value) joined by dim ` · `.
 No suffix heuristics: `memory_read` is generic. Values are single-line, cut at ~120, arrays `N items` /
 `N operations (type)`, objects `{N keys}`. A missing primary arg (still streaming) shows dim `…`.
@@ -80,7 +81,12 @@ A failed call's badge turns del-marker bg (generic names too). Ctrl+O adds each 
 
 ### 5. Assistant markdown
 `## cause` accent; inline code = faint backtick + mono text + faint backtick; numbers num;
-list bullet `- ` accent.
+list bullet `- ` accent. Code blocks: 2-col indent, faint `// lang` label row, code one step below prose (`dim`
+base, syntax tokens keep their palette colors).
+Streamed answers reveal progressively (`revealAnimation`, default on): the rendered rows are cut at a cursor that
+advances ~90 chars/s (faster to drain a burst within ~0.35s), the newest 6 characters fade in from `faint`; once
+the stream ends the rest shows within ~250ms. History, resumed and finished messages render at once;
+`revealAnimation: false` or `PI_REDUCED_MOTION=1` turns it off.
 
 ### 6. Edit call
 ` ┃ E src/auth/session.ts                                      // +2 -2 · 0.1s` (`+2` mono, `-2` del marker; `failed` in del on error).
@@ -109,9 +115,19 @@ After `(branch)` the head row shows the working-tree diff: `+12` mono, `-3` del 
 untracked); zero parts are omitted, clean tree / not a repo → nothing. Width priority: live state (right) and
 diff stat stay whole, the cwd path gives way first (keeps its tail, `…` prefix; dropped below 6 cells).
 Input row: blank rail, `› ` then editor text; cursor = ink block.
+Slash menu (typing `/`): a panel ABOVE the head row (transcript → panel → head → input), body on the `panel`
+surface from the body column, every row inset 1 cell: header ` commands` dim + faint `i/N` on the right, up to
+Pi's `maxVisible` command rows (window follows the selection; selected row on `panelSel` with an accent `› `,
+command ink/accent in a 10..20-cell column, description dim with live hints such as `/model … · now <id>`), then a
+faint hint row ` ↑↓ select · tab fill · ↩ run · esc close`. Mouse: click selects/runs the clicked row, wheel moves
+the selection anywhere over the panel. Other autocompletes (file paths) keep Pi's rows below the input.
 Anything else Pi puts in the editor slot (settings/model/session/tree selectors, extension select/input/editor,
 login dialogs) uses the same grammar as the slash menu: 3 blank prefix cells, a panel background body, the
 stock border strokes replaced by blank panel rows, `→` selection marker shown as `›`, never wider than the row.
+Header = breadcrumb from the component's own title (` settings › Theme`, a submenu pushes a level, long trails
+left-truncate with `…`) + faint `i/N`; Pi's hint row is kept, else a default one. While a selector is open the
+input row hides; the head row and footer stay under the panel. The panel body is windowed to ~40% of the terminal
+height (3..8 body rows) so the footer always stays on screen.
 
 ### 9. Footer (rule + one statusline row, directly under the input — no blank row between)
 ```
@@ -122,7 +138,7 @@ nvim-style statusline (`editor/statusline.ts`). The thinking badge starts the li
 ` HIGH ` at col 0, one gap cell, then the model (so the model column shifts with the label width). Labels OFF MIN LOW
 MED HIGH XHIGH; `!` bash mode shows ` BASH ` in the `num` colour; a model without thinking has no badge and starts on
 the chat body column instead.
-Left: provider faint + ` · ` + model id dim (capped at 40 cells, `…`). Right (dim, right-aligned to the chat edge):
+Left: provider + ` · ` faint, then the model id dim (capped at 40 cells, `…`). Right (dim, right-aligned to the chat edge):
 `<tokens>/<window> <ctx%>` + ` · CH <n>%`, two spaces, then extension statuses (joined with ` · `). Before the first
 usage the metrics read `—`.
 Fixed sacrifice order as width shrinks: provider → CH% → tokens → extension statuses (cut with `…`, hidden under 6
@@ -140,6 +156,9 @@ row; no ctx bar, no ↑↓ R W row, no cost.
 | call / thought | call / thought (plural not inflected, as mockup) |
 
 ## Removed from the fork
-Presentation presets (droid/reasonix/claudecode), user-zone presets, input-box styles, companion pi-themes
-bundle, pixel startup logo. One look only; config keeps engine knobs (alwaysExpanded, maxExpandedLines,
-visibleChatTail, collapsedThinking, diffMode, transparentBackground, forceOSC11, customWorkingMessage) + `accent`.
+Presentation presets (droid/reasonix/claudecode), user-zone presets, input-box styles, diff modes, theme extras
+and the companion pi-themes bundle, the pixel startup logo, the time gutter, the boxed editor and the two-row
+ctx/tok footer. One look only; config keeps engine knobs (alwaysExpanded, maxExpandedLines, visibleChatTail,
+collapsedThinking, transparentBackground, forceOSC11, customWorkingMessage, tasksWidgetStyle, revealAnimation)
++ `accent`. Old keys (`presentationStyle`, `userZoneStyle`, `inputBox`, `fixedUserZone*`, `diffMode`,
+`dimToolOutput`) are removed from the config file on load.
