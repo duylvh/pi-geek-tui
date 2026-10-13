@@ -145,6 +145,24 @@ expect("search input row kept, detail/blank rows dropped", render(80).map(strip)
 swapIn(new OwnEditor());
 expect("Esc path: back to the editor", render(80).length === 4 && render(80)[1].includes("› input"));
 
+// --- /reload: Pi resets to its default editor and shows a passive box (borders, spacers, one text row). It is a notice,
+// not a picker: plain text behind the rail between our last head row and footer, no panel header or hint.
+const ownEditor = mode.editor;
+mode.editor = mode.defaultEditor;
+const reloadBox = new Container();
+reloadBox.addChild(new Text("─".repeat(40), 0, 0));
+reloadBox.addChild(new Text("", 0, 0));
+reloadBox.addChild(new Text("Reloading keybindings, extensions, skills, prompts, themes, and context files...", 1, 0));
+reloadBox.addChild(new Text("", 0, 0));
+reloadBox.addChild(new Text("─".repeat(40), 0, 0));
+swapIn(reloadBox);
+const reloadRows = render(120).map(strip);
+expect("reload notice replaces only the input row", reloadRows.length === 4 && reloadRows[0].startsWith("      • bean@proj") && reloadRows[3].includes("statusline"), JSON.stringify(reloadRows));
+expect("reload notice text sits behind the rail prefix", reloadRows[1].slice(0, P).trim() === "" && reloadRows[1].includes("Reloading keybindings"), JSON.stringify(reloadRows));
+expect("reload notice gets no panel header or hint", !reloadRows.some((row) => /container|esc back|↑↓/.test(row)), JSON.stringify(reloadRows));
+mode.editor = ownEditor;
+swapIn(new OwnEditor());
+
 swapIn(selectors.theme());
 console.log(render(70).map(strip).join("\n"));
 swapIn(selectors.manyOptions());

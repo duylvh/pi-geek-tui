@@ -163,7 +163,7 @@ export default function (pi: ExtensionAPI) {
 		setLiveState(undefined);
 	});
 
-	pi.on("session_shutdown", (_event, ctx) => {
+	pi.on("session_shutdown", () => {
 		endAssistantStream();
 		sessionRunSerial++;
 		diffStatCwd = undefined;
@@ -177,11 +177,8 @@ export default function (pi: ExtensionAPI) {
 		disposePiTasksWidgetStylingForCurrentSession?.();
 		disposePiTasksWidgetStylingForCurrentSession = undefined;
 		runningToolCalls.clear();
-		try {
-			ctx.ui.setEditorComponent(undefined);
-		} catch {
-			// Best effort: shutdown happens during session replacement.
-		}
+		// No setEditorComponent(undefined) here: Pi resets extension UI itself before reload and session replacement,
+		// and resetting from shutdown swaps Pi's default editor over the "Reloading…" box until our new instance loads.
 	});
 
 	pi.on("session_start", async (_event, ctx) => {

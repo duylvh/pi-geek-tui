@@ -181,14 +181,26 @@ function shrinkPiList(child: object, overflow: number): boolean {
 	return true;
 }
 
-/** Panel rows for a foreign slot child: exactly `width` cells each, at most `maxRows` tall (excluding the head row). */
-function frameSlotChild(child: { render(width: number): string[] }, width: number, terminalRows = 40, crumbs: Crumbs = { trail: [] }): string[] {
+/** Nothing to pick, type or press: a passive notice (Pi's "Reloading…" box, the default editor between two of ours). */
+function isNotice(model: Classified): boolean {
+	return model.hint === undefined && model.counter === undefined && model.input === undefined && model.selected < 0;
+}
+
+/**
+ * Rows for a foreign slot child: a picker becomes the panel (exactly `width` cells each, capped in height);
+ * a notice stays plain text behind the rail prefix, so the zone does not flash a panel while Pi swaps editors.
+ */
+function frameSlotChild(child: { render(width: number): string[] }, width: number, terminalRows = 40, crumbs: Crumbs = { trail: [] }): { rows: string[]; notice: boolean } {
 	const total = Math.max(0, Math.floor(width));
-	if (total <= GEEK_PREFIX_WIDTH) return child.render(total).map((row) => truncateToWidth(row, total, "", true));
+	if (total <= GEEK_PREFIX_WIDTH) return { rows: child.render(total).map((row) => truncateToWidth(row, total, "", true)), notice: false };
 	const bodyWidth = total - GEEK_PREFIX_WIDTH;
 	const prefix = " ".repeat(GEEK_PREFIX_WIDTH);
 	const innerWidth = Math.max(1, bodyWidth - 2 * PAD);
 	let model = classify(child.render(innerWidth));
+	if (isNotice(model)) {
+		const text = model.title === undefined ? model.body : [model.title, ...model.body];
+		return { rows: text.map((row) => truncateToWidth(prefix + row, total, "", true)), notice: true };
+	}
 
 	const trail = updateTrail(crumbs, child, model.title);
 	const counter = model.counter ?? "";
@@ -204,7 +216,15 @@ function frameSlotChild(child: { render(width: number): string[] }, width: numbe
 	windowed.rows.forEach((row, i) => rows.push(panelRow(row, bodyWidth, windowed.start + i === model.selected ? "panelSel" : "panel")));
 	if (model.detail) rows.push(panelRow(`  ${geekFg("faint", model.detail)}`, bodyWidth));
 	rows.push(panelRow(geekFg("faint", model.hint ?? DEFAULT_HINT), bodyWidth));
-	return rows.map((row) => prefix + row);
+	return { rows: rows.map((row) => prefix + row), notice: false };
+}
+
+function lastChrome(editor: { renderChrome?(width: number): string[] } | undefined, width: number): string[] {
+	try {
+		return typeof editor?.renderChrome === "function" ? editor.renderChrome(width) : [];
+	} catch {
+		return []; // its session is gone: a plain notice is still fine
+	}
 }
 
 type RenderableContainer = { children: any[]; render(width: number): string[] };
@@ -214,17 +234,35 @@ function patchContainer(container: RenderableContainer | undefined, mode: any): 
 	(container as any)[PATCHED] = true;
 	const baseRender = container.render.bind(container);
 	const crumbs: Crumbs = { trail: [] };
+	let lastOwnEditor: { renderChrome?(width: number): string[] } | undefined;
+	let frozenChrome: { width: number; rows: string[] } | undefined;
 	container.render = (width: number): string[] => {
 		const children = container.children;
 		if (children.every((child) => child?.[OWN_EDITOR_ROWS])) {
 			crumbs.child = undefined;
+			lastOwnEditor = children[0] ?? lastOwnEditor;
+			frozenChrome = undefined;
 			return baseRender(width);
 		}
 		const rows = Number(mode?.ui?.terminal?.rows) || 40;
-		const lines = children.flatMap((child) => (child?.[OWN_EDITOR_ROWS] ? child.render(width) : frameSlotChild(child, width, rows, crumbs)));
+		let onlyNotices = true;
+		const lines = children.flatMap((child) => {
+			if (child?.[OWN_EDITOR_ROWS]) return child.render(width);
+			const framed = frameSlotChild(child, width, rows, crumbs);
+			onlyNotices &&= framed.notice;
+			return framed.rows;
+		});
 		// Keep our head row (path, branch, diff, live state) and the footer under the panel: the zone reads the same
 		// as depth 1 and the footer, which lives inside the editor, stays on screen.
 		const chrome = mode?.editor?.[OWN_EDITOR_ROWS] && typeof mode.editor.renderChrome === "function" ? mode.editor.renderChrome(width) : [];
+		// Pi swaps its default editor in for a notice (/reload): keep our last head row and footer around it, so only the
+		// input row changes and the transcript above does not jump while the next instance of our editor loads. Frozen at
+		// the first notice frame: the old editor's statusline sources are torn down during the reload.
+		if (onlyNotices && chrome.length === 0) {
+			if (frozenChrome?.width !== width) frozenChrome = { width, rows: lastChrome(lastOwnEditor, width) };
+			const [head, ...footer] = frozenChrome.rows;
+			if (head !== undefined) return [head, ...lines, ...footer];
+		}
 		return [...lines, ...chrome];
 	};
 }
