@@ -56,7 +56,7 @@ tool-tags/
   - tool-summary.ts (running/failed state, rail kind, elapsed), tool-row.ts (standalone call row, capped
     output bodies honoring maxExpandedLines); result renderers publish the row's right-hand meta
     through renderer state
-  - edit.ts / write.ts / quick-edit.ts feed split-diff.ts (DiffRowsComponent: del/add row backgrounds,
+  - edit.ts / write.ts feed split-diff.ts (DiffRowsComponent: del/add row backgrounds,
     numbered rows, folded `··· N unchanged lines ···`)
   - compact-tool-spacing.ts wraps ToolExecutionComponent.render once; reloads only swap its runtime
     hook. Bodies render at width minus the 3-cell prefix, then get the rail (`┃` while running);

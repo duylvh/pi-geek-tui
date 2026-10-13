@@ -3,7 +3,7 @@ import { geekFg } from "../theme/geek-palette.js";
 import { resolveToolCallElapsedMs, runningElapsedMs } from "./elapsed.js";
 
 /** Calls that show their own diff/preview rows; they never fold into a summary group. */
-const EDIT_CLASS_TOOLS = new Set(["edit", "write", "quick_edit", "substitute_edit", "target_edit"]);
+const EDIT_CLASS_TOOLS = new Set(["edit", "write"]);
 
 export function isEditClassTool(toolName: unknown): boolean {
 	return typeof toolName === "string" && EDIT_CLASS_TOOLS.has(toolName);

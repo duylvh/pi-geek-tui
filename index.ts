@@ -195,7 +195,6 @@ export default function (pi: ExtensionAPI) {
 		setAssistantUpdateRenderRequesterForCurrentSession = modules.setAssistantUpdateRenderRequester;
 		modules.installCompactToolSpacing();
 		modules.installDefaultBadge();
-		modules.installQuickEditRenderer(ToolExecutionComponent);
 		modules.installBuiltinToolRenderers(ToolExecutionComponent);
 		modules.installResumeToolRefresh(InteractiveMode);
 		modules.installMarkdownCodeBlockRenderer();

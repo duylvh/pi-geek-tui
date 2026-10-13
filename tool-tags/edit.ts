@@ -76,7 +76,7 @@ function countRowStats(rows: Array<{ left?: unknown; right?: unknown; kind: stri
 }
 
 /** `+2 -2 · 0.1s` meta shared by every edit-class result. */
-export function publishEditMeta(context: any, result: any, additions: number, removals: number): void {
+function publishEditMeta(context: any, result: any, additions: number, removals: number): void {
 	const elapsed = resolveToolCallElapsedMs(context, result);
 	const parts = [`${geekFg("mono", `+${additions}`)} ${geekFg("delMark", `-${removals}`)}`];
 	if (elapsed !== undefined) parts.push(secondsText(elapsed));

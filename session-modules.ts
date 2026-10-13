@@ -23,7 +23,6 @@ export { installCompactToolSpacing } from "./tool-tags/compact-tool-spacing.js";
 export { installDefaultBadge } from "./tool-tags/default-badge.js";
 export { installBuiltinToolRenderers } from "./tool-tags/builtin-tool-renderers.js";
 export { recordToolCallTimingStart, recordToolCallTimingEnd } from "./tool-tags/elapsed.js";
-export { installQuickEditRenderer } from "./tool-tags/quick-edit.js";
 export { installResumeToolRefresh } from "./tool-tags/resume-tool-refresh.js";
 export { installTuiPadding } from "./tui-padding.js";
 export { getFooterStatusLine, getFooterTokenUsage, installFooterStatsPatch } from "./footer-patch.js";

@@ -17,13 +17,13 @@ mkdirSync(out, { recursive: true });
 writeFileSync(join(out, "package.json"), '{"type":"module"}\n');
 const compile = spawnSync(process.execPath, [
 	join(repo, "node_modules", "typescript", "lib", "tsc.js"), "--outDir", out, "--rootDir", repo, "--module", "NodeNext",
-	"--moduleResolution", "NodeNext", "--target", "ES2022", "--skipLibCheck", "--noImplicitAny", "false", "tool-tags/tool-groups.ts", "tool-tags/edit.ts", "tool-tags/write.ts", "tool-tags/quick-edit.ts",
+	"--moduleResolution", "NodeNext", "--target", "ES2022", "--skipLibCheck", "--noImplicitAny", "false", "tool-tags/tool-groups.ts", "tool-tags/edit.ts", "tool-tags/write.ts",
 ], { cwd: repo, encoding: "utf8" });
 if (compile.status !== 0) throw new Error(`tsc failed\n${compile.stdout}${compile.stderr}`);
 const groups = await import(pathToFileURL(join(out, "tool-tags", "tool-groups.js")).href);
 const edit = await import(pathToFileURL(join(out, "tool-tags", "edit.js")).href);
 const write = await import(pathToFileURL(join(out, "tool-tags", "write.js")).href);
-const STANDALONE = new Set(["edit", "write", "quick_edit", "substitute_edit", "target_edit"]);
+const STANDALONE = new Set(["edit", "write"]);
 const strip = (text) => String(text).replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
 
 const root = join(homedir(), ".pi", "agent", "sessions");
@@ -48,7 +48,7 @@ for (const file of files) {
 				const tool = { toolCallId: "c", toolName: block.name, args, expanded: false, isPartial: false, rendererState: {}, result: { content: [], details: {} }, render: () => ["RAW"] };
 				try {
 					if (STANDALONE.has(block.name)) {
-						// Stand-alone calls draw their own row (quick_edit family is registered by another extension, generic row).
+						// edit/write draw their own stand-alone row; every other tool goes through the grouped chat rows.
 						const render = block.name === "write" ? write.renderWriteCall : edit.renderEditCall;
 						const call = render(args, {}, { state: {}, cwd: "/repo", isPartial: false }).render(112).map(strip).filter((row) => row.trim());
 						if (call.length !== 1) failures.push(`${block.name}: ${call.length} rows`);
