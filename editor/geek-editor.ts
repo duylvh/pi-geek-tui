@@ -28,6 +28,8 @@ export interface GeekEditorProviders {
 	getTokenUsage(): FooterTokenUsage | null;
 }
 
+type HostStatusIndicator = Parameters<CustomEditor["setWorkingStatusIndicator"]>[0];
+
 type SlashItem = { value?: string; label?: string; description?: string };
 
 const PROMPT = "› ";
@@ -76,10 +78,18 @@ export class GeekEditor extends CustomEditor {
 	private mouseRows = { menu: 0, items: 0, input: 0, autocomplete: 0 };
 	private readonly renderHost: any;
 	private readonly user = username();
+	/** Pi's retry / compaction / branch-summary indicator, shown in the head row's live slot; the host owns its timers. */
+	private hostStatus: HostStatusIndicator;
 
 	constructor(tui: any, editorTheme: any, kb: any, private readonly providers: GeekEditorProviders) {
-		super(tui, editorTheme, kb);
+		// Embedded mode makes Pi route every status here instead of adding a standalone row above the editor.
+		super(tui, editorTheme, kb, { embedWorkingStatus: true });
 		this.renderHost = tui;
+	}
+
+	// Not forwarded to super: Pi's own border would be discarded by render(). The live state already shows "working".
+	override setWorkingStatusIndicator(indicator: HostStatusIndicator): void {
+		this.hostStatus = indicator?.kind === "working" ? undefined : indicator;
 	}
 
 	private shownWord = "";
@@ -128,7 +138,7 @@ export class GeekEditor extends CustomEditor {
 	// Priority: live state (right) and diff stat stay whole; the cwd path gives way first (keeps its tail).
 	private headRow(width: number): string {
 		const bodyWidth = Math.max(1, width - GEEK_PREFIX_WIDTH);
-		const live = this.liveStateText();
+		const live = this.hostStatus?.renderInBorder(bodyWidth) || this.liveStateText();
 		const stat = this.diffStatText();
 		const host = basename(this.providers.cwd) || "host";
 		const branch = this.providers.getBranch()?.branch;

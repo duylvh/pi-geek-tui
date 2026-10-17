@@ -111,6 +111,9 @@ its positions (re-rolled each tick, never frozen) show a random single-width gly
 Every 2s nothing flips for ~350ms (resolve beat) so the word reads cleanly. When the word changes (working → thinking
 → running) it decodes in ~300ms: unsettled chars are glyphs and settle left→right. Width never changes between frames;
 repaint ticks only while live.
+Pi's own retry / compaction / branch-summary status takes that same right slot (replacing the state word while it lasts,
+then the word returns) instead of a standalone row above the editor; Pi's plain `working` status is not shown, since the
+state word already is it.
 After `(branch)` the head row shows the working-tree diff: `+12` mono, `-3` del marker, `~4` dim (files incl.
 untracked); zero parts are omitted, clean tree / not a repo → nothing. Width priority: live state (right) and
 diff stat stay whole, the cwd path gives way first (keeps its tail, `…` prefix; dropped below 6 cells).
