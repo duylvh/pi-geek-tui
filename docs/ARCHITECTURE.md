@@ -23,6 +23,12 @@ core/
 editor/
   GeekEditor (input head row, prompt rows, statusline footer, slash-menu panel, mouse translation),
   slot-frame.ts (panel look for every other component Pi puts in the editor slot), live-state/shimmer
+  - image-attachments.ts owns the pasted-image store (<session dir>/images/<N>.<ext>; ids seeded from
+    disk and never reused, files older than 7 days swept at startup, newest 16 re-sendable). GeekEditor
+    turns the host's clipboard insertTextAtCursor(path) and pasted image file paths into literal
+    `[Image #N]` tokens; submit stays with the host and Pi's `input` event (index.ts) runs
+    image-submit.ts: ImageContent parts for image-capable models, inline file paths otherwise.
+    messages/user-prefix.ts links tokens to the stored files (OSC 8)
 
 messages/
   Conversation rows for Pi's user/assistant/core message components, all in the rail grammar

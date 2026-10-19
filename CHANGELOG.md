@@ -2,6 +2,11 @@
 
 Forked from pi-droid-styling 2.18.0; earlier history: https://github.com/sting8k/pi-droid-styling/blob/main/CHANGELOG.md
 
+## Unreleased
+
+### Added
+- Pasted images become `[Image #N]` tokens in the input (ported from pi-droid-styling). The image is copied to the session directory, one Backspace deletes the token, the token links to the copy in the chat, and submit sends the image when the model accepts images (the file path otherwise). `imageAttachments`, on by default.
+
 ## 0.1.0 - 2026-10-13
 
 First release of pi-geek-tui, a single fixed terminal look for Pi 1.x. Screenshot and details in the README.
