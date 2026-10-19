@@ -2,7 +2,7 @@
 
 Forked from pi-droid-styling 2.18.0; earlier history: https://github.com/sting8k/pi-droid-styling/blob/main/CHANGELOG.md
 
-## Unreleased
+## 0.2.0 - 2026-10-19
 
 ### Added
 - Pasted images become `[Image #N]` tokens in the input (ported from pi-droid-styling). The image is copied to the session directory, one Backspace deletes the token, the token links to the copy in the chat, and submit sends the image when the model accepts images (the file path otherwise). `imageAttachments`, on by default.
