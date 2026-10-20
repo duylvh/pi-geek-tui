@@ -46,6 +46,8 @@ export interface GeekTuiConfig {
 	horizontalPadding: number;
 	/** Smooth character-by-character reveal of streamed answers (tail fade, adaptive pace). Off = chunked drip. */
 	revealAnimation: boolean;
+	/** Pasted images become `[Image #N]` text tokens backed by copies in the session dir. Off = host path insertion. */
+	imageAttachments: boolean;
 }
 
 const DEFAULT_CUSTOM_WORKING_MESSAGE: CustomWorkingMessageConfig = {
@@ -67,6 +69,7 @@ const DEFAULTS: GeekTuiConfig = {
 	visibleChatTail: 30,
 	horizontalPadding: 4,
 	revealAnimation: true,
+	imageAttachments: true,
 };
 
 const CONFIG_PATH = join(homedir(), ".pi", "agent", "pi-geek-tui.json");
@@ -199,6 +202,7 @@ function normalizeConfig(raw: unknown): GeekTuiConfig {
 		visibleChatTail: visibleChatTailOrDefault(config.visibleChatTail),
 		horizontalPadding: horizontalPaddingOrDefault(config.horizontalPadding),
 		revealAnimation: booleanOrDefault(config.revealAnimation, DEFAULTS.revealAnimation),
+		imageAttachments: booleanOrDefault(config.imageAttachments, DEFAULTS.imageAttachments),
 	};
 }
 

@@ -1,4 +1,5 @@
 export { GeekEditor } from "./editor/geek-editor.js";
+export { attachEditorImages } from "./editor/image-submit.js";
 export { createAssistantSpeedTracker } from "./core/assistant-speed.js";
 export { createGitBranchFetcher } from "./presentation/geek-head.js";
 export { loadConfig } from "./config.js";

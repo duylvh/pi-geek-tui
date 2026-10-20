@@ -1,6 +1,6 @@
 {
   "name": "@sting8k/pi-geek-tui",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Geek terminal UI for Pi: continuous rail, one-row tool calls in collapsible groups, box-less input zone, one-row statusline.",
   "type": "module",
   "main": "index.ts",
@@ -34,7 +34,7 @@
     "dev:link": "npm install",
     "dev:clean": "rm -rf node_modules",
     "typecheck": "tsc --noEmit --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck --noImplicitAny false index.ts",
-    "test": "npm run test:working-message && npm run test:geek-frame && npm run test:tasks-widget-compact && npm run test:collapsed-thinking && npm run test:presentation-buffer && npm run test:reveal && npm run test:session-resume-styling && npm run test:tui-proxy && npm run test:builtin-tool-renderers && npm run test:geek-rows && npm run test:geek-conversation && npm run test:content-runs && npm run test:git-diff-stat && npm run test:slash-menu && npm run test:geek-shimmer && npm run test:geek-footer && npm run test:geek-head-diff && npm run test:geek-slash-editor && npm run test:geek-slot-frame && npm run test:statusline",
+    "test": "npm run test:working-message && npm run test:geek-frame && npm run test:tasks-widget-compact && npm run test:collapsed-thinking && npm run test:presentation-buffer && npm run test:reveal && npm run test:session-resume-styling && npm run test:tui-proxy && npm run test:builtin-tool-renderers && npm run test:geek-rows && npm run test:geek-conversation && npm run test:content-runs && npm run test:git-diff-stat && npm run test:slash-menu && npm run test:geek-shimmer && npm run test:geek-footer && npm run test:geek-head-diff && npm run test:geek-slash-editor && npm run test:geek-slot-frame && npm run test:statusline && npm run test:image-attachments",
     "check": "npm run typecheck && npm test && npm pack --dry-run",
     "profile:render": "node scripts/render-profile-bench.mjs",
     "trace:pi": "node scripts/pi-trace.mjs",
@@ -58,7 +58,8 @@
     "test:geek-head-diff": "node scripts/geek-head-diff-smoke.mjs",
     "test:geek-slash-editor": "node scripts/geek-slash-editor-smoke.mjs",
     "test:geek-slot-frame": "node scripts/geek-slot-frame-smoke.mjs",
-    "test:statusline": "node scripts/statusline-smoke.mjs"
+    "test:statusline": "node scripts/statusline-smoke.mjs",
+    "test:image-attachments": "node scripts/image-attachments-smoke.mjs"
   },
   "pi": {
     "extensions": [

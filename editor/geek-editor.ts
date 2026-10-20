@@ -10,6 +10,7 @@ import { safeTakeTailToWidth, safeTruncateToWidth, safeVisibleWidth, safeWrapTex
 import { getGitDiffStat } from "../presentation/git-diff-stat.js";
 import { stripAnsi } from "../theme/ansi.js";
 import { geekBg, geekFg } from "../theme/geek-palette.js";
+import { ImageAttachmentList, pastedImageFilePath, setImageStoreDir, type ImageAttachment } from "./image-attachments.js";
 import { getLiveState } from "./live-state.js";
 import { renderSlashMenu } from "./slash-menu.js";
 import { renderStatusline } from "./statusline.js";
@@ -26,6 +27,8 @@ export interface GeekEditorProviders {
 	getBranch(): BranchInfo | null;
 	getFooterStatus(): string | null;
 	getTokenUsage(): FooterTokenUsage | null;
+	/** Where pasted images persist: `<session dir>/images`, from the host session manager. */
+	imageStoreDir?: string;
 }
 
 type SlashItem = { value?: string; label?: string; description?: string };
@@ -70,6 +73,11 @@ function displayCwd(cwd: string): string {
 	return normalized === home || normalized.startsWith(`${home}/`) ? `~${normalized.slice(home.length)}` : normalized;
 }
 
+/** Accent `[Image #N]` tokens (ANSI only, width unchanged); a token split by the cursor stays plain. */
+function colorImageTokens(text: string): string {
+	return text.includes("[Image #") ? text.replace(/\[Image #\d+\]/g, (token) => geekFg("accent", token)) : text;
+}
+
 export class GeekEditor extends CustomEditor {
 	private ticker: ReturnType<typeof setInterval> | undefined;
 	/** Row counts of the last render, top to bottom: slash menu (its item rows), head, input, file autocomplete, footer. */
@@ -80,6 +88,69 @@ export class GeekEditor extends CustomEditor {
 	constructor(tui: any, editorTheme: any, kb: any, private readonly providers: GeekEditorProviders) {
 		super(tui, editorTheme, kb);
 		this.renderHost = tui;
+		// The store must point at the session directory BEFORE the registry scans it: the scan seeds
+		// the id serial, and a scan of the wrong directory would hand out ids that already exist.
+		if (providers.imageStoreDir) setImageStoreDir(providers.imageStoreDir);
+		this.imageAttachments = new ImageAttachmentList();
+		// Terminal paste (Cmd+V) of a copied image file arrives as an escaped path through the host's
+		// private handlePaste, which handleInput calls via `this` — so an instance wrapper sees it.
+		const hostPaste = (this as any).handlePaste;
+		if (typeof hostPaste === "function") {
+			(this as any).handlePaste = (pastedText: string) => {
+				if (!this.insertImageToken(pastedText, (token) => hostPaste.call(this, token))) hostPaste.call(this, pastedText);
+			};
+		}
+	}
+
+	// Image attachments as text tokens (the Claude Code model). The host clipboard flow writes
+	// <tmpdir>/pi-clipboard-<uuid>.<ext> and calls insertTextAtCursor(path); that call becomes a literal
+	// `[Image #N] ` token plus a registry entry, so history, Backspace and copy/move need no key routing.
+	// Submit stays with the host; Pi's `input` event resolves the tokens (index.ts, editor/image-submit.ts).
+	// With imageAttachments off every path below falls through to the host behavior.
+	private readonly imageAttachments: ImageAttachmentList;
+
+	/** Attachments `[Image #N]` tokens may resolve to; empty while the feature is disabled. */
+	getImageAttachments(): readonly ImageAttachment[] {
+		return loadConfig().imageAttachments ? this.imageAttachments.list() : [];
+	}
+
+	insertTextAtCursor(text: string): void {
+		if (!this.insertImageToken(text, (token) => super.insertTextAtCursor(token))) super.insertTextAtCursor(text);
+	}
+
+	/** Turn a pasted image path into a `[Image #N] ` token via `insert`; false leaves it to the host. */
+	private insertImageToken(text: string, insert: (token: string) => void): boolean {
+		if (!loadConfig().imageAttachments) return false;
+		const filePath = pastedImageFilePath(text);
+		const attachment = filePath ? this.imageAttachments.addFromPath(filePath) : null;
+		if (!attachment) return false;
+		insert(`[Image #${attachment.id}] `);
+		return true;
+	}
+
+	handleInput(data: string): void {
+		// Backspace/Delete remove a whole `[Image #N] ` next to the cursor in one stroke (like Claude Code chips).
+		const backward = data === "\x7f" || data === "\x08";
+		if ((backward || data === "\x1b[3~") && loadConfig().imageAttachments && this.deleteImageToken(backward)) return;
+		super.handleInput(data);
+	}
+
+	private deleteImageToken(backward: boolean): boolean {
+		const state = (this as any).state as { lines: string[]; cursorLine: number; cursorCol: number } | undefined;
+		if (!state || typeof state.cursorCol !== "number") return false;
+		const line = state.lines[state.cursorLine] ?? "";
+		const match = backward
+			? /\[Image #\d+\] ?$/.exec(line.slice(0, state.cursorCol))
+			: /^\[Image #\d+\] ?/.exec(line.slice(state.cursorCol));
+		if (!match) return false;
+		const start = backward ? state.cursorCol - match[0].length : state.cursorCol;
+		(this as any).pushUndoSnapshot?.();
+		state.lines[state.cursorLine] = line.slice(0, start) + line.slice(start + match[0].length);
+		if (typeof (this as any).setCursorCol === "function") (this as any).setCursorCol(start);
+		else state.cursorCol = start;
+		this.onChange?.(this.getText());
+		this.renderHost?.requestRender?.();
+		return true;
 	}
 
 	private shownWord = "";
@@ -172,7 +243,9 @@ export class GeekEditor extends CustomEditor {
 				const after = line.slice(col);
 				const glyph = firstCodePoint(after);
 				const block = geekBg("ink", geekFg("bg", glyph || " "));
-				line = `${line.slice(0, col)}${this.focused ? CURSOR_MARKER : ""}${block}${glyph ? after.slice(glyph.length) : after}`;
+				line = `${colorImageTokens(line.slice(0, col))}${this.focused ? CURSOR_MARKER : ""}${block}${colorImageTokens(glyph ? after.slice(glyph.length) : after)}`;
+			} else {
+				line = colorImageTokens(line);
 			}
 			const wrapped = safeWrapTextWithAnsi(line, wrapWidth);
 			rows.push(...(wrapped.length > 0 ? wrapped : [""]));

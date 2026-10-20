@@ -5,6 +5,7 @@ import { truncateToWidth } from "@earendil-works/pi-tui";
 import { geekHeadRow } from "../presentation/geek-head.js";
 import { GEEK_PREFIX_WIDTH, geekRow, geekRowPrefix } from "../presentation/geek-rows.js";
 import { loadConfig } from "../config.js";
+import { getGlobalImageLink, IMAGE_TOKEN_RE } from "../editor/image-attachments.js";
 import { safeVisibleWidth } from "../render-budget.js";
 import { dropLeadingColumns, stripAnsi } from "../theme/ansi.js";
 import { geekBg, geekFg } from "../theme/geek-palette.js";
@@ -34,6 +35,19 @@ function plainBodyLines(lines: string[]): string[] {
 	return lines.slice(first, last + 1).map((line) => stripAnsi(dropLeadingColumns(line, 1)).trimEnd());
 }
 
+/**
+ * Wrap `[Image #N]` tokens in OSC 8 file:// hyperlinks (Cmd+Click). Token ids are monotonic per store,
+ * so any rendered token can be linked without knowing which message it came from.
+ */
+function linkImageTokens(line: string): string {
+	if (!line.includes("[Image #")) return line;
+	return line.replace(IMAGE_TOKEN_RE, (token, id: string) => {
+		const target = getGlobalImageLink(id);
+		// Underline marks the link even when the terminal hides OSC 8 styling until hover.
+		return target ? `\x1b]8;;file://${target}\x07\x1b[4m${token}\x1b[24m\x1b]8;;\x07` : token;
+	});
+}
+
 export function installUserMessagePrefix(_theme?: unknown): void {
 	const proto = UserMessageComponent.prototype as any;
 	if (proto[PATCHED] || proto.render?.name === "patchedUserMessageRender") {
@@ -55,7 +69,7 @@ export function installUserMessagePrefix(_theme?: unknown): void {
 		const rows = [geekHeadRow("user", width)];
 		body.forEach((line, index) => {
 			const lead = index === 0 ? geekFg("ink", PROMPT) : " ".repeat(safeVisibleWidth(PROMPT));
-			rows.push(surfaceRow(lead + geekFg("ink", line), width));
+			rows.push(surfaceRow(lead + geekFg("ink", linkImageTokens(line)), width));
 		});
 		rows.push(geekRow("line", "", width));
 		return keepPromptZone(raw, rows);

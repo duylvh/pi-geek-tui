@@ -1,5 +1,7 @@
+import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
+  getAgentDir,
   AssistantMessageComponent,
   BranchSummaryMessageComponent,
   CompactionSummaryMessageComponent,
@@ -22,6 +24,7 @@ import { beginAssistantStream, endAssistantStream, trackAssistantStreamMessage }
 type SessionModules = typeof import("./session-modules.js");
 type AssistantSpeedTracker = ReturnType<SessionModules["createAssistantSpeedTracker"]>;
 type SetAssistantUpdateRenderRequester = SessionModules["setAssistantUpdateRenderRequester"];
+type AttachEditorImages = SessionModules["attachEditorImages"];
 type RenderFrameDebugModule = typeof import("./performance/render-frame-debug.js");
 
 let restoreTerminalBackgroundForCurrentSession: (() => void) | undefined;
@@ -93,6 +96,11 @@ export default function (pi: ExtensionAPI) {
 		if (diffStatCwd) refreshGitDiffStat(diffStatCwd, () => requestRenderForDiffStat?.());
 	};
 
+	/** Resolves `[Image #N]` tokens of the current session's editor; set with the editor. */
+	let attachPastedImages:
+		| ((text: string, images: Parameters<AttachEditorImages>[1], modelInput: readonly string[] | undefined) => ReturnType<AttachEditorImages>)
+		| undefined;
+
 	const isStaleContextError = (error: unknown): boolean =>
 		error instanceof Error && error.message.includes("stale after session replacement or reload");
 
@@ -152,8 +160,18 @@ export default function (pi: ExtensionAPI) {
 		// For example, a completed tool stays "Cooking" until assistant streaming resumes.
 	});
 
-	pi.on("input", () => {
+	// Pasted images ride the host submit: Pi keeps input history, steer/follow-up queueing while
+	// streaming and the compaction queue; this only attaches the images behind `[Image #N]` tokens.
+	pi.on("input", (event, ctx) => {
 		refreshDiffStat();
+		if (event.source !== "interactive" || !attachPastedImages) return { action: "continue" };
+		let modelInput: readonly string[] | undefined;
+		try {
+			modelInput = ctx.model?.input;
+		} catch (error) {
+			if (!isStaleContextError(error)) throw error;
+		}
+		return attachPastedImages(event.text, event.images, modelInput);
 	});
 
 	pi.on("agent_end", () => {
@@ -168,6 +186,7 @@ export default function (pi: ExtensionAPI) {
 		sessionRunSerial++;
 		diffStatCwd = undefined;
 		requestRenderForDiffStat = undefined;
+		attachPastedImages = undefined;
 		profileCount("session.shutdown");
 		flushProfile("session_shutdown");
 		restoreTerminalBackgroundForCurrentSession?.();
@@ -204,6 +223,11 @@ export default function (pi: ExtensionAPI) {
 		});
 		const sessionUi = ctx.ui;
 		const sessionCwd = ctx.cwd;
+		// Pasted images live next to the sessions they belong to (honors PI_CODING_AGENT_DIR and a custom sessionDir).
+		// In-memory sessions (--no-session) have no directory: use the cwd's default session dir, named as Pi names it.
+		const sessionDir = ctx.sessionManager.getSessionDir()
+			|| join(getAgentDir(), "sessions", `--${sessionCwd.replace(/^[/\\]/, "").replace(/[/\\:]/g, "-")}--`);
+		const imageStoreDir = join(sessionDir, "images");
 		diffStatCwd = sessionCwd;
 		refreshDiffStat();
 		modules.setAssistantUpdateRenderRequester(undefined);
@@ -291,8 +315,9 @@ export default function (pi: ExtensionAPI) {
 			modules.installRenderFrameBackground(tui as any, uiTheme);
 			modules.installRenderPhysicalSync(tui as any);
 			renderFrameDebugModule?.installRenderFrameDebug(tui as any);
-			return new modules.GeekEditor(tui, theme, kb, {
+			const editor = new modules.GeekEditor(tui, theme, kb, {
 				cwd: sessionCwd,
+				imageStoreDir,
 				getContextUsage: () => {
 					try {
 						return ctx.getContextUsage();
@@ -316,6 +341,9 @@ export default function (pi: ExtensionAPI) {
 				getFooterStatus: modules.getFooterStatusLine,
 				getTokenUsage: modules.getFooterTokenUsage,
 			});
+			attachPastedImages = (text, images, modelInput) =>
+				modules.attachEditorImages(text, images, editor.getImageAttachments(), modelInput);
+			return editor;
 		});
 	});
 }

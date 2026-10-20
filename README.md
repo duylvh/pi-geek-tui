@@ -30,6 +30,7 @@ The palette is fixed (page background `#0c0c0c`) and does not depend on the sele
 - **Chat rail.** Every row sits behind a 3-cell rail: `•` starts a message (`user@host path (branch)`), a dashed `┊` continues it, `┃` marks tool rows. No timestamps.
 - **One row per tool call.** A 1-cell badge plus the call's main argument (`R path`, `$ command`, `E path   // +2 -2 · 0.1s`, `G "pattern" in src`); other tools show their name and `key value` arguments. Consecutive calls fold under `Running(…)` / `Done(3 tool calls · 1 thought)`; `Ctrl+O` shows each call's output.
 - **Input zone without a box.** A head row (`user@host`, path, git branch and working-tree diff `+12 -3 ~4`) with the live agent state on the right (`thinking · 2.3s`), then a `› ` prompt row with an ink block cursor.
+- **Paste screenshots as attachments.** A pasted image (clipboard image, or a copied image file) drops an accent `[Image #1]` token at the cursor instead of a raw `/tmp` path. The token is plain text: one Backspace deletes it, history and arrows work as before, and you can move or copy it anywhere in the prompt. In the chat it is a Cmd+Click link to a saved copy, so it survives restarts. On submit the image is sent as real image content when the model accepts images, otherwise the token becomes the file path.
 - **Slash menu and selectors in one style.** Typing `/` opens a command panel above the input head (keyboard or mouse); settings, model, session and extension dialogs use the same panel.
 - **One-row statusline under a rule.** Thinking-level badge, provider · model, then context `41k/1.0M 4%`, cache-hit `CH 82%` and extension statuses on the right. As the terminal narrows, provider, `CH` and tokens drop first; the context % always stays.
 
@@ -61,7 +62,8 @@ Config is stored at `~/.pi/agent/pi-geek-tui.json`:
   "transparentBackground": false,
   "horizontalPadding": 4,
   "visibleChatTail": 30,
-  "revealAnimation": true
+  "revealAnimation": true,
+  "imageAttachments": true
 }
 ```
 
@@ -78,6 +80,7 @@ Config is stored at `~/.pi/agent/pi-geek-tui.json`:
 | `horizontalPadding` | `0` or more | `4` | Blank cells at the left and right edges of the whole UI. Applied when a session starts. |
 | `visibleChatTail` | `0` or more | `30` | Render only the newest N chat items for speed. Use `0` to render everything. |
 | `revealAnimation` | `true`, `false` | `true` | Streamed answers appear character by character with the newest characters fading in (truecolor). Finished and resumed messages always show at once. `false` (or `PI_REDUCED_MOTION=1`) shows streamed text in chunks. |
+| `imageAttachments` | `true`, `false` | `true` | Paste images as `[Image #N]` tokens. The bytes are copied right away to the project's session directory (`~/.pi/agent/sessions/--<cwd>--/images/<N>.<ext>`; the host's tmp file is removed), so links and the newest 16 re-sendable tokens survive restart and resume. Ids are never reused; files older than 7 days are deleted at startup. Slash commands and `!` bash keep Pi's own path. `false` restores Pi's behavior of inserting the file path. |
 
 ## Profiling
 
