@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 /**
  * Input head row diff stat: `… (branch) +12 -3 ~4` from a real dirty git repo; at narrow widths the cwd path
- * gives way first while the stat (and the live state) stay whole; clean repo / null → nothing extra.
+ * gives way first while the stat (and the live state) stay whole; clean repo / null → nothing extra. Pi's own
+ * status (driven through the real InteractiveMode routing) shares the head row's live slot: no standalone row.
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { visibleWidth } from "@earendil-works/pi-tui";
+import { InteractiveMode, initTheme } from "@earendil-works/pi-coding-agent";
+import { Container, visibleWidth } from "@earendil-works/pi-tui";
 import { buildSmoke } from "./smoke-build.mjs";
 
 const built = buildSmoke("geek-head-diff-smoke", ["editor/geek-editor.ts", "editor/live-state.ts", "presentation/git-diff-stat.ts", "presentation/geek-head.ts"]);
@@ -76,6 +78,61 @@ row = strip(head(dirty, 80));
 Date.now = realNow;
 expect("live state and stat both stay at 80", /\S{8} · \d+\.\ds$/.test(row) && row.includes(`~${stat.files}`), JSON.stringify(row));
 setLiveState(undefined);
+
+// Pi's statuses ride the head row's live slot. Real InteractiveMode routing methods run against a minimal host; only the
+// non-working indicators are stubs (the retry/compaction/branchSummary classes are not exported by the host package).
+initTheme("dark"); // the host reads its theme for the stock working row
+const P = InteractiveMode.prototype;
+const hostFor = (editor) => {
+	const host = {
+		editor, defaultEditor: { setWorkingStatusIndicator() {} }, statusContainer: new Container(), idleStatus: {},
+		ui: { requestRender() {}, getClearOnShrink: () => false }, options: { tuiMode: "regular" },
+		session: { isStreaming: true, thinkingLevel: "off" }, defaultWorkingMessage: "Working...", workingVisible: true,
+		activeStatusIndicator: undefined, activeWorkingIndicatorEmbedded: false,
+	};
+	for (const name of ["setEditorWorkingStatusIndicator", "showStatusIndicator", "clearStatusIndicator", "showWorkingStatusIndicator", "setWorkingVisible"]) host[name] = P[name].bind(host);
+	return host;
+};
+const hostStatus = (kind, text) => ({ kind, renderInBorder: (width) => `\x1b[33m${text.slice(0, width)}\x1b[39m`, dispose() {} });
+const heads = (editor, width) => [editor.render(width)[0], editor.renderChrome(width)[0]];
+const status = editorFor(repo);
+const host = hostFor(status);
+setLiveState("thinking");
+
+host.setWorkingVisible(true);
+expect("working: the host keeps Pi's own working row out of the status container", host.statusContainer.children.length === 0, String(host.statusContainer.children.length));
+expect("working: the host did route a working indicator to the editor", host.activeStatusIndicator?.kind === "working");
+for (const [name, line] of Object.entries({ render: heads(status, 100)[0], renderChrome: heads(status, 100)[1] })) {
+	row = strip(line);
+	expect(`working (${name}): the head keeps the custom state`, /\S{8} · \d+\.\ds$/.test(row) && !row.includes("Working"), JSON.stringify(row));
+}
+
+for (const [kind, text] of [["retry", "Retrying (2/3) in 4s... (esc to cancel)"], ["compaction", "Auto-compacting... (esc to cancel)"], ["branchSummary", "Summarizing branch... (esc to cancel)"]]) {
+	host.showStatusIndicator(hostStatus(kind, text));
+	expect(`${kind}: no standalone row`, host.statusContainer.children.length === 0);
+	for (const width of [120, 80, 50, 30]) {
+		heads(status, width).forEach((line, index) => {
+			const via = index === 0 ? "render" : "renderChrome";
+			row = strip(line);
+			expect(`${kind} @${width} (${via}): exactly ${width} cells`, visibleWidth(line) === width, String(visibleWidth(line)));
+			expect(`${kind} @${width} (${via}): shown in place of the live state`, row.includes(text.slice(0, 10)) && !/thinking · /.test(row), JSON.stringify(row));
+		});
+	}
+	expect(`${kind} @120: whole text shown, user@project kept`, strip(head(status, 120)).includes(text) && strip(head(status, 120)).includes("@kpi-api-service"), JSON.stringify(strip(head(status, 120))));
+}
+
+const reattached = editorFor(repo);
+host.editor = reattached;
+host.setEditorWorkingStatusIndicator(host.activeStatusIndicator);
+expect("editor swap: the active status follows to the new editor", strip(head(reattached, 120)).includes("Summarizing branch..."), JSON.stringify(strip(head(reattached, 120))));
+
+host.clearStatusIndicator();
+row = strip(head(reattached, 100));
+expect("cleared: the custom live state returns", /\S{8} · \d+\.\ds$/.test(row) && !row.includes("Summarizing"), JSON.stringify(row));
+setLiveState(undefined);
+row = strip(head(reattached, 100));
+expect("cleared + idle: nothing on the right", row.endsWith(`~${stat.files}`) && !row.includes("Summarizing"), JSON.stringify(row));
+host.activeStatusIndicator?.dispose();
 
 const cleanRow = strip(head(editorFor(clean), 120));
 expect("clean repo: nothing after the branch", /\(main\)\s*$/.test(cleanRow), JSON.stringify(cleanRow));
