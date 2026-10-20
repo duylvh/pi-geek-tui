@@ -26,5 +26,6 @@ export { installBuiltinToolRenderers } from "./tool-tags/builtin-tool-renderers.
 export { recordToolCallTimingStart, recordToolCallTimingEnd } from "./tool-tags/elapsed.js";
 export { installResumeToolRefresh } from "./tool-tags/resume-tool-refresh.js";
 export { installTuiPadding } from "./tui-padding.js";
+export { installSelectionSkipsRail } from "./selection-rail.js";
 export { getFooterStatusLine, getFooterTokenUsage, installFooterStatsPatch } from "./footer-patch.js";
 export { installPiTasksWidgetStyling } from "./widgets/pi-tasks-widget.js";

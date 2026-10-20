@@ -309,6 +309,7 @@ export default function (pi: ExtensionAPI) {
 			requestRenderForDiffStat = () => tui.requestRender();
 			modules.virtualizeChatContainer(tui as any, config.visibleChatTail);
 			modules.installTuiPadding(tui as any, config.horizontalPadding);
+			modules.installSelectionSkipsRail(tui);
 			modules.installRenderAutowrapGuard(tui as any);
 			const fetchBranch = modules.createGitBranchFetcher(sessionCwd);
 			modules.installRenderWidthGuard(tui as any);

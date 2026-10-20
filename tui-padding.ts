@@ -129,6 +129,11 @@ function installFullscreenTuiPadding(tui: any): boolean {
 	return true;
 }
 
+/** Blank cells left of the content on every screen row. */
+export function tuiMarginLeft(): number {
+	return MARGIN.left;
+}
+
 export function installTuiPadding(tui: AnyComponent, horizontalPadding = 4): void {
 	MARGIN.left = MARGIN.right = horizontalPadding;
 	MARGIN.prefix = " ".repeat(horizontalPadding);
