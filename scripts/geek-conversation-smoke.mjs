@@ -17,6 +17,7 @@ const built = buildSmoke("geek-conversation-smoke", [
 	"messages/chat-frame.ts",
 	"messages/markdown-codeblock-renderer.ts",
 	"tool-tags/tool-groups.ts",
+	"performance/virtualize-chat.ts",
 	"theme/geek-theme.ts",
 	"theme/geek-palette.ts",
 ]);
@@ -42,6 +43,7 @@ const { createGeekTheme } = await built.importBuilt("theme/geek-theme.js");
 const { GEEK_PALETTE } = await built.importBuilt("theme/geek-palette.js");
 const { frameChatChild } = await built.importBuilt("messages/chat-frame.js");
 const { renderChatChildren } = await built.importBuilt("tool-tags/tool-groups.js");
+const { virtualizeChatContainerInstance } = await built.importBuilt("performance/virtualize-chat.js");
 
 installMarkdownCodeBlockRenderer(Markdown);
 installMarkdownCodeBlockRenderer(); // the extension's own pi-tui copy (same class under Pi's module aliasing)
@@ -111,6 +113,30 @@ foldMode.addMessageToChat({ role: "assistant", timestamp: T_AGENT + 5_000, stopR
 const foldedRows = renderChatChildren(foldMode.chatContainer.children, 80).map(plain);
 const foldedAgentHeads = foldedRows.filter((row) => row[1] === "•" && row.includes("pi@agent"));
 expect("folded tool-only opener still prints the agent head once, above the group", foldedAgentHeads.length === 1 && foldedRows.findIndex((row) => row.includes("pi@agent")) < foldedRows.findIndex((row) => row.includes("R session.ts")), JSON.stringify(foldedRows));
+
+// Clicks hit the rows geek drew, not Pi's child heights (tool groups fold rows, head rows add them).
+const clickMode = new FakeInteractiveMode();
+clickMode.addMessageToChat({ role: "user", content: "run it", timestamp: T_USER });
+clickMode.addMessageToChat({ role: "assistant", timestamp: T_AGENT, stopReason: "toolUse", content: [{ type: "toolCall", id: "2", name: "read", arguments: { path: "a.ts" } }] });
+const clickTool = {
+	toolCallId: "2", toolName: "read", args: { path: "a.ts" }, result: { content: [{ type: "text", text: "x" }] }, expanded: false,
+	setExpanded(expanded) { this.expanded = expanded; },
+	render: () => ["", "pi row", "pi row", "pi row", "pi row"],
+};
+clickMode.chatContainer.addChild(clickTool);
+clickMode.addMessageToChat({ role: "assistant", timestamp: T_AGENT + 5_000, stopReason: "stop", content: [{ type: "thinking", thinking: "check units" }, { type: "text", text: "all good" }] });
+const chat = clickMode.chatContainer;
+virtualizeChatContainerInstance(chat, 30);
+const chatRows = () => chat.render(80).map(plain);
+const clickRow = (match) => {
+	const y = chatRows().findIndex(match);
+	chat.handleMouse({ type: "click", button: "left", x: 5, y, screenX: 5, screenY: y, width: 80, height: 100 });
+};
+const hiddenThinking = (row) => /thinking/i.test(row) && row.includes("check units");
+clickRow((row) => row.includes("R a.ts"));
+expect("click on a tool group row toggles that group", clickTool.expanded === true, JSON.stringify(chatRows()));
+clickRow(hiddenThinking);
+expect("click on a collapsed thinking row shows that run", !chatRows().some(hiddenThinking) && chatRows().some((row) => row.includes("check units")), JSON.stringify(chatRows()));
 
 // Pi's widget spacer between chat and input zone is railed, so the rail has no un-railed gap before the input head.
 const spacerRows = mode.widgetContainerAbove.render(80).map(plain);
