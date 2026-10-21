@@ -268,6 +268,13 @@ async function runBuiltinToolRenderersSmoke() {
 		}
 	}
 
+	// Ctrl+T showing thinking lists each folded thought as one row, without outputs; hidden keeps the head only.
+	const thinking = (hideThinkingBlock) => [{ ...assistant("check ttl"), hideThinkingBlock }, tool("read", { path: "a.ts" }, { result: { content: [{ type: "text", text: "OUTPUT" }] } })];
+	const shownRows = groups.renderChatChildren(thinking(false), 100).map(strip);
+	assert(shownRows.some((row) => row.includes('T "check ttl"')) && shownRows.some((row) => row.includes("R a.ts")) && !shownRows.some((row) => row.includes("OUTPUT")), `thinking shown: ${JSON.stringify(shownRows)}`);
+	const hiddenRows = groups.renderChatChildren(thinking(true), 100).map(strip);
+	assert(hiddenRows.length === 2 && !hiddenRows.some((row) => row.includes("check ttl")), `thinking hidden: ${JSON.stringify(hiddenRows)}`);
+
 	// Lone call: no head, no guide; bash drops its leading cd; Ctrl+O hint on the right.
 	const lone = groups.renderChatChildren([tool("bash", { command: "cd /Users/bean/proj && ls -la\necho" })], 100).map(strip);
 	assert(lone.length === 2 && lone[0].startsWith(" ┃ $ ls -la") && lone[0].includes("^o  // 0.5s") && !lone[0].includes("Done("), `lone call row: ${JSON.stringify(lone)}`);
