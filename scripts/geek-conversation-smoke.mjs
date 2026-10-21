@@ -54,6 +54,7 @@ setCoreMessageBlockTheme(core.theme);
 
 // A stand-in for InteractiveMode: same addMessageToChat shape (user -> UserMessageComponent, assistant -> AssistantMessageComponent).
 class FakeInteractiveMode {
+	ui = { requestRender() {} };
 	chatContainer = new Container();
 	// Pi keeps a Spacer(1) between the chat and the input zone (renderWidgets in interactive-mode.js).
 	widgetContainerAbove = new Container();
@@ -63,6 +64,9 @@ class FakeInteractiveMode {
 	}
 	renderWidgets() {
 		this.renderWidgetContainer(this.widgetContainerAbove);
+	}
+	renderInitialMessages(messages = []) {
+		for (const message of messages) this.addMessageToChat(message);
 	}
 	addMessageToChat(message) {
 		if (message.role === "user") this.chatContainer.addChild(new core.UserMessageComponent(message.content));
@@ -96,6 +100,9 @@ expect("status before any turn: blank rail, body at col 3", beforeRows.length ==
 
 // ...and it stays that way once a turn starts later (the rail decision is made at first render).
 const mode = new FakeInteractiveMode();
+mode.renderWidgets();
+const emptySpacerRows = mode.widgetContainerAbove.render(80).map(plain);
+expect("empty session widget spacer stays off the rail", emptySpacerRows.length === 1 && emptySpacerRows[0].trim() === "", JSON.stringify(emptySpacerRows));
 mode.addMessageToChat({ role: "user", content: "refresh token expires after 5 minutes,\nfix it", timestamp: T_USER });
 mode.addMessageToChat({ role: "assistant", timestamp: T_AGENT, stopReason: "toolUse", content: [{ type: "toolCall", id: "1", name: "read", arguments: {} }] });
 mode.addMessageToChat({ role: "assistant", timestamp: T_AGENT + 60_000, stopReason: "stop", content: [{ type: "thinking", thinking: "check units" }, { type: "text", text: markdownAnswer }] });
@@ -248,6 +255,22 @@ expect("ts: keyword kw, number num, comment faint, plain code dim", (() => { con
 expect("json: number num, string mono", (() => { const t = tokens('"ttl"'); const by = (s) => t.find((x) => x.text.includes(s))?.fg; return by("300") === "num"; })(), JSON.stringify(tokens('"ttl"')));
 expect("unlabeled block is plain dim", tokens("plain block").every((t) => t.fg === "dim" || t.fg === "num"), JSON.stringify(tokens("plain block")));
 globalThis[THEME_KEY] = previousTheme;
+
+mode.chatContainer.clear();
+mode.renderInitialMessages();
+core.InteractiveMode.prototype.showStatus.call(mode, "New session started");
+expect("new session notices do not inherit the previous turn rail", frameAll(mode.chatContainer.children, 80).map(plain).every((row) => row[1] === " "));
+expect("new session widget spacer drops the previous turn rail", mode.widgetContainerAbove.render(80).map(plain).every((row) => row.trim() === ""));
+mode.addMessageToChat({ role: "user", content: "new turn", timestamp: T_USER });
+expect("first turn restores the widget rail", mode.widgetContainerAbove.render(80).map(plain)[0]?.[1] === "┊");
+
+mode.chatContainer.clear();
+mode.renderInitialMessages([
+	{ role: "user", content: "resumed turn", timestamp: T_USER },
+	{ role: "assistant", timestamp: T_AGENT, stopReason: "stop", content: [{ type: "text", text: "resumed answer" }] },
+]);
+expect("resumed conversation restores the widget rail", mode.widgetContainerAbove.render(80).map(plain)[0]?.[1] === "┊");
+expect("resumed conversation keeps its assistant head", heads(mode.chatContainer.children[1]).length === 1);
 
 console.log(["userA", "agentTools", "agentText", "userB", "agentB"].flatMap((name) => all[name].render(72).map((row) => row)).join("\n"));
 console.log([...blocks, expanded].flatMap((block) => block.render(72)).join("\n"));

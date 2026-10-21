@@ -50,7 +50,7 @@ export function turnHeadRows(component: any, width: number): string[] {
 
 // Pi always keeps a Spacer(1) in widgetContainerAbove (between the chat and the input zone). Left alone it
 // is the one un-railed blank inside the rail column, so it is swapped for a railed blank row.
-const RAIL_SPACER = { invalidate() {}, render: (width: number): string[] => [geekRow("line", "", width)] };
+const RAIL_SPACER = { invalidate() {}, render: (width: number): string[] => [geekRow(hasTurnStarted() ? "line" : "blank", "", width)] };
 const RAILED = Symbol.for("pi-geek-tui.message-meta.railed-widgets");
 
 function railWidgetSpacers(mode: any): void {
@@ -62,6 +62,16 @@ export function installMessageMeta(InteractiveModeClass: any): void {
 	const proto = InteractiveModeClass?.prototype;
 	if (!proto || proto[PATCHED] || typeof proto.addMessageToChat !== "function") return;
 	proto[PATCHED] = true;
+
+	const baseRenderInitialMessages = proto.renderInitialMessages;
+	if (typeof baseRenderInitialMessages === "function") {
+		proto.renderInitialMessages = function patchedRenderInitialMessages(this: any, ...args: any[]): unknown {
+			const turns = state();
+			turns.turn = 0;
+			turns.headedTurn = -1;
+			return baseRenderInitialMessages.apply(this, args);
+		};
+	}
 
 	const baseRenderWidgetContainer = proto.renderWidgetContainer;
 	if (typeof baseRenderWidgetContainer === "function") {
