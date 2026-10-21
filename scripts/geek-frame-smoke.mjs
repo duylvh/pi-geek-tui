@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { highlightCode } from "@earendil-works/pi-coding-agent";
+import { highlightCode, InteractiveMode } from "@earendil-works/pi-coding-agent";
 import { visibleWidth } from "@earendil-works/pi-tui";
 
 const repoRoot = process.cwd();
@@ -28,6 +28,7 @@ const build = spawnSync(process.execPath, [
 	join(repoRoot, "editor", "geek-editor.ts"),
 	join(repoRoot, "editor", "live-state.ts"),
 	join(repoRoot, "startup-ui.ts"),
+	join(repoRoot, "exit-ui.ts"),
 	join(repoRoot, "theme", "geek-theme.ts"),
 ], { cwd: repoRoot, encoding: "utf8" });
 if (build.status !== 0) throw new Error(`tsc failed\n${build.stdout}\n${build.stderr}`);
@@ -37,11 +38,38 @@ const { GeekEditor } = await load("editor/geek-editor.js");
 const { GEEK_PREFIX_WIDTH: P } = await load("presentation/geek-rows.js");
 const { setLiveState } = await load("editor/live-state.js");
 const { renderStartupHeader } = await load("startup-ui.js");
+const { installExitUiPatch } = await load("exit-ui.js");
 const { createGeekTheme } = await load("theme/geek-theme.js");
 
 const strip = (text) => String(text).replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
 const failures = [];
 const expect = (name, condition) => { if (!condition) failures.push(name); };
+
+const originalStop = InteractiveMode.prototype.stopInteractiveTui;
+try {
+	installExitUiPatch(InteractiveMode);
+	const patchedStop = InteractiveMode.prototype.stopInteractiveTui;
+	installExitUiPatch(InteractiveMode);
+	expect("repeated exit patch installation keeps the same wrapper", InteractiveMode.prototype.stopInteractiveTui === patchedStop);
+	for (const mode of ["fullscreen", "regular"]) {
+		for (const output of ["transcript", "resume-hint"]) {
+			const stops = [];
+			let renders = 0;
+			let switches = 0;
+			const owner = {
+				renderer: { mode, renderNow() { renders++; } },
+				ui: { stop(options) { stops.push(options); } },
+				switchTuiMode(nextMode) { switches++; this.renderer.mode = nextMode; },
+			};
+			InteractiveMode.prototype.stopInteractiveTui.call(owner, output);
+			expect(`${mode}/${output}: stop exactly once with the screen-preservation policy`, stops.length === 1 && stops[0].preserveScreen === (mode === "fullscreen"));
+			expect(`${mode}/${output}: no transcript render or mode switch at exit`, renders === 0 && switches === 0);
+		}
+	}
+} finally {
+	InteractiveMode.prototype.stopInteractiveTui = originalStop;
+	delete InteractiveMode.prototype[Symbol.for("pi-geek-tui.exit-ui.patched")];
+}
 
 const providers = {
 	cwd: join(homeDir, "code", "kpi-api"),

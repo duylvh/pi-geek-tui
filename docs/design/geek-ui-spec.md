@@ -138,10 +138,10 @@ height (3..8 body rows) so the footer always stays on screen.
 ──────────────────────────────────────────────────────────────── (rule color, full width)
  HIGH  zai · glm-5.3                          41k/1.0M 4% · CH 82%  ○ 🐴 ponytail: ⚡ FULL
 ```
-nvim-style statusline (`editor/statusline.ts`). The thinking badge starts the line: a reverse-video accent block
+nvim-style statusline (`editor/statusline.ts`). The thinking label starts the line: accent-colored text without a filled background
 ` HIGH ` at col 0, one gap cell, then the model (so the model column shifts with the label width). Labels OFF MIN LOW
 MED HIGH XHIGH; `!` bash mode shows ` BASH ` in the `num` colour; a model without thinking has no badge and starts on
-the chat body column instead.
+the chat body column instead. The label stays on the same text baseline as the model and metrics; terminal line spacing does not need to match a filled block.
 Left: provider + ` · ` faint, then the model id dim (capped at 40 cells, `…`). Right (dim, right-aligned to the chat edge):
 `<tokens>/<window> <ctx%>` + ` · CH <n>%`, two spaces, then extension statuses (joined with ` · `). Before the first
 usage the metrics read `—`.

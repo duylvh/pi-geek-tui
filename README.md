@@ -32,13 +32,14 @@ The palette is fixed (page background `#0c0c0c`) and does not depend on the sele
 - **Input zone without a box.** A head row (`user@host`, path, git branch and working-tree diff `+12 -3 ~4`) with the live agent state on the right (`thinking · 2.3s`), then a `› ` prompt row with an ink block cursor.
 - **Paste screenshots as attachments.** A pasted image (clipboard image, or a copied image file) drops an accent `[Image #1]` token at the cursor instead of a raw `/tmp` path. The token is plain text: one Backspace deletes it, history and arrows work as before, and you can move or copy it anywhere in the prompt. In the chat it is a Cmd+Click link to a saved copy, so it survives restarts. On submit the image is sent as real image content when the model accepts images, otherwise the token becomes the file path.
 - **Slash menu and selectors in one style.** Typing `/` opens a command panel above the input head (keyboard or mouse); settings, model, session and extension dialogs use the same panel.
-- **One-row statusline under a rule.** Thinking-level badge, provider · model, then context `41k/1.0M 4%`, cache-hit `CH 82%` and extension statuses on the right. As the terminal narrows, provider, `CH` and tokens drop first; the context % always stays.
+- **One-row statusline under a rule.** Accent-colored thinking-level label (no filled background), provider · model, then context `41k/1.0M 4%`, cache-hit `CH 82%` and extension statuses on the right. As the terminal narrows, provider, `CH` and tokens drop first; the context % always stays.
 
 ### Built for the terminal
 
 - **Smoother while the model works.** Streaming text and fast tool updates are batched into steady frames instead of repainting on every token.
 - **Stays aligned when you resize.** Boxes, labels, and right-aligned status account for terminal escape codes, so they wrap and truncate cleanly.
 - **Long sessions stay fast.** Only the newest part of the chat is rendered, while huge tool results are capped so history does not slow you down.
+- **Clean fullscreen exit.** `Ctrl+D`, `/quit`, and other fullscreen exits restore the shell without printing the session UI. Pi still prints its resume hint when the session is saved; session history is unchanged. Regular-mode exit behavior is unchanged.
 - **Reloads stay clean.** UI patches are applied once and removed cleanly, so extension reloads and session switches do not stack layout changes.
 
 ## Config
