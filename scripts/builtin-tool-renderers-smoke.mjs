@@ -40,6 +40,8 @@ declare module "@earendil-works/pi-tui" {
 	export const truncateToWidth: any;
 	export const visibleWidth: any;
 	export const wrapTextWithAnsi: any;
+	export type TuiMouseEvent = any;
+	export type TuiMouseEventResult = any;
 }
 declare module "node:fs";
 declare module "node:path";

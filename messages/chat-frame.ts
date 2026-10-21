@@ -42,8 +42,12 @@ export function frameChatChild(child: any, width: number, next?: any, prev?: any
 		if (rail === "line" && (isRailed(prev) || isSpacer(prev))) return [];
 		return child.render(width).map(() => geekRow(rail, "", width));
 	}
-	const bodyWidth = Math.max(1, width - GEEK_PREFIX_WIDTH - 1);
-	return child.render(bodyWidth).map((row: string) => geekRow(rail, stripAnsi(row).startsWith(" ") ? dropLeadingColumns(row, 1) : row, width));
+	return child.render(framedChildWidth(child, width)).map((row: string) => geekRow(rail, stripAnsi(row).startsWith(" ") ? dropLeadingColumns(row, 1) : row, width));
+}
+
+/** Width `frameChatChild` renders `child` at: grammar components get the full row, the rest the body column. */
+export function framedChildWidth(child: any, width: number): number {
+	return width <= 0 || isRailed(child) ? width : Math.max(1, width - GEEK_PREFIX_WIDTH - 1);
 }
 
 /** A dim one-line notice on a blank rail (body at col 3), for rows the extension itself injects between chat children. */
