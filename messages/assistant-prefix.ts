@@ -15,15 +15,22 @@ import { claimTurnHead, keepPromptZone, turnHeadRows } from "./message-meta.js";
 import { revealBody } from "./reveal.js";
 
 const PATCHED = Symbol.for("pi-geek-tui.assistant-prefix.patched");
+/** Where Pi's own rows sit in the rows we drew: `rowOffset` geek rows before Pi's row 0, at Pi's `width`. */
+const MOUSE_ORIGIN = Symbol("pi-geek-tui.assistant-prefix.mouse-origin");
 
 /** Markdown/Text children are padded 1 column on each side; rows keep 1 spare cell on the right. */
 function getAssistantBodyWidth(width: number): number {
 	return Math.max(1, width - GEEK_PREFIX_WIDTH - 1);
 }
 
-function trimBlankEdges(lines: string[]): string[] {
+function leadingBlankCount(lines: string[]): number {
 	let first = 0;
 	while (first < lines.length && stripAnsi(lines[first] ?? "").trim() === "") first++;
+	return first;
+}
+
+function trimBlankEdges(lines: string[]): string[] {
+	const first = leadingBlankCount(lines);
 	let last = lines.length - 1;
 	while (last >= first && stripAnsi(lines[last] ?? "").trim() === "") last--;
 	return lines.slice(first, last + 1);
@@ -153,13 +160,25 @@ export function installAssistantMessagePrefix(_theme?: unknown, componentClass: 
 
 	proto.render = function patchedAssistantMessageRender(width: number): string[] {
 		if (width <= 0) return baseRender.call(this, width);
-		const raw: string[] = baseRender.call(this, getAssistantBodyWidth(width));
+		const bodyWidth = getAssistantBodyWidth(width);
+		const raw: string[] = baseRender.call(this, bodyWidth);
 		const body = revealBody(this, trimBlankEdges(raw));
 		const rows = turnHeadRows(this, width);
+		this[MOUSE_ORIGIN] = { rowOffset: rows.length - leadingBlankCount(raw), width: bodyWidth };
 		if (body.length > 0) {
 			for (const line of body) rows.push(geekRow("line", dropLeadingColumns(line, 1), width));
 			rows.push(geekRow("line", "", width));
 		}
 		return keepPromptZone(raw, rows);
 	};
+
+	// Clicks (e.g. Pi's per-run thinking toggle) arrive in our rows; Pi hit-tests its own.
+	const baseHandleMouse = proto.handleMouse;
+	if (typeof baseHandleMouse === "function") {
+		proto.handleMouse = function patchedAssistantHandleMouse(event: any): unknown {
+			const origin = this[MOUSE_ORIGIN];
+			if (!origin) return undefined;
+			return baseHandleMouse.call(this, { ...event, y: event.y - origin.rowOffset, width: origin.width, height: event.height - origin.rowOffset });
+		};
+	}
 }

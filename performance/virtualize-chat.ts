@@ -11,7 +11,9 @@
 
 import { profileCount, profileSample } from "./profiler.js";
 import { frameNoticeRow } from "../messages/chat-frame.js";
-import { renderChatChildren } from "../tool-tags/tool-groups.js";
+import type { TuiMouseEvent } from "@earendil-works/pi-tui";
+
+import { type ChatHit, dispatchChatMouse, renderChatChildren } from "../tool-tags/tool-groups.js";
 
 interface AnyComponent {
 	render(width: number): string[];
@@ -216,9 +218,18 @@ export function virtualizeChatContainerInstance(
 	ensureMethodPatches(chatContainer, state);
 	syncHiddenChildren(chatContainer, state);
 
+	let hits: ChatHit[] = [];
+	let hitsWidth = -1;
+	(chatContainer as any).handleMouse = (event: TuiMouseEvent) => {
+		if (event.width !== hitsWidth) chatContainer.render(event.width);
+		return dispatchChatMouse(hits, event);
+	};
+
 	chatContainer.render = function (width: number): string[] {
 		// Re-sync in case callers mutated children without addChild (defensive).
 		syncHiddenChildren(chatContainer, state);
+		hits = [];
+		hitsWidth = width;
 
 		const children = chatContainer.children;
 		const total = children.length;
@@ -231,12 +242,13 @@ export function virtualizeChatContainerInstance(
 
 		if (tail === 0 || hidden === 0) {
 			profileCount("chat.virtualize.render.full");
-			return renderChatChildren(children, width);
+			return renderChatChildren(children, width, hits);
 		}
 
 		profileCount("chat.virtualize.render.capped");
 		const lines: string[] = [frameNoticeRow(`··· ${hidden} older messages hidden ···`, width), frameNoticeRow("", width)];
-		const childLines = renderChatChildren(children, width);
+		const childLines = renderChatChildren(children, width, hits);
+		for (const hit of hits) hit.start += lines.length;
 		for (let j = 0; j < childLines.length; j++) lines.push(childLines[j]);
 		return lines;
 	};

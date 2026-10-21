@@ -1,4 +1,6 @@
-import { frameChatChild } from "../messages/chat-frame.js";
+import type { TuiMouseEvent, TuiMouseEventResult } from "@earendil-works/pi-tui";
+
+import { frameChatChild, framedChildWidth } from "../messages/chat-frame.js";
 import { turnHeadRows } from "../messages/message-meta.js";
 import { GEEK_PREFIX_WIDTH, geekRow, geekSplitRow } from "../presentation/geek-rows.js";
 import { geekFg } from "../theme/geek-palette.js";
@@ -109,26 +111,63 @@ function pushLines(target: string[], lines: string[]): void {
 	for (let i = 0; i < lines.length; i++) target.push(lines[i]);
 }
 
-/** Renders chat children in order, folding tool runs into summary rows. */
-export function renderChatChildren(children: any[], width: number): string[] {
+/**
+ * Which chat component owns a span of rendered rows. Pi hit-tests the chat with its own child heights, which
+ * tool groups and the rail grammar change, so clicks route through the rows this module actually drew.
+ */
+type ChatHitTarget = { kind: "tools"; tools: any[] } | { kind: "child"; component: any; width: number };
+export type ChatHit = ChatHitTarget & { start: number; height: number };
+
+function pushRows(lines: string[], hits: ChatHit[] | undefined, rows: string[], target: ChatHitTarget): void {
+	if (hits && rows.length > 0) hits.push({ ...target, start: lines.length, height: rows.length });
+	pushLines(lines, rows);
+}
+
+/** Renders chat children in order, folding tool runs into summary rows; `hits` receives the row owners. */
+export function renderChatChildren(children: any[], width: number, hits?: ChatHit[]): string[] {
 	const lines: string[] = [];
 	let index = 0;
 	while (index < children.length) {
 		let end = index;
 		while (end < children.length && isGroupMember(children[end])) end++;
 		if (end === index) {
-			pushLines(lines, frameChatChild(children[index], width, children[index + 1], children[index - 1]));
+			const child = children[index];
+			pushRows(lines, hits, frameChatChild(child, width, children[index + 1], children[index - 1]), { kind: "child", component: child, width: framedChildWidth(child, width) });
 			index++;
 			continue;
 		}
 		const members = children.slice(index, end);
 		const tools = members.filter(isToolComponent);
 		if (tools.length === 0) {
-			for (const member of members) pushLines(lines, member.render(width));
+			for (const member of members) pushRows(lines, hits, member.render(width), { kind: "child", component: member, width });
 		} else {
-			pushLines(lines, renderToolGroup(members, width));
+			pushRows(lines, hits, renderToolGroup(members, width), { kind: "tools", tools });
 		}
 		index = end;
 	}
 	return lines;
+}
+
+const isLeftClick = (event: TuiMouseEvent): boolean => event.type === "click" && event.button === "left";
+
+/**
+ * A click on a tool group toggles every call in it (Pi's per-tool click, at group scale), a click on an
+ * expandable block toggles it; anything else reaches the child in its own row space.
+ */
+export function dispatchChatMouse(hits: ChatHit[], event: TuiMouseEvent): TuiMouseEventResult | undefined {
+	const hit = hits.find((candidate) => event.y >= candidate.start && event.y < candidate.start + candidate.height);
+	if (!hit) return undefined;
+	if (hit.kind === "tools") {
+		if (!isLeftClick(event)) return undefined;
+		const expanded = !hit.tools.some((tool) => tool.expanded);
+		for (const tool of hit.tools) tool.setExpanded(expanded);
+		return { handled: true };
+	}
+	const { component } = hit;
+	if (typeof component.setExpanded === "function" && typeof component.expanded === "boolean") {
+		if (!isLeftClick(event)) return undefined;
+		component.setExpanded(!component.expanded);
+		return { handled: true };
+	}
+	return component.handleMouse?.({ ...event, y: event.y - hit.start, width: hit.width, height: hit.height });
 }
