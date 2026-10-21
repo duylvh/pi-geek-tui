@@ -2,13 +2,13 @@
 //
 //    HIGH  zai · glm-5.3 .......................... 41k/1.0M 4% · CH 82%  ○ 🐴 ponytail: ⚡ FULL
 //
-// The thinking badge (reverse-video accent block) starts the line, one gap cell, then the model. Without a badge
+// The thinking label (accent-colored inline text) starts the line, one gap cell, then the model. Without a badge
 // the model starts on the chat body column. Metrics + extension statuses are right-aligned to the edge.
 // Fixed sacrifice order as the width shrinks: provider → CH% → tokens → extension statuses (cut with `…`, hidden
 // under 6 cells) → the model id (truncated last). ctx% is never dropped while the badge + model fit; nothing wraps.
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { GEEK_PREFIX_WIDTH } from "../presentation/geek-rows.js";
-import { geekBg, geekFg } from "../theme/geek-palette.js";
+import { geekFg } from "../theme/geek-palette.js";
 
 export type StatuslineInput = {
 	provider?: string;
@@ -48,12 +48,12 @@ function badgeLabel(input: StatuslineInput): { text: string; role: "accent" | "n
 	return { text: LEVEL_LABELS[level] ?? level.toUpperCase().slice(0, 5), role: "accent" };
 }
 
-/** The line start: the badge block + one gap cell, or blank up to the chat body column. */
+/** The line start: the thinking label + one gap cell, or blank up to the chat body column. */
 function lead(input: StatuslineInput): { text: string; width: number } {
 	const badge = badgeLabel(input);
 	if (!badge) return { text: " ".repeat(GEEK_PREFIX_WIDTH), width: GEEK_PREFIX_WIDTH };
 	const block = ` ${badge.text} `;
-	return { text: `${geekBg(badge.role, geekFg("bg", block))} `, width: block.length + 1 };
+	return { text: `${geekFg(badge.role, block)} `, width: block.length + 1 };
 }
 
 /** Context metrics from richest to leanest (plain text); the ctx% rung is the leanest real one, "" is the last resort. */

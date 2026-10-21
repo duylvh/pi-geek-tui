@@ -13,6 +13,7 @@ import {
 
 import { getConfigIssue, loadConfig } from "./config.js";
 import { recordToolCallTimingEnd, recordToolCallTimingStart } from "./tool-tags/elapsed.js";
+import { installExitUiPatch } from "./exit-ui.js";
 import { installStartupUiPatch, setStartupHeader, suppressStartupModelScopeLog } from "./startup-ui.js";
 import { installInteractiveChatVirtualization } from "./performance/virtualize-chat.js";
 import { setGeekAccent } from "./theme/geek-palette.js";
@@ -79,6 +80,7 @@ export default function (pi: ExtensionAPI) {
 	setGeekAccent(loadConfig().accent);
 	suppressStartupModelScopeLog();
 	installStartupUiPatch(InteractiveMode);
+	installExitUiPatch(InteractiveMode);
 	// Default matches config.ts; session_start refreshes from disk before messages render.
 	let currentVisibleChatTail = 30;
 	installInteractiveChatVirtualization(InteractiveMode, () => currentVisibleChatTail);

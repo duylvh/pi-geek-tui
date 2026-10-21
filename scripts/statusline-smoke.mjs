@@ -28,8 +28,8 @@ const { GEEK_PREFIX_WIDTH } = await import(pathToFileURL(join(buildDir, "present
 const strip = (text) => String(text).replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
 const failures = [];
 const expect = (name, condition, detail = "") => { if (!condition) failures.push(`${name}${detail ? `: ${detail}` : ""}`); };
-const ACCENT_BG = "\x1b[48;2;221;86;112m";
-const NUM_BG = "\x1b[48;2;216;120;91m";
+const ACCENT_FG = "\x1b[38;2;221;86;112m";
+const NUM_FG = "\x1b[38;2;216;120;91m";
 const base = {
 	provider: "zai", modelId: "glm-5.3", reasoning: true, thinkingLevel: "high",
 	contextWindow: 1_000_000, tokens: 41_000, percent: 4.1, cacheHitPercent: 82.4, status: "○ 🐴 ponytail: ⚡ FULL",
@@ -48,15 +48,15 @@ for (const width of [120, 100, 80, 70, 60, 50, 40, 30, 20, 12, 9, 8]) {
 	}
 }
 
-// Badge: reverse-video block at the line start; labels abbreviated to <= 7 cells.
+// Thinking and bash labels stay inline without a filled background.
 for (const [level, label] of [["off", "OFF"], ["minimal", "MIN"], ["low", "LOW"], ["medium", "MED"], ["high", "HIGH"], ["xhigh", "XHIGH"]]) {
 	const out = renderStatusline({ ...base, thinkingLevel: level }, 120);
 	const plain = strip(out);
 	const block = ` ${label} `;
-	expect(`${level}: accent block at col 0, one gap cell, then the model`, plain.startsWith(`${block} zai · glm-5.3`) && out.includes(ACCENT_BG), JSON.stringify(plain.slice(0, 14)));
+	expect(`${level}: accent label at col 0, one gap cell, then the model`, plain.startsWith(`${block} zai · glm-5.3`) && out.includes(ACCENT_FG) && !/\x1b\[(?:48|7)[;m]/.test(out), JSON.stringify(plain.slice(0, 14)));
 }
-expect("bash mode shows a BASH block in the num colour", (() => { const out = renderStatusline({ ...base, bashMode: true }, 120); return strip(out).startsWith(" BASH  zai") && out.includes(NUM_BG) && !strip(out).includes("HIGH"); })());
-expect("no thinking support: model on the body column, no accent block", (() => { const out = renderStatusline({ ...base, reasoning: false }, 120); return strip(out).startsWith(" ".repeat(GEEK_PREFIX_WIDTH) + "zai") && !out.includes(ACCENT_BG); })());
+expect("bash mode shows a BASH label in the num colour", (() => { const out = renderStatusline({ ...base, bashMode: true }, 120); return strip(out).startsWith(" BASH  zai") && out.includes(NUM_FG) && !/\x1b\[(?:48|7)[;m]/.test(out) && !strip(out).includes("HIGH"); })());
+expect("no thinking support: model on the body column, no accent label", (() => { const out = renderStatusline({ ...base, reasoning: false }, 120); return strip(out).startsWith(" ".repeat(GEEK_PREFIX_WIDTH) + "zai") && !out.includes(ACCENT_FG); })());
 
 // Sacrifice order as the width shrinks: provider → CH% → tokens → statuses (cut, then hidden) → model id. ctx% stays.
 const sweep = [];

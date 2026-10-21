@@ -11,8 +11,9 @@ One fixed look (fixed palette, configurable accent); the visual contract is `doc
 - Tool calls: one row per call (badge + primary argument for Pi built-ins, name + `key value` pairs otherwise), consecutive calls folded under a `Running(…)` / `Done(…)` head, split diffs for edit/write, `Ctrl+O` for output.
 - Box-less input zone: head row with cwd, branch, working-tree diff and the live agent state; `› ` prompt row.
 - Slash-command panel above the input head (keyboard and mouse), and the same panel look for every selector/dialog Pi puts in the editor slot.
-- One-row statusline footer: thinking-level badge, provider · model, context tokens/percent, cache-hit percent, extension statuses.
+- One-row statusline footer: accent-colored thinking-level label without a filled background, provider · model, context tokens/percent, cache-hit percent, extension statuses.
 - Render hot-path patches for streaming assistant output and noisy tool output; during a real assistant stream the presentation buffer drip-feeds deltas at the 33 ms cadence and the finished-render cache stays bypassed, both keyed on the extension-tracked stream state rather than `message.stopReason`.
+- Fullscreen exit restores the shell without a transcript/UI dump, even when Pi’s `fullscreenExitOutput` setting is `transcript`; saved sessions retain Pi’s resume hint and history. Regular-mode exit behavior is unchanged.
 - Non-Windows hosts sync the terminal background with OSC 11 to cover terminal-owned padding.
 - Opt-in render profiling for request/render/repaint/update/git metrics without changing UI behavior when disabled.
 
