@@ -67,8 +67,8 @@ function thoughtText(component: any): string {
 
 /**
  * One block for a run of tool calls (spec §4): a `Done(…)` / `Running(…)` head and one row per call
- * under `├─`/`└─` guides; a lone call is just its row (thoughts only show once expanded). Ctrl+O adds each call's output (and the
- * thoughts) under its guide. Folded assistant members are never rendered, so a turn-opening one hands
+ * under `├─`/`└─` guides; a lone call is just its row. Thoughts get a one-line row while Ctrl+T shows thinking, and Ctrl+O adds
+ * each call's output (and the full thoughts) under its guide. Folded assistant members are never rendered, so a turn-opening one hands
  * over its `pi@agent` head row, printed above the block.
  */
 function renderToolGroup(members: any[], width: number): string[] {
@@ -77,6 +77,9 @@ function renderToolGroup(members: any[], width: number): string[] {
 	const expanded = tools.some((tool) => tool.expanded);
 	const failed = tools.filter((tool) => Boolean(tool.result?.isError)).length;
 	const thoughts = members.filter((member) => thoughtText(member)).length;
+	// Pi's Ctrl+T updates every assistant component in the chat, folded ones included.
+	const showsThought = (member: any) => thoughtText(member) !== "" && (expanded || member.hideThinkingBlock === false);
+	const shownThoughts = members.filter(showsThought).length;
 	let elapsedMs: number | undefined;
 	for (const tool of tools) {
 		const ms = toolElapsedMs(tool);
@@ -88,7 +91,7 @@ function renderToolGroup(members: any[], width: number): string[] {
 	const hint = expanded ? "" : geekFg("faint", "^o  ");
 	const rows = members.filter((member) => !isToolComponent(member)).flatMap((member) => turnHeadRows(member, width));
 
-	if (tools.length === 1 && !(expanded && thoughts > 0)) {
+	if (tools.length === 1 && shownThoughts === 0) {
 		const entry: TreeEntry = { kind: "tool", tool: tools[0] };
 		const line = entryLine(entry, nameColumn([tools[0].toolName]));
 		rows.push(geekRow(rail, geekSplitRow(line, `${hint}${elapsedMeta(elapsedMs, running)}`.trimEnd(), bodyWidth), width));
@@ -97,7 +100,7 @@ function renderToolGroup(members: any[], width: number): string[] {
 		const entries: TreeEntry[] = [];
 		for (const member of members) {
 			if (isToolComponent(member)) entries.push({ kind: "tool", tool: member });
-			else if (expanded && thoughtText(member)) entries.push({ kind: "thought", text: thoughtText(member) });
+			else if (showsThought(member)) entries.push({ kind: "thought", text: thoughtText(member) });
 		}
 		const column = nameColumn([...tools.map((tool) => tool.toolName), ...(entries.some((entry) => entry.kind === "thought") ? ["thinking"] : [])]);
 		rows.push(geekRow(rail, geekSplitRow(headLeft(tools, thoughts, failed, running), `${hint}${elapsedMeta(elapsedMs, false)}`.trimEnd(), bodyWidth), width));
