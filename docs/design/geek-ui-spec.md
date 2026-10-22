@@ -132,6 +132,10 @@ Header = breadcrumb from the component's own title (` settings › Theme`, a sub
 left-truncate with `…`) + faint `i/N`; Pi's hint row is kept, else a default one. While a selector is open the
 input row hides; the head row and footer stay under the panel. The panel body is windowed to ~40% of the terminal
 height (3..8 body rows) so the footer always stays on screen.
+A child that draws its own rounded `╭─╮ … ╰─╯` box with `│` on every interior row (a form such as SuPi ask-user) is the
+exception: its blank bordered rows are content, so none of it is classified, windowed or folded into a hint. All its
+rows are kept in order behind the same prefix and one cell of panel padding, with the head row and footer directly
+under the bottom border.
 
 ### 9. Footer (rule + one statusline row, directly under the input — no blank row between)
 ```

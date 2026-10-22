@@ -141,6 +141,31 @@ state.title = undefined;
 expect("counter `1/2` goes to the right of the header", /1\/2 *$/.test(headerOf()), headerOf());
 expect("search input row kept, detail/blank rows dropped", render(80).map(strip).some((row) => row.slice(P).trim().startsWith(">")));
 
+// --- self-framed form (SuPi ask-user): a rounded box with a │ around every interior row, blanks included. Its rows are
+// the content: every one survives in order behind one cell of panel padding, none is folded into a hint and truncated.
+const accent = (text) => `\x1b[38;2;120;180;255m${text}\x1b[39m`;
+const formLines = ["", "Which deployment target?", "", ...Array.from({ length: 10 }, (_, i) => `${i === 0 ? "→" : " "} ${i + 1}. Target ${i + 1}`), "", "Enter select · Esc cancel"];
+class SelfFramedForm {
+	render(width) {
+		const inner = width - 2;
+		const side = accent("│");
+		return [accent(`╭${"─".repeat(inner)}╮`), ...formLines.map((line) => `${side}${` ${line}`.padEnd(inner)}${side}`), accent(`╰${"─".repeat(inner)}╯`)];
+	}
+}
+for (const width of [40, 100]) {
+	const form = new SelfFramedForm();
+	swapIn(form);
+	const all = render(width, 40);
+	const rows = all.slice(0, -3);
+	const want = form.render(width - P - 2).map(strip);
+	const got = rows.map((row) => strip(row).slice(P));
+	expect(`form@${width}: every form row survives in order behind one cell of panel padding`, JSON.stringify(got) === JSON.stringify(want.map((row) => ` ${row} `)), JSON.stringify({ got, want }));
+	expect(`form@${width}: question and late option visible`, rows.some((row) => strip(row).includes("Which deployment target?")) && rows.some((row) => strip(row).includes("10. Target 10")), JSON.stringify(got));
+	expect(`form@${width}: every row exactly ${width} cells`, rows.every((row) => visibleWidth(row) === width), JSON.stringify(rows.map(visibleWidth)));
+	expect(`form@${width}: head + footer stay directly under the bottom border`, strip(rows.at(-1)).includes("╰") && strip(all.at(-3)).startsWith("      • bean@proj") && strip(all.at(-1)).includes("statusline"), JSON.stringify(all.slice(-4).map(strip)));
+	expect(`form@${width}: repeated render is stable`, JSON.stringify(render(width, 40)) === JSON.stringify(all));
+}
+
 // --- Esc path: back to our editor, rows unframed again
 swapIn(new OwnEditor());
 expect("Esc path: back to the editor", render(80).length === 4 && render(80)[1].includes("› input"));

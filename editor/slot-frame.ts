@@ -45,6 +45,17 @@ const isBlank = (row: string): boolean => plain(row).trim() === "";
 const isBorder = (row: string): boolean => /^[─\s]+$/.test(plain(row)) && plain(row).includes("─");
 const isSkippable = (row: string): boolean => isBlank(row) || isBorder(row);
 
+/** A child that draws its own rounded box (SuPi ask-user): its blank `│ │` rows are content, not gaps. */
+function isSelfFramedBox(rows: string[]): boolean {
+	const lines = rows.map(plain);
+	let start = 0;
+	let end = lines.length;
+	while (start < end && lines[start]!.trim() === "") start++;
+	while (end > start && lines[end - 1]!.trim() === "") end--;
+	const box = lines.slice(start, end).map((line) => line.trim());
+	return box.length >= 2 && /^╭─+╮$/.test(box[0]!) && /^╰─+╯$/.test(box[box.length - 1]!) && box.slice(1, -1).every((line) => line.startsWith("│") && line.endsWith("│"));
+}
+
 /** One panel row of `panelWidth` cells: content clamped to the padded inner width, panel bg (or panelSel) surviving the row's own SGR resets. */
 function panelRow(row: string, panelWidth: number, surface: "panel" | "panelSel" = "panel"): string {
 	const pad = " ".repeat(PAD);
@@ -196,7 +207,9 @@ function frameSlotChild(child: { render(width: number): string[] }, width: numbe
 	const bodyWidth = total - GEEK_PREFIX_WIDTH;
 	const prefix = " ".repeat(GEEK_PREFIX_WIDTH);
 	const innerWidth = Math.max(1, bodyWidth - 2 * PAD);
-	let model = classify(child.render(innerWidth));
+	const raw = child.render(innerWidth);
+	if (isSelfFramedBox(raw)) return { rows: raw.map((row) => prefix + panelRow(row, bodyWidth)), notice: false };
+	let model = classify(raw);
 	if (isNotice(model)) {
 		const text = model.title === undefined ? model.body : [model.title, ...model.body];
 		return { rows: text.map((row) => truncateToWidth(prefix + row, total, "", true)), notice: true };
