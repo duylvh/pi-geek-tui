@@ -84,6 +84,8 @@ export class GeekEditor extends CustomEditor {
 	private ticker: ReturnType<typeof setInterval> | undefined;
 	/** Row counts of the last render, top to bottom: slash menu (its item rows), head, input, file autocomplete, footer. */
 	private mouseRows = { menu: 0, items: 0, input: 0, autocomplete: 0 };
+	/** The autocomplete list last drawn as the slash menu; while Pi still holds it after the text left slash context, its rows stay hidden. */
+	private menuList: unknown;
 	private readonly renderHost: any;
 	private readonly user = username();
 	/** Pi's retry / compaction / branch-summary indicator, shown in the head row's live slot; the host owns its timers. */
@@ -331,8 +333,11 @@ export class GeekEditor extends CustomEditor {
 		// Slash commands: popup panel ABOVE the input head (transcript → menu → head → input); other
 		// autocompletes (file paths…) keep Pi's rows below the input.
 		const slash = this.slashItems();
+		const list = (this as any).autocompleteList;
+		if (slash) this.menuList = list;
+		else if (list !== this.menuList) this.menuList = undefined;
 		const menu = slash ? renderSlashMenu(slash, width, this.slashHints()) : [];
-		const autocomplete = slash ? [] : parentAutocomplete.map((line) => geekRow("blank", line, width));
+		const autocomplete = slash || this.menuList ? [] : parentAutocomplete.map((line) => geekRow("blank", line, width));
 
 		const input = this.renderInputLines(this.getText(), width);
 		const lines = [...menu, this.headRow(width), ...input, ...autocomplete, ...this.footerRows(width)];

@@ -51,6 +51,27 @@ editor.autocompleteState = undefined;
 editor.autocompleteList = undefined;
 expect("menu disappears with the autocomplete", headIndex(editor.render(100).map(strip)) === 0);
 
+// Pi clears the autocomplete asynchronously: for a frame the text is already empty but the slash list is still set.
+{
+	const listOf = (rows) => ({ filteredItems: rows, selectedIndex: 0, maxVisible: 6, render: () => rows.map((item) => `  ${item.label}`) });
+	const slashList = listOf(items);
+	editor.setText("/");
+	editor.autocompleteState = "regular";
+	editor.autocompleteList = slashList;
+	editor.render(100);
+	editor.setText("");
+	editor.autocompleteState = "regular";
+	editor.autocompleteList = slashList;
+	const stale = editor.render(100).map(strip);
+	expect("closing slash menu: Pi's stale list rows are not drawn below the input", headIndex(stale) === 0 && !stale.some((r) => r.includes("model")), JSON.stringify(stale));
+	editor.autocompleteList = listOf([{ value: "src/", label: "src/", description: "" }]);
+	const files = editor.render(100).map(strip);
+	expect("a new non-slash list below the input is still drawn", files.some((r) => r.includes("src/")), JSON.stringify(files));
+	editor.autocompleteState = undefined;
+	editor.autocompleteList = undefined;
+	editor.render(100);
+}
+
 // Mouse: Pi hit-tests ITS editor layout; GeekEditor translates ours (menu above the head, no borders).
 {
 	const many = Array.from({ length: 20 }, (_, i) => ({ value: `cmd${String(i).padStart(2, "0")}`, label: `cmd${String(i).padStart(2, "0")}`, description: `command ${i}` }));
