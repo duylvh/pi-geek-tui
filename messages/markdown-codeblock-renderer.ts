@@ -22,12 +22,15 @@ function geekTextColor(text: string): string {
 	return text.split(NUMBER).map((part, i) => (part ? geekFg(i % 2 ? "num" : "ink", part) : "")).join("");
 }
 
+// Pi renders each mermaid diagram row as an inline code span; box-drawing rows keep their own colors and no backticks.
+const BOX_DRAWING = /[\u2500-\u257f]/;
+
 // Pi's host theme (theme/geek-theme.ts) already colors headings, bullets, quotes, links and syntax;
 // only what it cannot express is overridden here.
 function geekTheme(base: Record<string, any>): Record<string, any> {
 	return {
 		...base,
-		code: (text: string) => `${geekFg("faint", "`")}${geekFg("mono", text)}${geekFg("faint", "`")}`,
+		code: (text: string) => (BOX_DRAWING.test(text) ? text : `${geekFg("faint", "`")}${geekFg("mono", text)}${geekFg("faint", "`")}`),
 		listBullet: (text: string) => (/^\d/.test(text) ? geekFg("num", text) : base.listBullet(text)),
 	};
 }
