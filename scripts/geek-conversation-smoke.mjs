@@ -264,6 +264,25 @@ expect("new session widget spacer drops the previous turn rail", mode.widgetCont
 mode.addMessageToChat({ role: "user", content: "new turn", timestamp: T_USER });
 expect("first turn restores the widget rail", mode.widgetContainerAbove.render(80).map(plain)[0]?.[1] === "┊");
 
+const dockRows = (host) => host.widgetContainerAbove.render(80).map(plain);
+const fullscreenHost = new FakeInteractiveMode();
+fullscreenHost.renderer = { mode: "fullscreen" };
+const regularHost = new FakeInteractiveMode();
+regularHost.renderer = { mode: "regular" };
+fullscreenHost.renderInitialMessages();
+regularHost.renderInitialMessages();
+fullscreenHost.renderWidgets();
+regularHost.renderWidgets();
+expect("fullscreen spacer is one blank row before the first user message", dockRows(fullscreenHost).length === 1 && dockRows(fullscreenHost)[0].trim() === "", JSON.stringify(dockRows(fullscreenHost)));
+fullscreenHost.addMessageToChat({ role: "user", content: "fullscreen turn", timestamp: T_USER });
+const fullscreenAfter = dockRows(fullscreenHost);
+expect("fullscreen spacer stays one blank row after the first user message", fullscreenAfter.length === 1 && fullscreenAfter[0].trim() === "", JSON.stringify(fullscreenAfter));
+expect("regular spacer keeps the rail after the first user message", dockRows(regularHost)[0]?.[1] === "┊", JSON.stringify(dockRows(regularHost)));
+fullscreenHost.renderer = { mode: "regular" };
+expect("spacer follows a regular renderer swapped in without rebuilding widgets", dockRows(fullscreenHost)[0]?.[1] === "┊", JSON.stringify(dockRows(fullscreenHost)));
+fullscreenHost.renderer = { mode: "fullscreen" };
+expect("spacer follows a fullscreen renderer swapped back without rebuilding widgets", dockRows(fullscreenHost).length === 1 && dockRows(fullscreenHost)[0].trim() === "", JSON.stringify(dockRows(fullscreenHost)));
+
 mode.chatContainer.clear();
 mode.renderInitialMessages([
 	{ role: "user", content: "resumed turn", timestamp: T_USER },
