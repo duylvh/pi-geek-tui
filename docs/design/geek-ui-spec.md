@@ -34,7 +34,7 @@ Rail glyphs: `•` head of a block (ink for user, kw for agent), `┊` dashed co
 `┃` on every row of a tool block (summary head, tree, edit/write rows): accent while it runs, kw once finished,
 del marker (`#dd5670`) if any call failed. ` ` (blank) on the input row.
 Blank separator rows — including the one closing a tool block — keep the rail `┊` so the rail is continuous through a turn.
-Before the first user message, startup notices and the spacer above the input stay off the rail; `/new` clears the previous session’s turn state.
+Before the first user message, startup notices and the spacer above the input stay off the rail; `/new` clears the previous session’s turn state. In fullscreen, the input spacer stays blank after the first message too, because the dock sits apart from the scrolling transcript.
 
 ### 1. Startup header (replaces pixel logo)
 One title-bar line on the rule (rail color `─`), text segments with one space each side, 2 rule cells before the first and after the last:
