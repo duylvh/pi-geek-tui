@@ -41,6 +41,7 @@ The palette is fixed (page background `#0c0c0c`) and does not depend on the sele
 - **Long sessions stay fast.** Only the newest part of the chat is rendered, while huge tool results are capped so history does not slow you down.
 - **Clean fullscreen exit.** `Ctrl+D`, `/quit`, and other fullscreen exits restore the shell without printing the session UI. Pi still prints its resume hint when the session is saved; session history is unchanged. Regular-mode exit behavior is unchanged.
 - **Reloads stay clean.** UI patches are applied once and removed cleanly, so extension reloads and session switches do not stack layout changes.
+- **Update notices survive `/reload`.** Pi checks for new versions only at startup, and `/reload` clears that notice. After a reload this rechecks in the background and shows the notice again if Pi or a package has an update. `/check-updates` runs the same check on demand.
 
 ## Config
 

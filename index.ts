@@ -18,6 +18,7 @@ import { installStartupUiPatch, setStartupHeader, suppressStartupModelScopeLog }
 import { installInteractiveChatVirtualization } from "./performance/virtualize-chat.js";
 import { setGeekAccent } from "./theme/geek-palette.js";
 import { createGeekTheme } from "./theme/geek-theme.js";
+import { checkAvailableUpdates, formatUpdateNotice } from "./core/update-check.js";
 import { refreshGitDiffStat } from "./presentation/git-diff-stat.js";
 import { setLiveState, workingStateForAssistantMessage } from "./editor/live-state.js";
 import { beginAssistantStream, endAssistantStream, trackAssistantStreamMessage } from "./messages/assistant-streaming-state.js";
@@ -113,6 +114,30 @@ export default function (pi: ExtensionAPI) {
 		ui.setStatus?.("pi-geek-tui", issue && `${issue}; using the last valid settings.`);
 	};
 
+	// Pi checks for updates at startup only and /reload clears that notice, so recheck after a reload or on demand.
+	const notifyAvailableUpdates = async (
+		ctx: { cwd: string; ui: { notify(message: string, type?: "info" | "warning" | "error"): void } },
+		isCurrent: () => boolean,
+		reportNone: boolean,
+	) => {
+		const notice = formatUpdateNotice(await checkAvailableUpdates(ctx.cwd));
+		if (!isCurrent()) return;
+		try {
+			if (notice) ctx.ui.notify(notice, "warning");
+			else if (reportNone) ctx.ui.notify("No updates available", "info");
+		} catch (error) {
+			if (!isStaleContextError(error)) throw error;
+		}
+	};
+
+	pi.registerCommand("check-updates", {
+		description: "Check for new Pi and package updates",
+		handler: async (_args, ctx) => {
+			const run = sessionRunSerial;
+			await notifyAvailableUpdates(ctx, () => run === sessionRunSerial, true);
+		},
+	});
+
 	pi.on("before_agent_start", (_event, ctx) => {
 		reportConfigIssue(ctx.ui);
 		setLiveState("working");
@@ -202,9 +227,10 @@ export default function (pi: ExtensionAPI) {
 		// and resetting from shutdown swaps Pi's default editor over the "Reloading…" box until our new instance loads.
 	});
 
-	pi.on("session_start", async (_event, ctx) => {
+	pi.on("session_start", async (event, ctx) => {
 		const sessionRun = ++sessionRunSerial;
 		const isCurrentSessionRun = () => sessionRun === sessionRunSerial;
+		if (event.reason === "reload") void notifyAvailableUpdates(ctx, isCurrentSessionRun, false).catch(() => {});
 		profileCount("session.start");
 		const modules = await loadSessionModules();
 		if (!isCurrentSessionRun()) return;
