@@ -4,6 +4,9 @@ Forked from pi-droid-styling 2.18.0; earlier history: https://github.com/sting8k
 
 ## Unreleased
 
+### Added
+- Update notices now come back after `/reload`, and `/check-updates` checks for new Pi and package versions on demand. Pi only checked at startup, and reloading cleared its notice.
+
 ### Fixed
 - Fullscreen clicks now toggle what you clicked. A click on a tool group expands or collapses that group, and a click on a collapsed thinking row shows that run. Pi hit-tested its own row layout, which tool groups and head rows change, so clicks used to toggle a hidden component and look broken.
 
