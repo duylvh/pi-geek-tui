@@ -99,11 +99,15 @@ export function installMessageMeta(InteractiveModeClass: any): void {
 const ZONE_START = "\x1b]133;A\x07";
 const ZONE_END = "\x1b]133;B\x07\x1b]133;C\x07";
 
-/** Pi tags a message's first/last row with OSC 133 prompt-zone marks; re-attach them to the restyled rows. */
+/**
+ * Pi tags a message's first/last row with OSC 133 prompt-zone marks; re-attach them to the restyled rows.
+ * Marks must lead the row: Pi's renderer strips only a leading run of them, and any that reach the terminal
+ * read as a shell prompt or a running command.
+ */
 export function keepPromptZone(rawLines: string[], rows: string[]): string[] {
 	if (rows.length === 0) return rows;
 	const out = rows.map((row) => row.replaceAll(ZONE_START, "").replaceAll(ZONE_END, ""));
+	if (rawLines[rawLines.length - 1]?.includes(ZONE_END)) out[out.length - 1] = ZONE_END + out[out.length - 1];
 	if (rawLines[0]?.startsWith(ZONE_START)) out[0] = ZONE_START + out[0];
-	if (rawLines[rawLines.length - 1]?.includes(ZONE_END)) out[out.length - 1] += ZONE_END;
 	return out;
 }

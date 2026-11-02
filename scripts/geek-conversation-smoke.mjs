@@ -195,6 +195,14 @@ for (const width of [24, 40, 80]) {
 	}
 }
 
+// Pi strips only a leading run of OSC 133 marks before writing a row; one anywhere else reaches the terminal.
+const OSC133_LEADING = /^(?:\x1b\]133;[ABC](?:\x07|\x1b\\))+/;
+for (const [name, component] of Object.entries(all)) {
+	const raw = component.render(80);
+	expect(`${name} OSC 133 marks only lead rows`, raw.every((row) => !row.replace(OSC133_LEADING, "").includes("\x1b]133;")), JSON.stringify(raw.filter((row) => row.includes("\x1b]133;"))));
+}
+expect("user message keeps its prompt-zone marks", userA.render(80)[0].startsWith("\x1b]133;A") && userA.render(80).at(-1).startsWith("\x1b]133;B"));
+
 const rows = (component, width = 80) => component.render(width).map(plain);
 const heads = (component) => rows(component).filter((row) => row[1] === "•");
 
