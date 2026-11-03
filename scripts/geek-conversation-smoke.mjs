@@ -227,6 +227,12 @@ for (const width of [24, 40, 80]) {
 const answer = rows(agentText).join("\n");
 expect("heading keeps its ## marks", answer.includes("## cause"));
 expect("inline code keeps backticks", answer.includes("`REFRESH_TTL`") && answer.includes("`sign()`"));
+{
+	const imageRow = "\x1b_Ga=T,f=100,q=2,C=1,c=4,r=2,i=7;iVBORw0KGgo=\x1b\\";
+	const diagram = new Markdown(`\`\u00a0${imageRow}\`\n\n\`┌──┐\`\n\n\`▼\``, 0, 0, core.getMarkdownTheme()).render(40);
+	const shown = diagram.map(plain).join("\n").replace(/\x1b_G[^\x1b]*\x1b\\/g, "");
+	expect("diagram rows (Kitty image, box drawing, arrowhead) get no backticks", !shown.includes("`") && diagram.some((row) => row.includes(imageRow)), JSON.stringify(diagram));
+}
 expect("list bullets", answer.includes("- fix `session.ts` line 20"));
 expect("collapsed thinking row", answer.includes("thinking ·"), answer);
 expect("compaction collapsed: grouped tokens + expand hint", rows(blocks[0]).some((row) => row.includes("compaction") && row.includes("12'345 tokens") && row.includes("^o")));
