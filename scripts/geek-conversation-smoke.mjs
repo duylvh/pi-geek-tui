@@ -229,9 +229,10 @@ expect("heading keeps its ## marks", answer.includes("## cause"));
 expect("inline code keeps backticks", answer.includes("`REFRESH_TTL`") && answer.includes("`sign()`"));
 {
 	const imageRow = "\x1b_Ga=T,f=100,q=2,C=1,c=4,r=2,i=7;iVBORw0KGgo=\x1b\\";
-	const diagram = new Markdown(`\`\u00a0${imageRow}\`\n\n\`┌──┐\`\n\n\`▼\``, 0, 0, core.getMarkdownTheme()).render(40);
+	const placeholderRow = `\x1b[38;2;0;0;7m${"\u{10eeee}\u0305\u0305\u{10eeee}\u0305\u030d"}\x1b[39m`;
+	const diagram = new Markdown(`\`\u00a0${imageRow}\`\n\n\`┌──┐\`\n\n\`▼\`\n\n\`${placeholderRow}\``, 0, 0, core.getMarkdownTheme()).render(40);
 	const shown = diagram.map(plain).join("\n").replace(/\x1b_G[^\x1b]*\x1b\\/g, "");
-	expect("diagram rows (Kitty image, box drawing, arrowhead) get no backticks", !shown.includes("`") && diagram.some((row) => row.includes(imageRow)), JSON.stringify(diagram));
+	expect("diagram rows (Kitty image, placeholder, box drawing, arrowhead) get no backticks", !shown.includes("`") && diagram.some((row) => row.includes(imageRow)), JSON.stringify(diagram));
 }
 expect("list bullets", answer.includes("- fix `session.ts` line 20"));
 expect("collapsed thinking row", answer.includes("thinking ·"), answer);

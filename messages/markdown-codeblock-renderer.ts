@@ -23,10 +23,12 @@ function geekTextColor(text: string): string {
 }
 
 // Mermaid diagram rows arrive as inline code spans: Pi's box-drawing and arrowhead rows (▼ ▲ ► ◄), and Kitty image
-// rows from image renderers such as pi-mermaid. They keep their own colors and get no backticks.
+// rows from image renderers such as pi-mermaid, either inline image sequences or Unicode placeholder cells (U+10EEEE).
+// They keep their own colors and get no backticks.
 const BOX_DRAWING = /[\u2500-\u25ff]/;
 const KITTY_IMAGE = "\x1b_G";
-const isDiagramRow = (text: string) => BOX_DRAWING.test(text) || text.includes(KITTY_IMAGE);
+const KITTY_PLACEHOLDER = String.fromCodePoint(0x10eeee);
+const isDiagramRow = (text: string) => BOX_DRAWING.test(text) || text.includes(KITTY_IMAGE) || text.includes(KITTY_PLACEHOLDER);
 
 // Pi's host theme (theme/geek-theme.ts) already colors headings, bullets, quotes, links and syntax;
 // only what it cannot express is overridden here.
