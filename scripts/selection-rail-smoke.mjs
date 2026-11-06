@@ -54,6 +54,24 @@ expect("a drag from the left margin copies only message text from screen rows",
 	JSON.stringify(copy(screen, fromMargin)) === JSON.stringify(["bean@proj ~/proj", "First line of the answer.", "  indented code", "read config.ts", "", "  [Skill conflicts]"]),
 	JSON.stringify(copy(screen, fromMargin)));
 
+const cursorBlock = "\x1b[48;2;216;212;180m \x1b[49m";
+const editorRows = [
+	`${rail("•")}\x1b[1mbean\x1b[22m@proj ~/proj`,
+	`${rail(" ")}\x1b[38;2;216;212;180m› \x1b[39mhello${cursorBlock}          `,
+	`\x1b[38;2;42;42;38m${"─".repeat(40)}\x1b[39m`,
+].map((line) => margin + line);
+const dragEditor = { start: { row: 0, col: 0 }, end: { row: editorRows.length - 1, col: 200 } };
+expect("a drag over the input editor copies the typed text, not the prompt, cursor, or rule",
+	JSON.stringify(copy(editorRows, dragEditor)) === JSON.stringify(["bean@proj ~/proj", "hello", ""]),
+	JSON.stringify(copy(editorRows, dragEditor)));
+const editorColumns = editorRows.map((line, row) => renderer.getSelectionColumns(line, row, dragEditor));
+expect("the input row highlights only the typed text", editorColumns[1].start === margin.length + 5 && editorColumns[1].end === margin.length + 10, JSON.stringify(editorColumns[1]));
+expect("a rule row highlights nothing", editorColumns[2].end <= editorColumns[2].start, JSON.stringify(editorColumns[2]));
+const userPrompt = [`${rail("┊")}› fix the cursor`];
+expect("a transcript prompt row copies without its prompt marker",
+	JSON.stringify(copy(userPrompt, { start: { row: 0, col: 0, scrollView }, end: { row: 0, col: 200, scrollView } })) === JSON.stringify(["fix the cursor"]),
+	JSON.stringify(copy(userPrompt, { start: { row: 0, col: 0, scrollView }, end: { row: 0, col: 200, scrollView } })));
+
 rmSync(built.workDir, { recursive: true, force: true });
 if (failures.length) {
 	console.error(`selection rail smoke FAILED (${failures.length}):\n- ${failures.join("\n- ")}`);
