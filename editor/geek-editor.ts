@@ -37,6 +37,15 @@ type SlashItem = { value?: string; label?: string; description?: string };
 
 const MIN_CWD_CELLS = 6;
 
+/**
+ * Input text width: after the rail and prompt, minus the last screen column. Pi parks the cursor one cell past a full
+ * row, and a cursor block in the edge column looks oversized in terminals that stretch the edge cell's background
+ * across the window padding (Rex).
+ */
+function inputBodyWidth(width: number): number {
+	return Math.max(1, width - GEEK_PREFIX_WIDTH - PROMPT.length - 1);
+}
+
 function clamp(value: number, min: number, max: number): number {
 	return Math.max(min, Math.min(max, value));
 }
@@ -245,7 +254,8 @@ export class GeekEditor extends CustomEditor {
 		const logical = text.length > 0 ? text.split("\n") : [""];
 		const cursor = this.getCursor();
 		const cursorLine = clamp(cursor.line, 0, logical.length - 1);
-		const wrapWidth = Math.max(1, width - GEEK_PREFIX_WIDTH - PROMPT.length);
+		// Wrap where Pi laid the text out, so line breaks and up/down movement agree.
+		const wrapWidth = Number((this as any).lastWidth) || inputBodyWidth(width);
 		const rows: string[] = [];
 		for (let i = 0; i < logical.length; i++) {
 			let line = logical[i] ?? "";
@@ -323,8 +333,7 @@ export class GeekEditor extends CustomEditor {
 	}
 
 	render(width: number): string[] {
-		const bodyWidth = Math.max(1, width - GEEK_PREFIX_WIDTH - PROMPT.length);
-		const parentLines = super.render(bodyWidth);
+		const parentLines = super.render(inputBodyWidth(width));
 		if (parentLines.length === 0) return parentLines;
 		const border = findLastBorderIndex(parentLines);
 		const parentAutocomplete = border >= 0 ? parentLines.slice(border + 1) : [];

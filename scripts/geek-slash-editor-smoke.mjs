@@ -138,6 +138,20 @@ expect("menu disappears with the autocomplete", headIndex(editor.render(100).map
 	editor.setText("");
 }
 
+// The cursor block never lands in the last column: Rex stretches that cell's background across the window padding.
+{
+	const blockColumns = [];
+	for (let length = 90; length <= 100; length++) {
+		editor.setText("x".repeat(length));
+		for (const row of editor.render(100)) {
+			const block = row.indexOf("\x1b[48;2;");
+			if (block >= 0) blockColumns.push(visibleWidth(strip(row.slice(0, block))));
+		}
+	}
+	expect("the cursor block stays left of the last column", blockColumns.length === 11 && Math.max(...blockColumns) < 99, JSON.stringify(blockColumns));
+	editor.setText("");
+}
+
 console.log(rows.join("\n"));
 rmSync(built.workDir, { recursive: true, force: true });
 if (failures.length) {

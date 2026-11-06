@@ -9,6 +9,7 @@ Forked from pi-droid-styling 2.18.0; earlier history: https://github.com/sting8k
 
 ### Fixed
 - Pi starts straight into the geek editor. Pi's own editor and footer used to flash for a moment first, and Rex drew a large cursor block at the left edge while they showed.
+- The input cursor no longer reaches the last column. With `horizontalPadding: 0`, a full input row put the cursor block in the edge cell, which Rex stretches across its window padding into an oversized block.
 - A drag selection over the input editor highlights and copies only the typed text. It used to invert the `›` prompt, hide the cursor block, and paint part of the rule row.
 - Fullscreen clicks now toggle what you clicked. A click on a tool group expands or collapses that group, and a click on a collapsed thinking row shows that run. Pi hit-tested its own row layout, which tool groups and head rows change, so clicks used to toggle a hidden component and look broken.
 
