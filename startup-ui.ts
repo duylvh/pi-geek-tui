@@ -138,8 +138,9 @@ export function installStartupUiPatch(InteractiveModeComponent: any, options: { 
 	proto[ORIGINAL_SET_CUSTOM_EDITOR] ??= proto.setCustomEditorComponent;
 
 	// Pi paints its stock editor and footer before session_start installs ours, so the first frames flash
-	// stock UI. Until our editor mounts, the user types, or the timeout passes, both render blank: the editor
-	// as blank rows shaped like ours, its hidden cursor parked where our input cursor will be.
+	// stock UI. Until our editor mounts or the timeout passes, both render blank: the editor as blank rows shaped
+	// like ours, its hidden cursor parked where our input cursor will be. Input does not open the gate: late
+	// terminal replies (Rex's OSC 4 palette answer) reach the editor as input. Typed text carries over to our editor.
 	proto.init = function initBehindStartupGate(this: any, ...args: unknown[]) {
 		const editor = this.defaultEditor;
 		const footer = this.footer;
@@ -148,7 +149,6 @@ export function installStartupUiPatch(InteractiveModeComponent: any, options: { 
 			const open = () => {
 				clearTimeout(timer);
 				delete editor.render;
-				delete editor.handleInput;
 				delete footer.render;
 				delete this[OPEN_STARTUP_GATE];
 				this.ui?.requestRender?.();
@@ -156,10 +156,6 @@ export function installStartupUiPatch(InteractiveModeComponent: any, options: { 
 			const timer = setTimeout(open, STARTUP_GATE_TIMEOUT_MS);
 			timer.unref?.();
 			editor.render = () => ["", cursorRow, "", ""];
-			editor.handleInput = function handleInputOpeningGate(this: any, data: string): void {
-				open();
-				return this.handleInput(data);
-			};
 			footer.render = () => [];
 			this[OPEN_STARTUP_GATE] = open;
 		}
