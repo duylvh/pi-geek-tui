@@ -78,6 +78,8 @@ export default function (pi: ExtensionAPI) {
 		return;
 	}
 	setGeekAccent(loadConfig().accent);
+	// Start loading now: Pi paints its stock editor (cursor at column 0) until session_start installs ours.
+	void loadSessionModules();
 	suppressStartupModelScopeLog();
 	installStartupUiPatch(InteractiveMode);
 	installExitUiPatch(InteractiveMode);

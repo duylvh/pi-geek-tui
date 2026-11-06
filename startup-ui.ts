@@ -9,6 +9,12 @@ import { geekFg } from "./theme/geek-palette.js";
 const PATCHED = Symbol.for("pi-geek-tui.startup-ui.patched");
 const ORIGINAL_SHOW_LOADED_RESOURCES = Symbol.for("pi-geek-tui.startup-ui.original-show-loaded-resources");
 const CONSOLE_LOG_PATCHED = Symbol.for("pi-geek-tui.startup-ui.console-log-patched");
+const ORIGINAL_INIT = Symbol.for("pi-geek-tui.startup-ui.original-init");
+const ORIGINAL_SET_CUSTOM_EDITOR = Symbol.for("pi-geek-tui.startup-ui.original-set-custom-editor");
+const RESTORE_STOCK_CURSOR = Symbol.for("pi-geek-tui.startup-ui.restore-stock-cursor");
+// pi-tui's renderFakeCursor() markers; it resolves them to reverse video when painting.
+const FAKE_CURSOR_START = "\x1b_pi:fc\x07";
+const FAKE_CURSOR_END = "\x1b_pi:/fc\x07";
 
 export interface StartupHeaderInfo {
 	cwd: string;
@@ -128,6 +134,36 @@ export function installStartupUiPatch(InteractiveModeComponent: any): void {
 	if (!proto || proto[PATCHED]) return;
 	proto[PATCHED] = true;
 	proto[ORIGINAL_SHOW_LOADED_RESOURCES] ??= proto.showLoadedResources;
+	proto[ORIGINAL_INIT] ??= proto.init;
+	proto[ORIGINAL_SET_CUSTOM_EDITOR] ??= proto.setCustomEditorComponent;
+
+	// Pi paints its stock editor before session_start installs ours; its block cursor sits at column 0, outside
+	// our margin. Hide that cursor until an editor replaces it or the user types into the stock one.
+	proto.init = function initWithoutStockCursor(this: any, ...args: unknown[]) {
+		const editor = this.defaultEditor;
+		if (editor && !Object.hasOwn(editor, "render")) {
+			const restore = () => {
+				delete editor.render;
+				delete editor.handleInput;
+				delete this[RESTORE_STOCK_CURSOR];
+			};
+			editor.render = function renderWithoutCursor(this: any, width: number): string[] {
+				return Object.getPrototypeOf(this).render.call(this, width)
+					.map((line: string) => line.replaceAll(FAKE_CURSOR_START, "").replaceAll(FAKE_CURSOR_END, ""));
+			};
+			editor.handleInput = function handleInputRestoringCursor(this: any, data: string): void {
+				restore();
+				return this.handleInput(data);
+			};
+			this[RESTORE_STOCK_CURSOR] = restore;
+		}
+		return this[ORIGINAL_INIT].apply(this, args);
+	};
+
+	proto.setCustomEditorComponent = function setCustomEditorRestoringCursor(this: any, ...args: unknown[]) {
+		this[RESTORE_STOCK_CURSOR]?.();
+		return this[ORIGINAL_SET_CUSTOM_EDITOR].apply(this, args);
+	};
 
 	proto.showLoadedResources = function showQuietLoadedResources(options?: Record<string, unknown>) {
 		const original = this[ORIGINAL_SHOW_LOADED_RESOURCES];
