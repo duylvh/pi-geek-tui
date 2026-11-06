@@ -219,6 +219,7 @@ export default function (pi: ExtensionAPI) {
 		modules.installBuiltinToolRenderers(ToolExecutionComponent);
 		modules.installResumeToolRefresh(InteractiveMode);
 		modules.installMarkdownCodeBlockRenderer();
+		modules.installBalancedWrap();
 		modules.installFooterStatsPatch();
 		modules.installCoreMessageBlockStyling({
 			CompactionSummaryMessageComponent,
