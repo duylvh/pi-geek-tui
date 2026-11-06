@@ -4,7 +4,7 @@ import { join } from "path";
 
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import { safeTruncateToWidth, safeVisibleWidth } from "./render-budget.js";
-import { geekFg } from "./theme/geek-palette.js";
+import { geekBg, geekFg } from "./theme/geek-palette.js";
 
 const PATCHED = Symbol.for("pi-geek-tui.startup-ui.patched");
 const ORIGINAL_SHOW_LOADED_RESOURCES = Symbol.for("pi-geek-tui.startup-ui.original-show-loaded-resources");
@@ -138,7 +138,9 @@ export function installStartupUiPatch(InteractiveModeComponent: any): void {
 	proto[ORIGINAL_SET_CUSTOM_EDITOR] ??= proto.setCustomEditorComponent;
 
 	// Pi paints its stock editor before session_start installs ours; its block cursor sits at column 0, outside
-	// our margin. Hide that cursor until an editor replaces it or the user types into the stock one.
+	// our margin. Hide that cursor until an editor replaces it or the user types into the stock one. The cell keeps
+	// an explicit page background: Rex paints its hidden terminal cursor on default-background cells.
+	const [PAGE_BG_START, PAGE_BG_END] = geekBg("bg", "\0").split("\0");
 	proto.init = function initWithoutStockCursor(this: any, ...args: unknown[]) {
 		const editor = this.defaultEditor;
 		if (editor && !Object.hasOwn(editor, "render")) {
@@ -149,7 +151,7 @@ export function installStartupUiPatch(InteractiveModeComponent: any): void {
 			};
 			editor.render = function renderWithoutCursor(this: any, width: number): string[] {
 				return Object.getPrototypeOf(this).render.call(this, width)
-					.map((line: string) => line.replaceAll(FAKE_CURSOR_START, "").replaceAll(FAKE_CURSOR_END, ""));
+					.map((line: string) => line.replaceAll(FAKE_CURSOR_START, PAGE_BG_START).replaceAll(FAKE_CURSOR_END, PAGE_BG_END));
 			};
 			editor.handleInput = function handleInputRestoringCursor(this: any, data: string): void {
 				restore();
