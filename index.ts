@@ -77,11 +77,12 @@ export default function (pi: ExtensionAPI) {
 		});
 		return;
 	}
-	setGeekAccent(loadConfig().accent);
-	// Start loading now: Pi paints its stock editor (cursor at column 0) until session_start installs ours.
+	const startupConfig = loadConfig();
+	setGeekAccent(startupConfig.accent);
+	// Start loading now: the startup gate keeps Pi's UI blank until session_start installs our editor.
 	void loadSessionModules();
 	suppressStartupModelScopeLog();
-	installStartupUiPatch(InteractiveMode);
+	installStartupUiPatch(InteractiveMode, { horizontalPadding: startupConfig.horizontalPadding });
 	installExitUiPatch(InteractiveMode);
 	// Default matches config.ts; session_start refreshes from disk before messages render.
 	let currentVisibleChatTail = 30;

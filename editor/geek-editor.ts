@@ -5,7 +5,7 @@ import { basename } from "node:path";
 
 import { loadConfig } from "../config.js";
 import type { FooterTokenUsage } from "../footer-patch.js";
-import { GEEK_PREFIX_WIDTH, geekHeadContext, geekHeadName, geekRow, geekSplitRow } from "../presentation/geek-rows.js";
+import { GEEK_PREFIX_WIDTH, GEEK_PROMPT as PROMPT, geekHeadContext, geekHeadName, geekRow, geekSplitRow } from "../presentation/geek-rows.js";
 import { safeTakeTailToWidth, safeTruncateToWidth, safeVisibleWidth, safeWrapTextWithAnsi } from "../render-budget.js";
 import { getGitDiffStat } from "../presentation/git-diff-stat.js";
 import { stripAnsi } from "../theme/ansi.js";
@@ -35,7 +35,6 @@ type HostStatusIndicator = Parameters<CustomEditor["setWorkingStatusIndicator"]>
 
 type SlashItem = { value?: string; label?: string; description?: string };
 
-const PROMPT = "› ";
 const MIN_CWD_CELLS = 6;
 
 function clamp(value: number, min: number, max: number): number {

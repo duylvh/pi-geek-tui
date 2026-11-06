@@ -7,6 +7,9 @@ import { geekFg } from "../theme/geek-palette.js";
 
 export const GEEK_PREFIX_WIDTH = 3;
 
+/** Input prompt after the rail on the editor's first input row. */
+export const GEEK_PROMPT = "› ";
+
 /**
  * head = `•` (ink for user, kw for agent); line = `┊` rail color; blank = space. Tool-block rows use `┃`:
  * active = accent (running), tool-ok = kw (finished), tool-error = del marker (a call failed).

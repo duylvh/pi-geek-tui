@@ -3,18 +3,18 @@ import { homedir } from "os";
 import { join } from "path";
 
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
+import { CURSOR_MARKER } from "@earendil-works/pi-tui";
 import { safeTruncateToWidth, safeVisibleWidth } from "./render-budget.js";
-import { geekBg, geekFg } from "./theme/geek-palette.js";
+import { GEEK_PREFIX_WIDTH, GEEK_PROMPT } from "./presentation/geek-rows.js";
+import { geekFg } from "./theme/geek-palette.js";
 
 const PATCHED = Symbol.for("pi-geek-tui.startup-ui.patched");
 const ORIGINAL_SHOW_LOADED_RESOURCES = Symbol.for("pi-geek-tui.startup-ui.original-show-loaded-resources");
 const CONSOLE_LOG_PATCHED = Symbol.for("pi-geek-tui.startup-ui.console-log-patched");
 const ORIGINAL_INIT = Symbol.for("pi-geek-tui.startup-ui.original-init");
 const ORIGINAL_SET_CUSTOM_EDITOR = Symbol.for("pi-geek-tui.startup-ui.original-set-custom-editor");
-const RESTORE_STOCK_CURSOR = Symbol.for("pi-geek-tui.startup-ui.restore-stock-cursor");
-// pi-tui's renderFakeCursor() markers; it resolves them to reverse video when painting.
-const FAKE_CURSOR_START = "\x1b_pi:fc\x07";
-const FAKE_CURSOR_END = "\x1b_pi:/fc\x07";
+const OPEN_STARTUP_GATE = Symbol.for("pi-geek-tui.startup-ui.open-startup-gate");
+const STARTUP_GATE_TIMEOUT_MS = 1500;
 
 export interface StartupHeaderInfo {
 	cwd: string;
@@ -129,7 +129,7 @@ export function suppressStartupModelScopeLog(): void {
 }
 
 /** The header replaces Pi's resource listing: always run the stock path quiet, so only diagnostics print. */
-export function installStartupUiPatch(InteractiveModeComponent: any): void {
+export function installStartupUiPatch(InteractiveModeComponent: any, options: { horizontalPadding: number }): void {
 	const proto = InteractiveModeComponent?.prototype;
 	if (!proto || proto[PATCHED]) return;
 	proto[PATCHED] = true;
@@ -137,33 +137,37 @@ export function installStartupUiPatch(InteractiveModeComponent: any): void {
 	proto[ORIGINAL_INIT] ??= proto.init;
 	proto[ORIGINAL_SET_CUSTOM_EDITOR] ??= proto.setCustomEditorComponent;
 
-	// Pi paints its stock editor before session_start installs ours; its block cursor sits at column 0, outside
-	// our margin. Hide that cursor until an editor replaces it or the user types into the stock one. The cell keeps
-	// an explicit page background: Rex paints its hidden terminal cursor on default-background cells.
-	const [PAGE_BG_START, PAGE_BG_END] = geekBg("bg", "\0").split("\0");
-	proto.init = function initWithoutStockCursor(this: any, ...args: unknown[]) {
+	// Pi paints its stock editor and footer before session_start installs ours, so the first frames flash
+	// stock UI. Until our editor mounts, the user types, or the timeout passes, both render blank: the editor
+	// as blank rows shaped like ours, its hidden cursor parked where our input cursor will be.
+	proto.init = function initBehindStartupGate(this: any, ...args: unknown[]) {
 		const editor = this.defaultEditor;
-		if (editor && !Object.hasOwn(editor, "render")) {
-			const restore = () => {
+		const footer = this.footer;
+		if (editor && footer && !this[OPEN_STARTUP_GATE]) {
+			const cursorRow = " ".repeat(options.horizontalPadding + GEEK_PREFIX_WIDTH + GEEK_PROMPT.length) + CURSOR_MARKER;
+			const open = () => {
+				clearTimeout(timer);
 				delete editor.render;
 				delete editor.handleInput;
-				delete this[RESTORE_STOCK_CURSOR];
+				delete footer.render;
+				delete this[OPEN_STARTUP_GATE];
+				this.ui?.requestRender?.();
 			};
-			editor.render = function renderWithoutCursor(this: any, width: number): string[] {
-				return Object.getPrototypeOf(this).render.call(this, width)
-					.map((line: string) => line.replaceAll(FAKE_CURSOR_START, PAGE_BG_START).replaceAll(FAKE_CURSOR_END, PAGE_BG_END));
-			};
-			editor.handleInput = function handleInputRestoringCursor(this: any, data: string): void {
-				restore();
+			const timer = setTimeout(open, STARTUP_GATE_TIMEOUT_MS);
+			timer.unref?.();
+			editor.render = () => ["", cursorRow, "", ""];
+			editor.handleInput = function handleInputOpeningGate(this: any, data: string): void {
+				open();
 				return this.handleInput(data);
 			};
-			this[RESTORE_STOCK_CURSOR] = restore;
+			footer.render = () => [];
+			this[OPEN_STARTUP_GATE] = open;
 		}
 		return this[ORIGINAL_INIT].apply(this, args);
 	};
 
-	proto.setCustomEditorComponent = function setCustomEditorRestoringCursor(this: any, ...args: unknown[]) {
-		this[RESTORE_STOCK_CURSOR]?.();
+	proto.setCustomEditorComponent = function setCustomEditorOpeningGate(this: any, ...args: unknown[]) {
+		this[OPEN_STARTUP_GATE]?.();
 		return this[ORIGINAL_SET_CUSTOM_EDITOR].apply(this, args);
 	};
 
