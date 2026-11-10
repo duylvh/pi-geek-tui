@@ -32,6 +32,7 @@ const mode = {
 	defaultEditor: { onSubmit() {}, onChange() {}, getPaddingX: () => 0, actionHandlers: new Map() },
 	ui: { setFocus() {}, requestRender() {}, terminal: { rows: 24 } },
 	keybindings: {},
+	extensionDialogs: [],
 	disposeActiveSelector() {}, // Pi 1.x setCustomEditorComponent closes an open selector first
 };
 core.InteractiveMode.prototype.setCustomEditorComponent.call(mode, () => mode.editor);
