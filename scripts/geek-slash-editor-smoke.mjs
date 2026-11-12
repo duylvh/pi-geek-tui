@@ -120,6 +120,25 @@ expect("menu disappears with the autocomplete", headIndex(editor.render(100).map
 	editor.autocompleteList = undefined;
 }
 
+// An inline `/token` after text opens the slash menu only for regular completion; Tab-forced path completion stays in Pi's list.
+{
+	const aboveHead = (state, list) => {
+		editor.setText("fix /co");
+		editor.autocompleteState = state;
+		editor.autocompleteList = list;
+		const rows = editor.render(100).map(strip);
+		return rows.slice(0, headIndex(rows));
+	};
+	const inline = aboveHead("regular", { filteredItems: items, selectedIndex: 1, maxVisible: 6, render: () => items.map((item) => `  ${item.label}`) });
+	expect("inline /co with regular completion shows menu rows listing /compact", inline.length > 0 && inline.some((r) => r.includes("/compact")), JSON.stringify(inline));
+	const files = [{ value: "/Users/", label: "Users/" }];
+	const forced = aboveHead("force", { filteredItems: files, selectedIndex: 0, maxVisible: 6, render: () => files.map((item) => `  ${item.label}`) });
+	expect("inline /co with forced path completion shows no menu", forced.length === 0, JSON.stringify(forced));
+	editor.autocompleteState = undefined;
+	editor.autocompleteList = undefined;
+	editor.setText("");
+}
+
 // Click inside the input text puts Pi's cursor under the clicked cell (x shifted past rail + prompt).
 {
 	const clickAt = (text, row, col) => {

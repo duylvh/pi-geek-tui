@@ -36,6 +36,7 @@ type HostStatusIndicator = Parameters<CustomEditor["setWorkingStatusIndicator"]>
 type SlashItem = { value?: string; label?: string; description?: string };
 
 const MIN_CWD_CELLS = 6;
+const INLINE_SLASH_TOKEN = /(?:^|\s)\/[^\s/]*$/;
 
 /**
  * Input text width: after the rail and prompt, minus the last screen column. Pi parks the cursor one cell past a full
@@ -281,8 +282,11 @@ export class GeekEditor extends CustomEditor {
 		const state = (this as any).state as { lines?: string[]; cursorLine?: number; cursorCol?: number } | undefined;
 		if (!state || !Array.isArray(state.lines)) return null;
 		const line = state.lines[state.cursorLine ?? 0] ?? "";
-		const before = line.slice(0, Math.max(0, state.cursorCol ?? 0)).trimStart();
-		if ((state.cursorLine ?? 0) !== 0 || !before.startsWith("/")) return null;
+		const raw = line.slice(0, Math.max(0, state.cursorCol ?? 0));
+		const before = raw.trimStart();
+		const lineStart = (state.cursorLine ?? 0) === 0 && before.startsWith("/");
+		const inline = (this as any).autocompleteState === "regular" && INLINE_SLASH_TOKEN.test(raw);
+		if (!lineStart && !inline) return null;
 		const list = (this as any).autocompleteList as { filteredItems?: SlashItem[]; selectedIndex?: number; maxVisible?: number } | undefined;
 		if (!(this as any).autocompleteState || !list) return null;
 		const items = Array.isArray(list.filteredItems) ? list.filteredItems : [];
@@ -290,7 +294,7 @@ export class GeekEditor extends CustomEditor {
 			items,
 			selected: clamp(list.selectedIndex ?? 0, 0, Math.max(0, items.length - 1)),
 			maxVisible: clamp(list.maxVisible ?? 6, 1, 20),
-			withSlash: !before.includes(" "),
+			withSlash: inline && !lineStart ? true : !before.includes(" "),
 		};
 	}
 
