@@ -2,6 +2,11 @@
 
 Forked from pi-droid-styling 2.18.0; earlier history: https://github.com/sting8k/pi-droid-styling/blob/main/CHANGELOG.md
 
+## 0.2.2 - 2026-11-12
+
+### Changed
+- In fullscreen the slash-command panel floats over the bottom of the transcript instead of taking rows in the input zone. Opening or closing it no longer pushes the messages up, and the input head, input and statusline keep their rows. Regular mode keeps the panel in the input zone.
+
 ## 0.2.1 - 2026-11-12
 
 ### Added
