@@ -2,9 +2,10 @@
 
 Forked from pi-droid-styling 2.18.0; earlier history: https://github.com/sting8k/pi-droid-styling/blob/main/CHANGELOG.md
 
-## Unreleased
+## 0.2.1 - 2026-11-12
 
 ### Added
+- The slash-command panel also opens for a `/command` typed mid-prompt, after a space or at the start of any line. Pi only offers those suggestions with an extension such as [pi-inline-slash-commands](https://github.com/duylvh/pi-inline-slash-commands). Tab-forced path completion such as `cat /Us` keeps Pi's file list.
 - Notices (warnings, errors, status lines) and markdown headings wrap like CSS `text-wrap: balance`. Text that wraps onto two to six lines is re-wrapped at the narrowest width that keeps its line count, so it no longer ends in a short stub line.
 
 ### Fixed
