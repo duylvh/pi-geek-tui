@@ -13,6 +13,7 @@ import { geekBg, geekFg } from "../theme/geek-palette.js";
 import { ImageAttachmentList, pastedImageFilePath, setImageStoreDir, type ImageAttachment } from "./image-attachments.js";
 import { getLiveState } from "./live-state.js";
 import { renderSlashMenu } from "./slash-menu.js";
+import { routeSlashMenuMouse, SlashOverlay } from "./slash-overlay.js";
 import { renderStatusline } from "./statusline.js";
 import { OWN_EDITOR_ROWS } from "./slot-frame.js";
 import { TICK_MS, shimmerWord } from "./shimmer.js";
@@ -91,8 +92,10 @@ function colorImageTokens(text: string): string {
 
 export class GeekEditor extends CustomEditor {
 	private ticker: ReturnType<typeof setInterval> | undefined;
-	/** Row counts of the last render, top to bottom: slash menu (its item rows), head, input, file autocomplete, footer. */
-	private mouseRows = { menu: 0, items: 0, input: 0, autocomplete: 0 };
+	/** Last render, top to bottom: in-flow slash menu rows (its item rows), head, input, file autocomplete, footer; `slash` while the menu is open anywhere. */
+	private mouseRows = { menu: 0, items: 0, input: 0, autocomplete: 0, slash: false };
+	/** Fullscreen only: the slash menu floats over the transcript instead of taking editor rows. */
+	private slashOverlay: SlashOverlay | undefined;
 	/** The autocomplete list last drawn as the slash menu; while Pi still holds it after the text left slash context, its rows stay hidden. */
 	private menuList: unknown;
 	private readonly renderHost: any;
@@ -342,36 +345,40 @@ export class GeekEditor extends CustomEditor {
 		const border = findLastBorderIndex(parentLines);
 		const parentAutocomplete = border >= 0 ? parentLines.slice(border + 1) : [];
 
-		// Slash commands: popup panel ABOVE the input head (transcript → menu → head → input); other
-		// autocompletes (file paths…) keep Pi's rows below the input.
+		// Slash commands: popup panel ABOVE the input head (transcript → menu → head → input), floating over the
+		// transcript in fullscreen; other autocompletes (file paths…) keep Pi's rows below the input.
 		const slash = this.slashItems();
 		const list = (this as any).autocompleteList;
 		if (slash) this.menuList = list;
 		else if (list !== this.menuList) this.menuList = undefined;
-		const menu = slash ? renderSlashMenu(slash, width, this.slashHints()) : [];
+		const hints = slash ? this.slashHints() : {};
+		const overlay = this.floatingMenu();
+		const menu = slash && !overlay ? renderSlashMenu(slash, width, hints) : [];
 		const autocomplete = slash || this.menuList ? [] : parentAutocomplete.map((line) => geekRow("blank", line, width));
 
 		const input = this.renderInputLines(this.getText(), width);
-		const lines = [...menu, this.headRow(width), ...input, ...autocomplete, ...this.footerRows(width)];
-		this.mouseRows = { menu: menu.length, items: slash && slash.items.length > 0 ? menu.length - 2 : 0, input: input.length, autocomplete: autocomplete.length };
+		const body = [this.headRow(width), ...input, ...autocomplete, ...this.footerRows(width)];
+		overlay?.show(slash ? { model: slash, hints, width, bodyRows: body.length } : undefined);
+		this.mouseRows = { menu: menu.length, items: slash && slash.items.length > 0 ? menu.length - 2 : 0, input: input.length, autocomplete: autocomplete.length, slash: !!slash };
 		this.syncTicker();
-		return lines;
+		return [...menu, ...body];
+	}
+
+	private floatingMenu(): SlashOverlay | undefined {
+		if (this.renderHost?.mode !== "fullscreen") return undefined;
+		return (this.slashOverlay ??= new SlashOverlay(this.renderHost, this, () => (this as any).autocompleteList));
 	}
 
 	/**
 	 * Pi (>= 1.1) hit-tests mouse events against ITS layout: top border, input rows, bottom border, list rows below.
-	 * Ours differs (slash menu above the head row, no borders), so translate before delegating: a slash-menu item
-	 * row goes to the list as its local row (Pi's own select/click/wheel semantics, same window as we draw), input
-	 * rows (x shifted past rail + prompt) and file-autocomplete rows go to Pi's coordinates, footer rows are ignored.
+	 * Ours differs (slash menu above the head row, no borders), so translate before delegating: in-flow slash-menu
+	 * rows go to the list (routeSlashMenuMouse), input rows (x shifted past rail + prompt) and file-autocomplete
+	 * rows go to Pi's coordinates, footer rows are ignored.
 	 */
 	handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
 		const rows = this.mouseRows;
-		const list = (this as any).autocompleteList as { handleMouse?: (event: TuiMouseEvent) => TuiMouseEventResult | undefined } | undefined;
 		if (event.y < rows.menu) {
-			const index = event.y - 1; // row 0 is the menu header
-			const onItem = index >= 0 && index < rows.items;
-			if (!list?.handleMouse || (!onItem && event.type !== "wheel")) return undefined;
-			const result = list.handleMouse({ ...event, y: onItem ? index : 0, height: rows.items });
+			const result = routeSlashMenuMouse((this as any).autocompleteList, event, rows.items);
 			return result ? { ...result, focus: true } : undefined;
 		}
 		const parent = super.handleMouse;
@@ -380,7 +387,7 @@ export class GeekEditor extends CustomEditor {
 		const listStart = Number((this as any).renderedVisibleLineCount) + 2;
 		if (y > rows.input) return parent.call(this, { ...event, y: listStart + (y - rows.input - 1) });
 		// Slash menu open: Pi's own list rows are not drawn, so an input-row event must never land in its list zone.
-		if (rows.menu > 0 && y >= listStart) return { handled: true, focus: true };
+		if (rows.slash && y >= listStart) return { handled: true, focus: true };
 		if (y === 0) return parent.call(this, { ...event, y });
 		// Input rows: our text starts after the rail + prompt cells; Pi's starts after its paddingX.
 		const padding = Math.min(Number((this as any).paddingX) || 0, Math.max(0, Math.floor((event.width - 1) / 2)));

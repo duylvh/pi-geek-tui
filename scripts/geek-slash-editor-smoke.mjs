@@ -2,11 +2,12 @@
 /**
  * Slash popup placement in the real GeekEditor: panel rows sit ABOVE the input head row (transcript → menu →
  * head → input → rule → footer), every row is exactly the width, live hints reach the descriptions, and
- * nothing is shown when no slash autocomplete is active. (renderSlashMenu itself: slash-menu-smoke.)
+ * nothing is shown when no slash autocomplete is active. In fullscreen (Pi's real TuiAltScreen) the same panel
+ * floats over the transcript instead, and opening it moves no other screen row. (renderSlashMenu itself: slash-menu-smoke.)
  */
 import { join } from "node:path";
 import { rmSync } from "node:fs";
-import { SelectList, visibleWidth } from "@earendil-works/pi-tui";
+import { Container, HStack, ScrollView, SelectList, TuiAltScreen, VStack, visibleWidth } from "@earendil-works/pi-tui";
 import { buildSmoke } from "./smoke-build.mjs";
 
 const built = buildSmoke("geek-slash-editor-smoke", ["editor/geek-editor.ts", "editor/live-state.ts"]);
@@ -169,6 +170,85 @@ expect("menu disappears with the autocomplete", headIndex(editor.render(100).map
 	}
 	expect("the cursor block stays left of the last column", blockColumns.length === 11 && Math.max(...blockColumns) < 99, JSON.stringify(blockColumns));
 	editor.setText("");
+}
+
+// Fullscreen: Pi's real alt-screen renderer, laid out like Pi's chat viewport (transcript, then a dock with the
+// editor slot and a row below it), the dock behind a 4-cell gutter. The panel covers the transcript rows right
+// above the head row, in the editor's columns.
+{
+	const terminal = { columns: 100, rows: 30, write() {}, hideCursor() {}, showCursor() {}, start() {}, stop() {} };
+	const tui = new TuiAltScreen(terminal, false);
+	tui.altScreenActive = true;
+	const fsEditor = new GeekEditor(tui, editorTheme, { matches: () => false, getKeys: () => [] }, {
+		cwd: join(built.workDir, "proj"), getContextUsage: () => undefined, getModelInfo: () => undefined,
+		getBranch: () => null, getFooterStatus: () => null, getTokenUsage: () => null,
+	});
+	const transcript = { render: () => Array.from({ length: 60 }, (_, i) => `message ${i}`), invalidate() {} };
+	const slot = new Container();
+	slot.addChild(fsEditor);
+	tui.setLayoutRoot(new VStack([
+		{ component: new ScrollView(transcript, { follow: "end", primary: true }), basis: 0, grow: 1, shrink: 1, minSize: 1 },
+		{ component: new HStack([
+			{ component: { render: () => [], invalidate() {} }, basis: 4, minSize: 4, maxSize: 4 },
+			{ component: new VStack([{ component: slot, shrink: 1, minSize: 3 }, { component: { render: () => ["row below the editor"], invalidate() {} }, shrink: 1, minSize: 0 }]), basis: 0, grow: 1, shrink: 1, minSize: 1 },
+		], { align: "stretch" }), basis: "auto", grow: 0, shrink: 1, minSize: 1 },
+	]));
+	tui.setFocus(fsEditor);
+	const screen = () => {
+		tui.doRender();
+		return tui.getScreenLines().map((line) => strip(line.replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "")));
+	};
+	const open = () => {
+		fsEditor.autocompleteState = "regular";
+		fsEditor.autocompleteList = new SelectList(items, 5, editorTheme.selectList);
+		fsEditor.autocompleteList.setSelectedIndex(1);
+	};
+	const close = () => {
+		fsEditor.autocompleteState = undefined;
+		fsEditor.autocompleteList = undefined;
+	};
+
+	fsEditor.setText("/");
+	screen();
+	const closed = screen();
+	open();
+	const opened = screen();
+	const head = closed.findIndex((row) => row.slice(4).startsWith(`${" ".repeat(P - 2)}• `));
+	const panel = opened.slice(head - 5, head);
+	expect("fullscreen: the editor head row stays on the same screen row", head > 5 && opened[head] === closed[head], JSON.stringify(opened[head]));
+	expect("fullscreen: the panel's five rows sit right above the head row and list the commands",
+		panel[0].includes("commands") && panel[1].includes("/model") && panel[2].includes("› /compact") && panel[3].includes("/copy") && panel[4].includes("select"),
+		JSON.stringify(panel));
+	expect("fullscreen: the panel starts at the editor's column (the gutter cells still show the transcript)", panel.every((row) => row.startsWith("mess") && row.length === 100), JSON.stringify(panel));
+	const moved = opened.map((row, i) => (i >= head - 5 && i < head) || row === closed[i] ? -1 : i).filter((i) => i >= 0);
+	expect("fullscreen: every row outside the panel is unchanged (transcript, editor, row below)", moved.length === 0, JSON.stringify(moved.map((i) => [closed[i], opened[i]])));
+	expect("fullscreen: the editor itself returns no menu rows", headIndex(fsEditor.render(100).map(strip)) === 0);
+
+	// Mouse goes through Pi's SGR input path: press + release on an item row is a click, the wheel moves the selection.
+	let chosen;
+	fsEditor.autocompleteList.onSelect = (item) => { chosen = item; };
+	const sgr = (button, x, y, end = "M") => tui.handleTerminalInput(`\x1b[<${button};${x + 1};${y + 1}${end}`);
+	sgr(0, 20, head - 2);
+	sgr(0, 20, head - 2, "m");
+	expect("fullscreen: a click on an item row runs that row's command", chosen?.value === "copy", String(chosen?.value));
+	expect("fullscreen: the clicked row is marked in the next frame", screen()[head - 2].includes("› /copy"));
+	sgr(64, 20, head - 5);
+	expect("fullscreen: the wheel over the panel header moves the selection", fsEditor.autocompleteList.selectedIndex === 1, String(fsEditor.autocompleteList.selectedIndex));
+	expect("fullscreen: the keyboard stays with the editor after panel clicks", tui.getFocusedComponent() === fsEditor);
+
+	close();
+	const reclosed = screen();
+	expect("fullscreen: closing the menu restores the exact closed screen", JSON.stringify(reclosed) === JSON.stringify(closed), JSON.stringify(reclosed.slice(head - 5, head)));
+	expect("fullscreen: no overlay entry stays behind, so Pi can still switch TUI mode", !tui.hasOverlayEntries);
+
+	// Pi swaps the slot's child for a selector or a new editor (/reload) without telling the old editor.
+	open();
+	screen();
+	slot.clear();
+	slot.addChild({ render: () => ["selector"], invalidate() {} });
+	const replaced = screen();
+	expect("fullscreen: a replaced editor's panel disappears", !replaced.some((row) => row.includes("commands")) && !tui.hasOverlayEntries, JSON.stringify(replaced.slice(-8)));
+	close();
 }
 
 console.log(rows.join("\n"));
