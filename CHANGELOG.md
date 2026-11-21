@@ -2,6 +2,11 @@
 
 Forked from pi-droid-styling 2.18.0; earlier history: https://github.com/sting8k/pi-droid-styling/blob/main/CHANGELOG.md
 
+## 0.2.3 - 2026-11-21
+
+### Fixed
+- Works with Pi 1.6, whose components return cached, read-only render output. In fullscreen the floating slash-command panel stays open while you scroll the transcript or drag a selection. Pi 1.6 paints those frames without re-rendering the editor, which used to close the panel.
+
 ## 0.2.2 - 2026-11-12
 
 ### Changed
