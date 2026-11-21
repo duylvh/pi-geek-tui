@@ -24,7 +24,7 @@ const GUIDE_BRANCH = "├─ ";
 const GUIDE_LAST = "└─ ";
 const GUIDE_PIPE = "│  ";
 
-const RESULT_BODIES: Record<string, (result: any, options: any, theme: any, context: any) => { render(width: number): string[] }> = {
+const RESULT_BODIES: Record<string, (result: any, options: any, theme: any, context: any) => { render(width: number): readonly string[] }> = {
 	read: renderReadResult,
 	bash: renderBashResult,
 	grep: renderGrepResult,
@@ -32,10 +32,10 @@ const RESULT_BODIES: Record<string, (result: any, options: any, theme: any, cont
 	ls: renderLsResult,
 };
 
-const bodyCache = new WeakMap<object, { result: unknown; body: { render(width: number): string[] } }>();
+const bodyCache = new WeakMap<object, { result: unknown; body: { render(width: number): readonly string[] } }>();
 
 /** Expanded output of one call, built once per result object (partial updates replace it). */
-function expandedBody(entry: TreeEntry): { render(width: number): string[] } | undefined {
+function expandedBody(entry: TreeEntry): { render(width: number): readonly string[] } | undefined {
 	if (entry.kind === "thought") return renderOutputBody({ content: [{ type: "text", text: entry.text }] }, { expanded: true });
 	const { tool } = entry;
 	if (!tool.result) return undefined;

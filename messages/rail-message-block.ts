@@ -11,7 +11,7 @@ export type RailMessageBlockOptions = {
 	title?: string;
 	/** Right-aligned hint on the head row (already styled). */
 	right?: string;
-	body: (bodyWidth: number) => string[];
+	body: (bodyWidth: number) => readonly string[];
 };
 
 export function renderRailMessageBlock(options: RailMessageBlockOptions): Component {

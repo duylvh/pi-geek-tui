@@ -16,7 +16,7 @@ import type { TuiMouseEvent } from "@earendil-works/pi-tui";
 import { type ChatHit, dispatchChatMouse, renderChatChildren } from "../tool-tags/tool-groups.js";
 
 interface AnyComponent {
-	render(width: number): string[];
+	render(width: number): readonly string[];
 	invalidate?(): void;
 }
 

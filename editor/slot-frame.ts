@@ -46,7 +46,7 @@ const isBorder = (row: string): boolean => /^[─\s]+$/.test(plain(row)) && plai
 const isSkippable = (row: string): boolean => isBlank(row) || isBorder(row);
 
 /** A child that draws its own rounded box (SuPi ask-user): its blank `│ │` rows are content, not gaps. */
-function isSelfFramedBox(rows: string[]): boolean {
+function isSelfFramedBox(rows: readonly string[]): boolean {
 	const lines = rows.map(plain);
 	let start = 0;
 	let end = lines.length;
@@ -113,7 +113,7 @@ type Classified = {
 };
 
 /** Split Pi's rows into the panel's parts. */
-function classify(rows: string[]): Classified {
+function classify(rows: readonly string[]): Classified {
 	const out: Classified = { body: [], selected: -1 };
 	const keep = rows.map((_, i) => i).filter((i) => !isSkippable(rows[i]!));
 
@@ -201,7 +201,7 @@ function isNotice(model: Classified): boolean {
  * Rows for a foreign slot child: a picker becomes the panel (exactly `width` cells each, capped in height);
  * a notice stays plain text behind the rail prefix, so the zone does not flash a panel while Pi swaps editors.
  */
-function frameSlotChild(child: { render(width: number): string[] }, width: number, terminalRows = 40, crumbs: Crumbs = { trail: [] }): { rows: string[]; notice: boolean } {
+function frameSlotChild(child: { render(width: number): readonly string[] }, width: number, terminalRows = 40, crumbs: Crumbs = { trail: [] }): { rows: string[]; notice: boolean } {
 	const total = Math.max(0, Math.floor(width));
 	if (total <= GEEK_PREFIX_WIDTH) return { rows: child.render(total).map((row) => truncateToWidth(row, total, "", true)), notice: false };
 	const bodyWidth = total - GEEK_PREFIX_WIDTH;
@@ -240,7 +240,7 @@ function lastChrome(editor: { renderChrome?(width: number): string[] } | undefin
 	}
 }
 
-type RenderableContainer = { children: any[]; render(width: number): string[] };
+type RenderableContainer = { children: any[]; render(width: number): readonly string[] };
 
 function patchContainer(container: RenderableContainer | undefined, mode: any): void {
 	if (!container || (container as any)[PATCHED]) return;
@@ -249,7 +249,7 @@ function patchContainer(container: RenderableContainer | undefined, mode: any): 
 	const crumbs: Crumbs = { trail: [] };
 	let lastOwnEditor: { renderChrome?(width: number): string[] } | undefined;
 	let frozenChrome: { width: number; rows: string[] } | undefined;
-	container.render = (width: number): string[] => {
+	container.render = (width: number): readonly string[] => {
 		const children = container.children;
 		if (children.every((child) => child?.[OWN_EDITOR_ROWS])) {
 			crumbs.child = undefined;

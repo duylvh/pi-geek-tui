@@ -27,7 +27,7 @@ function surfaceRow(text: string, width: number): string {
 }
 
 /** Pi's user box is padded 1 column on each side; its background/emphasis give way to plain ink. */
-function plainBodyLines(lines: string[]): string[] {
+function plainBodyLines(lines: readonly string[]): string[] {
 	let first = 0;
 	while (first < lines.length && stripAnsi(lines[first] ?? "").trim() === "") first++;
 	let last = lines.length - 1;
@@ -62,7 +62,7 @@ export function installUserMessagePrefix(_theme?: unknown): void {
 	proto.render = function patchedUserMessageRender(width: number): string[] {
 		if (width <= 0) return baseRender.call(this, width);
 		const bodyWidth = Math.max(1, width - GEEK_PREFIX_WIDTH - PROMPT.length - PAD_RIGHT);
-		const raw: string[] = baseRender.call(this, bodyWidth + 2);
+		const raw: readonly string[] = baseRender.call(this, bodyWidth + 2);
 		const body = plainBodyLines(raw);
 		if (body.length === 0) return [];
 

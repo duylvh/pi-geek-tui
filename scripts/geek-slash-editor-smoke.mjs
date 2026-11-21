@@ -194,8 +194,10 @@ expect("menu disappears with the autocomplete", headIndex(editor.render(100).map
 		], { align: "stretch" }), basis: "auto", grow: 0, shrink: 1, minSize: 1 },
 	]));
 	tui.setFocus(fsEditor);
-	const screen = () => {
-		tui.doRender();
+	// renderNow() is a content frame, as after Pi's requestRender(); a bare doRender() is a view-only frame
+	// (wheel scroll, selection), where Pi reuses every component's last output instead of rendering it.
+	const screen = (render = () => tui.renderNow()) => {
+		render();
 		return tui.getScreenLines().map((line) => strip(line.replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "")));
 	};
 	const open = () => {
@@ -222,6 +224,7 @@ expect("menu disappears with the autocomplete", headIndex(editor.render(100).map
 	expect("fullscreen: the panel starts at the editor's column (the gutter cells still show the transcript)", panel.every((row) => row.startsWith("mess") && row.length === 100), JSON.stringify(panel));
 	const moved = opened.map((row, i) => (i >= head - 5 && i < head) || row === closed[i] ? -1 : i).filter((i) => i >= 0);
 	expect("fullscreen: every row outside the panel is unchanged (transcript, editor, row below)", moved.length === 0, JSON.stringify(moved.map((i) => [closed[i], opened[i]])));
+	expect("fullscreen: a view-only frame keeps the panel", JSON.stringify(screen(() => { tui.renderNow(); tui.doRender(); })) === JSON.stringify(opened));
 	expect("fullscreen: the editor itself returns no menu rows", headIndex(fsEditor.render(100).map(strip)) === 0);
 
 	// Mouse goes through Pi's SGR input path: press + release on an item row is a click, the wheel moves the selection.

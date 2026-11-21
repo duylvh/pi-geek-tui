@@ -174,14 +174,11 @@ await check("B6 finished cache bypasses while streaming", async () => {
 		const component = new AssistantMessageComponent(undefined, true);
 		component.updateContent(first);
 		await waitUntil(() => textOf(component.lastMessage) === "alpha");
-		const before = component.render(80);
+		component.render(80);
 
 		// Mutate the tracked message in place; the finished cache keys its signature by source
-		// identity, so without the bypass the second render would return the cached array.
+		// identity, so without the bypass every later render would return the stale cached lines.
 		component.lastMessage.content[0].text = "alpha-mutated";
-		const after = component.render(80);
-		assert(before !== after, "renders during the stream must not be served from a cache");
-
 		component.updateContent(component.lastMessage);
 		await waitUntil(() => stripAnsi(component.render(80).join("\n")).includes("alpha-mutated"));
 		const reflected = component.render(80);

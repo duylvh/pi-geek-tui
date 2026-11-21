@@ -44,7 +44,7 @@ export function installCoreMessageBlockStyling(ctors: {
 	patchCustomMessage(ctors.CustomMessageComponent);
 }
 
-function markdownBody(text: unknown, markdownTheme: any): (bodyWidth: number) => string[] {
+function markdownBody(text: unknown, markdownTheme: any): (bodyWidth: number) => readonly string[] {
 	if (typeof text !== "string" || !text || !markdownTheme) return () => [];
 	const md = new Markdown(text, 0, 0, markdownTheme);
 	return (bodyWidth) => md.render(bodyWidth);

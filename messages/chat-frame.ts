@@ -32,7 +32,7 @@ const isSpacer = (child: any): boolean => child?.constructor?.name === "Spacer";
  * after a grammar block (which already ends in a railed blank row) or another spacer: exactly one `┊`
  * separator between blocks.
  */
-export function frameChatChild(child: any, width: number, next?: any, prev?: any): string[] {
+export function frameChatChild(child: any, width: number, next?: any, prev?: any): readonly string[] {
 	if (width <= 0 || isRailed(child)) return child.render(width);
 	// Decided at the child's first render (right after Pi adds it), so a startup notice stays outside the
 	// rail when a turn begins later.

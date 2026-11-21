@@ -1,4 +1,5 @@
 import type { Component, OverlayHandle, OverlayOptions, TuiMouseEvent, TuiMouseEventResult } from "@earendil-works/pi-tui";
+import { getOriginalTuiMethod, rememberTuiMethodWrapper } from "../performance/tui-proxy-original.js";
 import { renderSlashMenu, type SlashMenuModel } from "./slash-menu.js";
 
 /** What the editor hands the floating panel in a frame it rendered: the menu, the editor's render width and its row count. */
@@ -18,6 +19,25 @@ export function routeSlashMenuMouse(list: MenuList | undefined, event: TuiMouseE
 	return list.handleMouse({ ...event, y: onItem ? index : 0, height: itemRows });
 }
 
+const CONTENT_FRAMES = Symbol.for("pi-geek-tui.slash-overlay.content-frames");
+const COUNTING = Symbol.for("pi-geek-tui.slash-overlay.counting");
+
+/**
+ * Counts the frames that render components. Pi (>= 1.6) paints view-only frames (scroll, selection) from the last
+ * frame's output without calling render(), so the editor hands no new frame and its last one still holds.
+ */
+function countContentFrames(tui: any): void {
+	if (tui[COUNTING]) return;
+	tui[COUNTING] = true;
+	const baseDoRender = getOriginalTuiMethod(tui, "doRender");
+	const countingDoRender = function (this: any, ...args: unknown[]): unknown {
+		if (this.contentChanged !== false) this[CONTENT_FRAMES] = (this[CONTENT_FRAMES] ?? 0) + 1;
+		return baseDoRender.call(this, ...args);
+	};
+	tui.doRender = countingDoRender;
+	rememberTuiMethodWrapper(tui, "doRender", countingDoRender);
+}
+
 /** The layout box drawing `editor`: its own, or the container it is the child of (Pi's editor slot). */
 function findEditorBox(box: LayoutBox, editor: object): LayoutBox | undefined {
 	const children = (box.component as { children?: unknown }).children;
@@ -33,12 +53,13 @@ function findEditorBox(box: LayoutBox, editor: object): LayoutBox | undefined {
 /**
  * Fullscreen slash menu: a non-capturing overlay on the transcript rows right above the editor's head row, so
  * opening it neither grows the editor nor moves the transcript. The overlay exists only while the editor hands
- * it a frame before every composite. Without one (menu closed, editor replaced or covered by a selector) it
+ * it a frame in every content frame. Without one (menu closed, editor replaced or covered by a selector) it
  * removes itself: Pi refuses to switch TUI mode while any overlay entry exists, hidden or not.
  */
 export class SlashOverlay implements Component {
 	private handle: OverlayHandle | undefined;
 	private frame: SlashFrame | undefined;
+	private frameId: number | undefined;
 	private itemRows = 0;
 	// Pi re-reads these on every composite, so updating the object in place moves the panel.
 	private readonly options: OverlayOptions = { nonCapturing: true, anchor: "bottom-left", maxHeight: "100%" };
@@ -52,7 +73,9 @@ export class SlashOverlay implements Component {
 	/** Called by the editor's render in every fullscreen frame: the menu to show, or undefined once it closed. */
 	show(frame: SlashFrame | undefined): void {
 		if (!frame) return this.close();
+		countContentFrames(this.tui);
 		this.frame = frame;
+		this.frameId = this.tui[CONTENT_FRAMES];
 		// The previous frame's layout: overlays composite before Pi stores this frame's.
 		const layout = this.tui.currentLayout as { root?: LayoutBox; height: number } | undefined;
 		const box = layout?.root ? findEditorBox(layout.root, this.editor) : undefined;
@@ -62,8 +85,7 @@ export class SlashOverlay implements Component {
 	}
 
 	render(width: number): string[] {
-		const frame = this.frame;
-		this.frame = undefined;
+		const frame = this.frameId === this.tui[CONTENT_FRAMES] ? this.frame : undefined;
 		if (!frame) {
 			this.close();
 			return [];

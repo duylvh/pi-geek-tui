@@ -23,13 +23,13 @@ function getAssistantBodyWidth(width: number): number {
 	return Math.max(1, width - GEEK_PREFIX_WIDTH - 1);
 }
 
-function leadingBlankCount(lines: string[]): number {
+function leadingBlankCount(lines: readonly string[]): number {
 	let first = 0;
 	while (first < lines.length && stripAnsi(lines[first] ?? "").trim() === "") first++;
 	return first;
 }
 
-function trimBlankEdges(lines: string[]): string[] {
+function trimBlankEdges(lines: readonly string[]): string[] {
 	const first = leadingBlankCount(lines);
 	let last = lines.length - 1;
 	while (last >= first && stripAnsi(lines[last] ?? "").trim() === "") last--;
@@ -161,7 +161,7 @@ export function installAssistantMessagePrefix(_theme?: unknown, componentClass: 
 	proto.render = function patchedAssistantMessageRender(width: number): string[] {
 		if (width <= 0) return baseRender.call(this, width);
 		const bodyWidth = getAssistantBodyWidth(width);
-		const raw: string[] = baseRender.call(this, bodyWidth);
+		const raw: readonly string[] = baseRender.call(this, bodyWidth);
 		const body = revealBody(this, trimBlankEdges(raw));
 		const rows = turnHeadRows(this, width);
 		this[MOUSE_ORIGIN] = { rowOffset: rows.length - leadingBlankCount(raw), width: bodyWidth };

@@ -9,7 +9,7 @@ const WRAPPED_KEY = Symbol("streaming-markdown-cache-wrapped");
 
 interface StableMarkdownState {
 	stablePrefix: string;
-	stableLines: string[];
+	stableLines: readonly string[];
 	stableWidth?: number;
 	configFingerprint?: string;
 	lastText?: string;
@@ -97,7 +97,7 @@ function getMarkdownConfig(child: any, text: string): MarkdownConfig {
 	};
 }
 
-function renderMarkdown(config: MarkdownConfig, text: string, width: number): string[] {
+function renderMarkdown(config: MarkdownConfig, text: string, width: number): readonly string[] {
 	return new Markdown(
 		text,
 		config.paddingX,
@@ -186,7 +186,7 @@ class StableStreamingMarkdown {
 		resetStableState(this.state, "invalidate");
 	}
 
-	render(width: number): string[] {
+	render(width: number): readonly string[] {
 		const start = profileNow();
 		try {
 			return this.renderCached(width);
@@ -195,7 +195,7 @@ class StableStreamingMarkdown {
 		}
 	}
 
-	private renderCached(width: number): string[] {
+	private renderCached(width: number): readonly string[] {
 		profileCount("assistant.markdownStable.render");
 		profileCount(`assistant.markdownStable.render.${this.blockKey}`);
 		const text = this.config.text;

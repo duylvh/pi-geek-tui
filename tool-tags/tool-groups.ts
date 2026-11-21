@@ -110,7 +110,7 @@ function renderToolGroup(members: any[], width: number): string[] {
 	return rows;
 }
 
-function pushLines(target: string[], lines: string[]): void {
+function pushLines(target: string[], lines: readonly string[]): void {
 	for (let i = 0; i < lines.length; i++) target.push(lines[i]);
 }
 
@@ -121,7 +121,7 @@ function pushLines(target: string[], lines: string[]): void {
 type ChatHitTarget = { kind: "tools"; tools: any[] } | { kind: "child"; component: any; width: number };
 export type ChatHit = ChatHitTarget & { start: number; height: number };
 
-function pushRows(lines: string[], hits: ChatHit[] | undefined, rows: string[], target: ChatHitTarget): void {
+function pushRows(lines: string[], hits: ChatHit[] | undefined, rows: readonly string[], target: ChatHitTarget): void {
 	if (hits && rows.length > 0) hits.push({ ...target, start: lines.length, height: rows.length });
 	pushLines(lines, rows);
 }

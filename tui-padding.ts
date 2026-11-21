@@ -8,7 +8,7 @@ import { getOriginalTuiMethod, rememberTuiMethodWrapper } from "./performance/tu
 
 
 interface AnyComponent {
-	render(width: number): string[];
+	render(width: number): readonly string[];
 }
 
 // Spec margin: 4 cells each side; installTuiPadding overrides it from the `horizontalPadding` config. Shared on
