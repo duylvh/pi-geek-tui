@@ -2,7 +2,7 @@
 
 Forked from pi-droid-styling 2.18.0; earlier history: https://github.com/sting8k/pi-droid-styling/blob/main/CHANGELOG.md
 
-## Unreleased
+## 0.3.1 - 2026-11-22
 
 Merged upstream pi-geek-tui 0.2.1–0.3.0.
 
