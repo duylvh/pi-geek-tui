@@ -198,10 +198,17 @@ function isNotice(model: Classified): boolean {
 }
 
 /**
- * Rows for a foreign slot child: a picker becomes the panel (exactly `width` cells each, capped in height);
- * a notice stays plain text behind the rail prefix, so the zone does not flash a panel while Pi swaps editors.
+ * Rows for a foreign slot child: a picker becomes the panel (exactly `width` cells each; with `chromeRows` of our
+ * own under it, never taller than the terminal); a notice stays plain text behind the rail prefix, so the zone does
+ * not flash a panel while Pi swaps editors.
  */
-function frameSlotChild(child: { render(width: number): readonly string[] }, width: number, terminalRows = 40, crumbs: Crumbs = { trail: [] }): { rows: string[]; notice: boolean } {
+function frameSlotChild(
+	child: { render(width: number): readonly string[] },
+	width: number,
+	terminalRows = 40,
+	crumbs: Crumbs = { trail: [] },
+	chromeRows = 0,
+): { rows: string[]; notice: boolean } {
 	const total = Math.max(0, Math.floor(width));
 	if (total <= GEEK_PREFIX_WIDTH) return { rows: child.render(total).map((row) => truncateToWidth(row, total, "", true)), notice: false };
 	const bodyWidth = total - GEEK_PREFIX_WIDTH;
@@ -225,7 +232,10 @@ function frameSlotChild(child: { render(width: number): readonly string[] }, wid
 	const budget = Math.max(MIN_BODY_ROWS, Math.min(MAX_BODY_ROWS, Math.floor(terminalRows * 0.4) - rows.length - 2));
 	// Fit Pi's own window first; our window below is then only the fallback for lists with a fixed window.
 	if (model.body.length > budget && shrinkPiList(child, model.body.length - budget)) model = classify(child.render(innerWidth));
-	const windowed = windowRows(model.body, model.selected, budget);
+	// No selection marker we know (an extension's own dialog, e.g. pi-askuserquestion's `>`): a window could not follow
+	// the cursor and would hide the last rows for good, so show the whole body as far as the screen holds it.
+	const fit = model.selected >= 0 ? budget : Math.max(budget, terminalRows - chromeRows - rows.length - (model.detail ? 1 : 0) - 1);
+	const windowed = windowRows(model.body, model.selected, fit);
 	windowed.rows.forEach((row, i) => rows.push(panelRow(row, bodyWidth, windowed.start + i === model.selected ? "panelSel" : "panel")));
 	if (model.detail) rows.push(panelRow(`  ${geekFg("faint", model.detail)}`, bodyWidth));
 	rows.push(panelRow(geekFg("faint", model.hint ?? DEFAULT_HINT), bodyWidth));
@@ -240,7 +250,7 @@ function lastChrome(editor: { renderChrome?(width: number): string[] } | undefin
 	}
 }
 
-type RenderableContainer = { children: any[]; render(width: number): readonly string[] };
+type RenderableContainer = { children: any[]; render(width: number): readonly string[]; handleMouse?(event: any): unknown };
 
 function patchContainer(container: RenderableContainer | undefined, mode: any): void {
 	if (!container || (container as any)[PATCHED]) return;
@@ -249,25 +259,31 @@ function patchContainer(container: RenderableContainer | undefined, mode: any): 
 	const crumbs: Crumbs = { trail: [] };
 	let lastOwnEditor: { renderChrome?(width: number): string[] } | undefined;
 	let frozenChrome: { width: number; rows: string[] } | undefined;
+	const ownsEveryRow = (): boolean => container.children.every((child) => child?.[OWN_EDITOR_ROWS]);
+	// Pi's Container routes a click by the child heights of its own last render. A panel is drawn here, not by that
+	// render, so those heights still describe the editor the panel replaced: a click on the panel's first rows reached
+	// that hidden editor and gave it keyboard focus, leaving the dialog on screen but deaf. A panel takes no mouse input.
+	const baseHandleMouse = container.handleMouse?.bind(container);
+	if (baseHandleMouse) container.handleMouse = (event: any): unknown => (ownsEveryRow() ? baseHandleMouse(event) : undefined);
 	container.render = (width: number): readonly string[] => {
 		const children = container.children;
-		if (children.every((child) => child?.[OWN_EDITOR_ROWS])) {
+		if (ownsEveryRow()) {
 			crumbs.child = undefined;
 			lastOwnEditor = children[0] ?? lastOwnEditor;
 			frozenChrome = undefined;
 			return baseRender(width);
 		}
 		const rows = Number(mode?.ui?.terminal?.rows) || 40;
-		let onlyNotices = true;
-		const lines = children.flatMap((child) => {
-			if (child?.[OWN_EDITOR_ROWS]) return child.render(width);
-			const framed = frameSlotChild(child, width, rows, crumbs);
-			onlyNotices &&= framed.notice;
-			return framed.rows;
-		});
 		// Keep our head row (path, branch, diff, live state) and the footer under the panel: the zone reads the same
 		// as depth 1 and the footer, which lives inside the editor, stays on screen.
 		const chrome = mode?.editor?.[OWN_EDITOR_ROWS] && typeof mode.editor.renderChrome === "function" ? mode.editor.renderChrome(width) : [];
+		let onlyNotices = true;
+		const lines = children.flatMap((child) => {
+			if (child?.[OWN_EDITOR_ROWS]) return child.render(width);
+			const framed = frameSlotChild(child, width, rows, crumbs, chrome.length);
+			onlyNotices &&= framed.notice;
+			return framed.rows;
+		});
 		// Pi swaps its default editor in for a notice (/reload): keep our last head row and footer around it, so only the
 		// input row changes and the transcript above does not jump while the next instance of our editor loads. Frozen at
 		// the first notice frame: the old editor's statusline sources are torn down during the reload.

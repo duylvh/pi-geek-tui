@@ -2,6 +2,19 @@
 
 Forked from pi-droid-styling 2.18.0; earlier history: https://github.com/sting8k/pi-droid-styling/blob/main/CHANGELOG.md
 
+## Unreleased
+
+Merged upstream pi-geek-tui 0.2.1–0.3.0.
+
+### Changed
+- Streamed answers keep a steady pace when the server sends text in large bursts. The reveal used to rush through each burst within 0.35 s and then stop until the next one. It now spreads each burst over the measured wait for the next one (0.25–0.5 s), and the fade widens with the speed (6–40 characters), so fast text fades in instead of popping in.
+- Thinking that ends in a tool call stays visible as its own `thinking · …` row above the calls, as it does before an answer. It no longer folds into the tool group. Group heads no longer count thoughts, and the `T` thought badge is gone. This replaces the one-line thought rows inside a group that `Ctrl+T` used to show.
+- Removed pi-geek-tui's own render throttle (one frame per 29 ms). Pi already limits rendering to one frame per 16 ms, so the extra layer only lowered the frame rate and spaced frames unevenly while scrolling.
+
+### Fixed
+- A mouse click on the top rows of a dialog or selector in the input area (an ask-user question box, `/model`, `/settings`) no longer freezes it. The click reached the editor hidden under the panel and moved keyboard focus there, so the dialog ignored every key. Panels now take no mouse input.
+- Extension dialogs in the input area whose cursor marker the panel does not recognize (pi-askuserquestion, an extension's text input with a long prompt) no longer lose their last rows. They now get as many rows as the screen holds instead of 8.
+
 ## 0.2.3 - 2026-11-21
 
 ### Fixed

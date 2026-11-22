@@ -17,13 +17,15 @@ core.initTheme("dark");
 const corePiTui = new URL("../node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui/dist/index.js", import.meta.url).href;
 const { Container, Text } = await import(corePiTui).catch(() => import("@earendil-works/pi-tui"));
 
-const strip = (text) => String(text).replace(/\x1b\][^\x07]*\x07/g, "").replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
+// APC too: Pi 1.5 wraps the fake cursor in `\x1b_pi:fc\x07`…`\x1b_pi:/fc\x07`, invisible on screen.
+const strip = (text) => String(text).replace(/\x1b\][^\x07]*\x07|\x1b_[^\x07]*\x07/g, "").replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "");
 const failures = [];
 const expect = (name, condition, detail = "") => { if (!condition) failures.push(`${name}${detail ? `: ${detail}` : ""}`); };
 
 const HEAD = (width) => "      • bean@proj".padEnd(width);
 const FOOT = (width) => ["─".repeat(width), "  statusline".padEnd(width)];
-class OwnEditor { render(width) { return [HEAD(width), "        › input".padEnd(width), ...FOOT(width)]; } renderChrome(width) { return [HEAD(width), ...FOOT(width)]; } setText() {} getText() { return ""; } }
+let editorClicks = 0;
+class OwnEditor { handleMouse() { editorClicks++; return { handled: true, focus: true }; } render(width) { return [HEAD(width), "        › input".padEnd(width), ...FOOT(width)]; } renderChrome(width) { return [HEAD(width), ...FOOT(width)]; } setText() {} getText() { return ""; } }
 OwnEditor.prototype[OWN_EDITOR_ROWS] = true;
 installEditorSlotFrame(core.InteractiveMode);
 const mode = {
@@ -34,6 +36,7 @@ const mode = {
 	keybindings: {},
 	extensionDialogs: [],
 	disposeActiveSelector() {}, // Pi 1.x setCustomEditorComponent closes an open selector first
+	extensionDialogs: [], // Pi 1.5 setCustomEditorComponent keeps the slot while an extension dialog is open
 };
 core.InteractiveMode.prototype.setCustomEditorComponent.call(mode, () => mode.editor);
 const container = mode.editorContainer;
@@ -63,7 +66,12 @@ for (const width of [112, 62, 30]) {
 		expect(`${name}@${width}: first and last panel cell of every row is a bg-only space`, rows.every((row) => row.slice(P).startsWith("\x1b[48;2;") && strip(row)[P] === " " && strip(row).at(-1) === " "), JSON.stringify(rows.map((row) => [strip(row)[P], strip(row).at(-1)])));
 		expect(`${name}@${width}: no stock border strokes`, !rows.some((row) => /─{3,}/.test(strip(row))));
 		expect(`${name}@${width}: head + footer stay under the panel`, strip(all[all.length - 3]).startsWith("      • bean@proj") && strip(all[all.length - 1]).includes("statusline"), JSON.stringify(all.slice(-3).map(strip)));
-		expect(`${name}@${width}: panel within the cap (24 rows → ≤ 40%)`, rows.length <= 1 + 8 + 1 + 1 + 1, String(rows.length));
+		if (name === "extInput") {
+			// No list marker: the wrapped prompt is never cut down to the cap, so the input field under it stays visible.
+			expect(`${name}@${width}: input field shown, everything fits the terminal`, rows.some((row) => strip(row).slice(P).trim() === ">") && all.length <= 24, JSON.stringify(all.map(strip)));
+		} else {
+			expect(`${name}@${width}: panel within the cap (24 rows → ≤ 40%)`, rows.length <= 1 + 8 + 1 + 1 + 1, String(rows.length));
+		}
 	}
 }
 
@@ -167,6 +175,26 @@ for (const width of [40, 100]) {
 	expect(`form@${width}: repeated render is stable`, JSON.stringify(render(width, 40)) === JSON.stringify(all));
 }
 
+// --- an extension's own dialog (rows as pi-askuserquestion draws them: `>` cursor, descriptions, a last free-text option):
+// no Pi list to shrink and no marker we know, so nothing may be cut while it fits on screen, and it never pushes the footer off.
+class FakeDialog extends Container {}
+const dialog = new FakeDialog();
+dialog.render = (width) => [
+	"─".repeat(width),
+	" Which approach should we take for the cache layer?",
+	"",
+	...["Redis", "In-memory LRU", "SQLite", "No cache"].flatMap((label, i) => [`${i === 0 ? ">" : " "}   ${i + 1}. ${label}`, `     description of ${label}`]),
+	"    5. Type your own answer...",
+	"",
+	" ↑↓ navigate · Enter select · Esc cancel",
+	"─".repeat(width),
+];
+swapIn(dialog);
+const dialogRows = render(100, 45).map(strip);
+expect("extension dialog: last option shown", dialogRows.some((row) => row.includes("5. Type your own answer...")), JSON.stringify(dialogRows));
+expect("extension dialog: every option shown", ["Redis", "In-memory LRU", "SQLite", "No cache"].every((label) => dialogRows.some((row) => row.includes(`. ${label}`))), JSON.stringify(dialogRows));
+for (const height of [45, 14, 10]) expect(`extension dialog @${height} rows: panel + chrome fit the terminal`, render(100, height).length <= height, String(render(100, height).length));
+
 // --- Esc path: back to our editor, rows unframed again
 swapIn(new OwnEditor());
 expect("Esc path: back to the editor", render(80).length === 4 && render(80)[1].includes("› input"));
@@ -188,6 +216,17 @@ expect("reload notice text sits behind the rail prefix", reloadRows[1].slice(0, 
 expect("reload notice gets no panel header or hint", !reloadRows.some((row) => /container|esc back|↑↓/.test(row)), JSON.stringify(reloadRows));
 mode.editor = ownEditor;
 swapIn(new OwnEditor());
+
+// --- mouse: a click on a panel must not reach the editor the panel replaced (it would take focus from the dialog)
+const click = (y, height) => container.handleMouse({ type: "click", button: "left", x: 10, y, width: 80, height, screenX: 10, screenY: y });
+editorClicks = 0;
+expect("mouse: a click on our editor reaches it", click(1, 4)?.focus === true && editorClicks === 1, `${editorClicks} clicks`);
+swapIn(dialog);
+const panelHeight = render(80).length;
+for (let y = 0; y < panelHeight; y++) click(y, panelHeight);
+expect("mouse: a click on a dialog panel never reaches the hidden editor", editorClicks === 1, `${editorClicks - 1} clicks leaked`);
+swapIn(new OwnEditor());
+render(80);
 
 swapIn(selectors.theme());
 console.log(render(70).map(strip).join("\n"));
