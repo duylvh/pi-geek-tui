@@ -2,6 +2,11 @@
 
 Forked from pi-droid-styling 2.18.0; earlier history: https://github.com/sting8k/pi-droid-styling/blob/main/CHANGELOG.md
 
+## 0.3.2 - 2026-11-25
+
+### Fixed
+- The thinking-level badge in the statusline changes as soon as Shift+Tab switches the level. It used to keep showing the previous level until the next redraw, such as the next keypress.
+
 ## 0.3.1 - 2026-11-22
 
 Merged upstream pi-geek-tui 0.2.1–0.3.0.
