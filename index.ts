@@ -89,7 +89,6 @@ export default function (pi: ExtensionAPI) {
 	installInteractiveChatVirtualization(InteractiveMode, () => currentVisibleChatTail);
 	let sessionRunSerial = 0;
 
-	let currentThinkingLevel: string | undefined;
 	let assistantSpeedTracker: AssistantSpeedTracker | undefined;
 	const runningToolCalls = new Set<string>();
 
@@ -140,10 +139,6 @@ export default function (pi: ExtensionAPI) {
 		if (event.message.role === "assistant" && runningToolCalls.size === 0) {
 			setLiveState(workingStateForAssistantMessage(event.message));
 		}
-	});
-
-	pi.on("thinking_level_select", (event) => {
-		currentThinkingLevel = event.level;
 	});
 
 	pi.on("message_end", (event) => {
@@ -259,12 +254,6 @@ export default function (pi: ExtensionAPI) {
 		tracker.resetSession();
 		setLiveState(undefined);
 		runningToolCalls.clear();
-		try {
-			currentThinkingLevel = pi.getThinkingLevel();
-		} catch (error) {
-			if (!isStaleContextError(error)) throw error;
-			currentThinkingLevel = undefined;
-		}
 		const config = modules.loadConfig();
 		reportConfigIssue(sessionUi);
 		setGeekAccent(config.accent);
@@ -336,7 +325,7 @@ export default function (pi: ExtensionAPI) {
 					try {
 						const model = ctx.model;
 						return model
-							? { provider: model.provider, id: model.id, reasoning: model.reasoning, thinkingLevel: currentThinkingLevel }
+							? { provider: model.provider, id: model.id, reasoning: model.reasoning, thinkingLevel: pi.getThinkingLevel() }
 							: undefined;
 					} catch (error) {
 						if (isStaleContextError(error)) return undefined;
